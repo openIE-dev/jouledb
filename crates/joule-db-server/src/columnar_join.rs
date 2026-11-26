@@ -142,6 +142,87 @@ impl ColRel {
             }
         }
     }
+
+    /// ZoneMap-pruned + two-stage late-materializing segment loader:
+    /// - Returns `Some(None)` when ZoneMaps or segment-local `filters` eliminate all rows
+    ///   (skipping payload column `pread`s and string dictionary allocations completely!).
+    /// - Returns `Some(Some((seg, sel)))` with non-empty `sel` and sparsely decoded dictionaries.
+    /// - Returns `None` only on schema/expression errors so the caller can fall back cleanly.
+    fn load_filtered_segment<'a>(
+        &'a self,
+        seg_idx: usize,
+        payload_cols: &[&str],
+        filters: &[LocalFilter],
+    ) -> Option<Option<(SegData<'a>, Vec<u32>)>> {
+        if filters.is_empty() {
+            let seg = self.load_segment(seg_idx, payload_cols)?;
+            let n = seg.tc().len;
+            if n == 0 {
+                return Some(None);
+            }
+            return Some(Some((seg, (0..n as u32).collect())));
+        }
+        match self {
+            ColRel::Disk(dt) => {
+                let seg_meta = dt.segments.get(seg_idx)?;
+                if seg_meta.len == 0 {
+                    return Some(None);
+                }
+                // 1. Zero-I/O ZoneMap prune against positive `KeyIn` bitsets/sets!
+                for lf in filters {
+                    if let LocalFilter::KeyIn {
+                        col,
+                        set,
+                        negated: false,
+                    } = lf
+                    {
+                        let ci_opt = dt.col_index.get(col).copied().or_else(|| {
+                            dt.col_order
+                                .iter()
+                                .position(|x| x.eq_ignore_ascii_case(col))
+                        });
+                        if let Some(ci) = ci_opt {
+                            let cm = &seg_meta.cols[ci];
+                            if cm.null_count >= seg_meta.len {
+                                return Some(None);
+                            }
+                            if let (Some(lo), Some(hi)) =
+                                (cm.min_int(seg_meta.len), cm.max_int(seg_meta.len))
+                                && !set.overlaps_range(lo, hi)
+                            {
+                                return Some(None);
+                            }
+                        }
+                    }
+                }
+                // 2. Stage 1: load ONLY filter columns first!
+                let mut fcols_set = HashSet::new();
+                for lf in filters {
+                    lf.collect_cols(self, &mut fcols_set);
+                }
+                let fcols_vec: Vec<String> = fcols_set.into_iter().collect();
+                let fcols_refs: Vec<&str> = fcols_vec.iter().map(String::as_str).collect();
+                let mut tc = dt.load_segment_columns(seg_idx, &fcols_refs).ok()?;
+                let sel = filter_segment_rows(&tc, filters)?;
+                if sel.is_empty() {
+                    return Some(None);
+                }
+                // 3. Stage 2: sparsely load remaining payload columns only for surviving `sel` rows!
+                dt.load_columns_into_selected(seg_idx, payload_cols, Some(&sel), &mut tc)
+                    .ok()?;
+                Some(Some((SegData::Owned(tc), sel)))
+            }
+            ColRel::Mem(_) => {
+                let seg = self.load_segment(seg_idx, payload_cols)?;
+                let sel = filter_segment_rows(seg.tc(), filters)?;
+                if sel.is_empty() {
+                    Some(None)
+                } else {
+                    Some(Some((seg, sel)))
+                }
+            }
+        }
+    }
 }
 
 /// Owned scalar value for compact build rows, group keys, and output assembly.
@@ -297,6 +378,32 @@ impl DenseKeyBits {
         let bit = (k - self.min_key) as usize;
         (self.words[bit >> 6] >> (bit & 63)) & 1 != 0
     }
+
+    #[inline]
+    fn overlaps_range(&self, lo: i64, hi: i64) -> bool {
+        if self.words.is_empty() || hi < self.min_key || lo > self.max_key {
+            return false;
+        }
+        let c_lo = lo.max(self.min_key);
+        let c_hi = hi.min(self.max_key);
+        let b0 = (c_lo - self.min_key) as usize;
+        let b1 = (c_hi - self.min_key) as usize;
+        let w0 = b0 >> 6;
+        let w1 = b1 >> 6;
+        let start_mask = !0u64 << (b0 & 63);
+        let end_mask = if (b1 & 63) == 63 {
+            !0u64
+        } else {
+            (1u64 << ((b1 & 63) + 1)) - 1
+        };
+        if w0 == w1 {
+            return (self.words[w0] & start_mask & end_mask) != 0;
+        }
+        if (self.words[w0] & start_mask) != 0 || (self.words[w1] & end_mask) != 0 {
+            return true;
+        }
+        self.words[(w0 + 1)..w1].iter().any(|&w| w != 0)
+    }
 }
 
 #[derive(Clone)]
@@ -324,6 +431,25 @@ impl IntKeySet {
         match self {
             IntKeySet::Dense(d) => d.contains(k),
             IntKeySet::Hash(s) => s.contains(&k),
+        }
+    }
+
+    #[inline]
+    fn overlaps_range(&self, lo: i64, hi: i64) -> bool {
+        if lo > hi {
+            return false;
+        }
+        match self {
+            IntKeySet::Dense(d) => d.overlaps_range(lo, hi),
+            IntKeySet::Hash(s) => {
+                if s.is_empty() {
+                    false
+                } else if (hi as i128) - (lo as i128) <= (s.len() as i128).min(256) {
+                    (lo..=hi).any(|k| s.contains(&k))
+                } else {
+                    s.iter().any(|&k| k >= lo && k <= hi)
+                }
+            }
         }
     }
 
@@ -1301,6 +1427,20 @@ fn cmp_bvals(a: BVal<'_>, b: BVal<'_>) -> Option<Ordering> {
         (BVal::Float(x), BVal::Float(y)) => x.partial_cmp(&y),
         (BVal::Int(x), BVal::Float(y)) => (x as f64).partial_cmp(&y),
         (BVal::Float(x), BVal::Int(y)) => x.partial_cmp(&(y as f64)),
+        (BVal::Int(x), BVal::Str(y)) => y
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .map(|yi| x.cmp(&yi))
+            .or_else(|| y.trim().parse::<f64>().ok().and_then(|yf| (x as f64).partial_cmp(&yf))),
+        (BVal::Str(x), BVal::Int(y)) => x
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .map(|xi| xi.cmp(&y))
+            .or_else(|| x.trim().parse::<f64>().ok().and_then(|xf| xf.partial_cmp(&(y as f64)))),
+        (BVal::Float(x), BVal::Str(y)) => y.trim().parse::<f64>().ok().and_then(|yf| x.partial_cmp(&yf)),
+        (BVal::Str(x), BVal::Float(y)) => x.trim().parse::<f64>().ok().and_then(|xf| xf.partial_cmp(&y)),
         (BVal::Str(x), BVal::Str(y)) => {
             if x.len() >= 10 && y.len() == 10 && x.as_bytes().get(4) == Some(&b'-') && y.as_bytes().get(4) == Some(&b'-') {
                 Some(x[..10].cmp(y))
@@ -2291,6 +2431,15 @@ fn exec_core_query(
     amorphic: &AmorphicTableStorage,
     cte_rels: &HashMap<String, ColRel>,
 ) -> Option<(Vec<String>, Vec<Vec<serde_json::Value>>)> {
+    exec_core_query_seeded(raw_query, amorphic, cte_rels, None)
+}
+
+fn exec_core_query_seeded(
+    raw_query: &SqlQuery,
+    amorphic: &AmorphicTableStorage,
+    cte_rels: &HashMap<String, ColRel>,
+    seed_filter: Option<(usize, LocalFilter)>,
+) -> Option<(Vec<String>, Vec<Vec<serde_json::Value>>)> {
     // 1. Flatten non-grouped `FROM (SELECT ...)` derived tables (`Q07, Q08, Q09, Q22`)
     let mut query = flatten_derived_subquery(raw_query).unwrap_or_else(|| raw_query.clone());
 
@@ -2373,6 +2522,11 @@ fn exec_core_query(
     // 7. Partition conjuncts: pure single-table filters FIRST (for domain pushdown into correlated subqueries!),
     //    equi-join edges `(ri, col_i) == (rj, col_j)`, subqueries, and cross-table residuals.
     let mut local_filters: Vec<Vec<LocalFilter>> = vec![Vec::new(); rels.len()];
+    if let Some((sri, slf)) = seed_filter
+        && sri < local_filters.len()
+    {
+        local_filters[sri].push(slf);
+    }
     let mut equi_edges: Vec<((usize, String), (usize, String))> = Vec::new();
     let mut deferred_subq_conjs: Vec<Expression> = Vec::new();
     let mut residual_conjs: Vec<Expression> = Vec::new();
@@ -2414,7 +2568,12 @@ fn exec_core_query(
         residual_conjs.push(conj);
     }
 
-    // 8. Decorrelate `IN`, `EXISTS` / `NOT EXISTS`, correlated scalar `< / > / =`, and uncorrelated scalar subqueries!
+    // 8a. Propagate selective dimension key sets BEFORE decorrelating subqueries (`Q02`, `Q21`!)
+    if !deferred_subq_conjs.is_empty() {
+        propagate_initial_key_sets(&rels, &equi_edges, &mut local_filters)?;
+    }
+
+    // 8b. Decorrelate `IN`, `EXISTS` / `NOT EXISTS`, correlated scalar `< / > / =`, and uncorrelated scalar subqueries!
     for sconj in deferred_subq_conjs {
         decorrelate_conjunct(
             &sconj,
@@ -2427,8 +2586,7 @@ fn exec_core_query(
         )?;
     }
 
-    // 9. Propagate selective `KeyIn` / small-dimension integer key sets across equivalence classes!
-    //    (e.g., `Q18` `o_orderkey IN {57}` -> pushes `l_orderkey IN {57}` directly onto `lineitem`!)
+    // 9. Propagate newly produced `KeyIn` / selective dimension key sets across equivalence classes!
     propagate_initial_key_sets(&rels, &equi_edges, &mut local_filters)?;
 
     // 10. Execute single-relation or bushy star-join query!
@@ -2761,7 +2919,7 @@ fn resolve_uncorrelated_subqueries_in_expr(
 }
 
 /// Compute selective surviving integer key set for `(outer_ri, outer_col)` if `outer_ri`
-/// is small (`<= 300,000` rows) and already has local filters (`Q02`, `Q17`, `Q20`)!
+/// (or an equi-joined neighbor) has local filters (`Q02`, `Q17`, `Q20`, `Q21`)!
 fn try_compute_outer_domain_set(
     outer_ri: usize,
     outer_col: &str,
@@ -2769,31 +2927,25 @@ fn try_compute_outer_domain_set(
     equi_edges: &[((usize, String), (usize, String))],
     local_filters: &[Vec<LocalFilter>],
 ) -> Option<IntKeySet> {
-    // Either `outer_ri` itself has local filters and <= 300k rows, OR an equi-joined neighbor does!
-    let mut target = None;
-    if !local_filters[outer_ri].is_empty() && outer_rels[outer_ri].rel.total_rows() <= 300_000 {
-        target = Some((outer_ri, outer_col.to_string()));
-    } else {
-        for ((ra, ca), (rb, cb)) in equi_edges {
-            if *ra == outer_ri
-                && ca.eq_ignore_ascii_case(outer_col)
-                && !local_filters[*rb].is_empty()
-                && outer_rels[*rb].rel.total_rows() <= 300_000
-            {
-                target = Some((*rb, cb.clone()));
-                break;
-            }
-            if *rb == outer_ri
-                && cb.eq_ignore_ascii_case(outer_col)
-                && !local_filters[*ra].is_empty()
-                && outer_rels[*ra].rel.total_rows() <= 300_000
-            {
-                target = Some((*ra, ca.clone()));
-                break;
+    const MAX_DOMAIN_SCAN_ROWS: usize = 65_000_000;
+    let mut best: Option<(usize, String, usize)> = None;
+    let mut consider = |ri: usize, col: &str| {
+        if !local_filters[ri].is_empty() {
+            let nrows = outer_rels[ri].rel.total_rows();
+            if nrows <= MAX_DOMAIN_SCAN_ROWS && best.as_ref().is_none_or(|b| nrows < b.2) {
+                best = Some((ri, col.to_string(), nrows));
             }
         }
+    };
+    consider(outer_ri, outer_col);
+    for ((ra, ca), (rb, cb)) in equi_edges {
+        if *ra == outer_ri && ca.eq_ignore_ascii_case(outer_col) {
+            consider(*rb, cb);
+        } else if *rb == outer_ri && cb.eq_ignore_ascii_case(outer_col) {
+            consider(*ra, ca);
+        }
     }
-    let (ri, kcol) = target?;
+    let (ri, kcol, _) = best?;
     scan_distinct_int_keys(&outer_rels[ri].rel, &kcol, &local_filters[ri])
 }
 
@@ -2802,21 +2954,17 @@ fn scan_distinct_int_keys(
     key_col: &str,
     filters: &[LocalFilter],
 ) -> Option<IntKeySet> {
-    let mut needed = HashSet::new();
-    needed.insert(key_col.to_string());
-    for f in filters {
-        f.collect_cols(rel, &mut needed);
-    }
-    let col_vec: Vec<String> = needed.into_iter().collect();
-    let col_refs: Vec<&str> = col_vec.iter().map(String::as_str).collect();
+    let resolved_k = rel.resolve_col_name(key_col)?;
+    let col_refs: [&str; 1] = [resolved_k.as_str()];
     let n_segs = rel.num_segments();
     let parts: Option<Vec<Vec<i64>>> = (0..n_segs)
         .into_par_iter()
         .map(|si| {
-            let seg = rel.load_segment(si, &col_refs)?;
+            let Some((seg, sel)) = rel.load_filtered_segment(si, &col_refs, filters)? else {
+                return Some(Vec::new());
+            };
             let tc = seg.tc();
-            let sel = filter_segment_rows(tc, filters)?;
-            let kc = tc.cols.get(key_col)?;
+            let kc = tc.cols.get(&resolved_k)?;
             let mut v = Vec::with_capacity(sel.len());
             for &r in &sel {
                 if let BVal::Int(k) = read_col_bval(kc, r as usize) {
@@ -2950,27 +3098,36 @@ fn decorrelate_conjunct(
         }
 
         let (in_eq_col, out_ri, out_eq_col) = eq_corr?;
+        // Push selective outer correlation key domain into BOTH `NeqExists` (`Q21`) and `EXISTS` (`Q04`)!
+        if let Some(ds) =
+            try_compute_outer_domain_set(out_ri, &out_eq_col, outer_rels, equi_edges, local_filters)
+            && ds.estimated_len().saturating_mul(2) <= inner_rel.total_rows().max(1)
+        {
+            inner_filters.push(LocalFilter::KeyIn {
+                col: in_eq_col.clone(),
+                set: ds,
+                negated: false,
+            });
+        }
         if let Some((in_ne_col, ne_out_ri, out_ne_col)) = ne_corr {
             if ne_out_ri != out_ri {
                 return None;
             }
             // Stream `inner_rel` in parallel building `FxMap<i64, NeqSummary>` (`Q21`!)
-            let mut needed = HashSet::new();
-            needed.insert(in_eq_col.clone());
-            needed.insert(in_ne_col.clone());
-            for f in &inner_filters {
-                f.collect_cols(inner_rel, &mut needed);
-            }
-            let col_vec: Vec<String> = needed.into_iter().collect();
-            let col_refs: Vec<&str> = col_vec.iter().map(String::as_str).collect();
+            let rk = inner_rel.resolve_col_name(&in_eq_col)?;
+            let rn = inner_rel.resolve_col_name(&in_ne_col)?;
+            let col_refs: [&str; 2] = [rk.as_str(), rn.as_str()];
             let parts: Option<Vec<FxMap<i64, NeqSummary>>> = (0..inner_rel.num_segments())
                 .into_par_iter()
                 .map(|si| {
-                    let seg = inner_rel.load_segment(si, &col_refs)?;
+                    let Some((seg, sel)) =
+                        inner_rel.load_filtered_segment(si, &col_refs, &inner_filters)?
+                    else {
+                        return Some(FxMap::default());
+                    };
                     let tc = seg.tc();
-                    let sel = filter_segment_rows(tc, &inner_filters)?;
-                    let kc = tc.cols.get(&in_eq_col)?;
-                    let nc = tc.cols.get(&in_ne_col)?;
+                    let kc = tc.cols.get(&rk)?;
+                    let nc = tc.cols.get(&rn)?;
                     let mut m: FxMap<i64, NeqSummary> = FxMap::default();
                     for &r in &sel {
                         let row = r as usize;
@@ -3212,27 +3369,17 @@ fn decorrelate_conjunct(
             return Some(());
         }
 
-        // General multi-table correlated aggregate (`Q02`!): inject `IN (...)` if domain <= 4096 keys
-        if let Some(IntKeySet::Dense(ref d)) = domain_set0
-            && d.words.iter().map(|w| w.count_ones() as usize).sum::<usize>() <= 4096
-        {
-            let mut lits = Vec::new();
-            for k in d.min_key..=d.max_key {
-                if d.contains(k) {
-                    lits.push(Expression::Literal(AstValue::Int(k)));
-                }
-            }
-            if !lits.is_empty() {
-                inner_only.push(Expression::In {
-                    expr: Box::new(Expression::QualifiedColumn {
-                        table: inner_rels[in_ri0].alias.clone(),
-                        column: in_c0.clone(),
-                    }),
-                    list: lits,
+        // General multi-table correlated aggregate (`Q02`!): inject `KeyIn` bitset/hash directly as a seed filter!
+        let seed_f = domain_set0.map(|ds| {
+            (
+                in_ri0,
+                LocalFilter::KeyIn {
+                    col: in_c0.clone(),
+                    set: ds,
                     negated: false,
-                });
-            }
-        }
+                },
+            )
+        });
 
         let grouped_q = SqlQuery {
             ctes: Vec::new(),
@@ -3249,7 +3396,7 @@ fn decorrelate_conjunct(
             set_op: None,
             as_of_timestamp: None,
         };
-        let (_, grows) = exec_core_query(&grouped_q, amorphic, cte_rels)?;
+        let (_, grows) = exec_core_query_seeded(&grouped_q, amorphic, cte_rels, seed_f)?;
         if corr_pairs.len() == 1 {
             let tcol = map_to_target_col(out_ri0, out_c0)?;
             let mut m: FxMap<i64, f64> = FxMap::default();
@@ -3379,26 +3526,17 @@ fn try_fast_single_table_corr_agg(
         filters.push(LocalFilter::Expr(p.clone()));
     }
 
-    let mut needed = HashSet::new();
-    needed.insert(k0_col.clone());
-    if corr_pairs.len() == 2 {
-        needed.insert(corr_pairs[1].0.1.clone());
-    }
-    needed.insert(val_col.clone());
-    for f in &filters {
-        f.collect_cols(rel, &mut needed);
-    }
-    let col_vec: Vec<String> = needed.into_iter().collect();
-    let col_refs: Vec<&str> = col_vec.iter().map(String::as_str).collect();
-
+    let rk0 = rel.resolve_col_name(k0_col)?;
     if corr_pairs.len() == 1 {
+        let col_refs: [&str; 2] = [rk0.as_str(), val_col.as_str()];
         let parts: Option<Vec<FxMap<i64, (f64, u64)>>> = (0..rel.num_segments())
             .into_par_iter()
             .map(|si| {
-                let seg = rel.load_segment(si, &col_refs)?;
+                let Some((seg, sel)) = rel.load_filtered_segment(si, &col_refs, &filters)? else {
+                    return Some(FxMap::default());
+                };
                 let tc = seg.tc();
-                let sel = filter_segment_rows(tc, &filters)?;
-                let kc = tc.cols.get(k0_col)?;
+                let kc = tc.cols.get(&rk0)?;
                 let vc = tc.cols.get(&val_col)?;
                 let mut m: FxMap<i64, (f64, u64)> = FxMap::default();
                 for &r in &sel {
@@ -3448,15 +3586,17 @@ fn try_fast_single_table_corr_agg(
         }
         Some(FastCorrMap::M1(out))
     } else {
-        let k1_col = &corr_pairs[1].0.1;
+        let rk1 = rel.resolve_col_name(&corr_pairs[1].0.1)?;
+        let col_refs: [&str; 3] = [rk0.as_str(), rk1.as_str(), val_col.as_str()];
         let parts: Option<Vec<FxMap<(i64, i64), (f64, u64)>>> = (0..rel.num_segments())
             .into_par_iter()
             .map(|si| {
-                let seg = rel.load_segment(si, &col_refs)?;
+                let Some((seg, sel)) = rel.load_filtered_segment(si, &col_refs, &filters)? else {
+                    return Some(FxMap::default());
+                };
                 let tc = seg.tc();
-                let sel = filter_segment_rows(tc, &filters)?;
-                let kc0 = tc.cols.get(k0_col)?;
-                let kc1 = tc.cols.get(k1_col)?;
+                let kc0 = tc.cols.get(&rk0)?;
+                let kc1 = tc.cols.get(&rk1)?;
                 let vc = tc.cols.get(&val_col)?;
                 let mut m: FxMap<(i64, i64), (f64, u64)> = FxMap::default();
                 for &r in &sel {
@@ -3530,10 +3670,10 @@ fn propagate_initial_key_sets(
             }
         }
     }
-    // Also check small filtered dimension tables (`<= 250_000` rows) that share an equi-join key
-    // with TWO or more other tables (`Q09`: `part` `LIKE '%green%'` shares `partkey` with both `partsupp` and `lineitem`!)
+    // Also check filtered tables (`<= 20_000_000` rows, covering `orders` at `SF=10`) that share an equi-join key
+    // with other tables (`Q09`: `part` `LIKE '%green%'`, `Q10`: `orders` quarter filter -> pushes `custkey` & `orderkey`!)
     for (ri, r) in rels.iter().enumerate() {
-        if !local_filters[ri].is_empty() && r.rel.total_rows() <= 250_000 {
+        if !local_filters[ri].is_empty() && r.rel.total_rows() <= 20_000_000 {
             let mut key_cols = HashSet::new();
             for ((ra, ca), (rb, cb)) in equi_edges {
                 if *ra == ri {
@@ -3617,6 +3757,65 @@ enum JoinExpr {
         whens: Vec<(JoinExpr, JoinExpr)>,
         else_expr: Option<Box<JoinExpr>>,
     },
+}
+
+impl JoinExpr {
+    fn collect_slots(&self, out: &mut HashSet<usize>) {
+        match self {
+            JoinExpr::LitNull
+            | JoinExpr::LitBool(_)
+            | JoinExpr::LitInt(_)
+            | JoinExpr::LitFloat(_)
+            | JoinExpr::LitStr(_) => {}
+            JoinExpr::Slot(s) => {
+                out.insert(*s);
+            }
+            JoinExpr::Neg(e)
+            | JoinExpr::Not(e)
+            | JoinExpr::IsNull(e, _)
+            | JoinExpr::Like { expr: e, .. }
+            | JoinExpr::Substr { expr: e, .. }
+            | JoinExpr::ExtractYear(e)
+            | JoinExpr::ExtractMonth(e)
+            | JoinExpr::ExtractDay(e) => e.collect_slots(out),
+            JoinExpr::Arith(a, _, b)
+            | JoinExpr::Cmp(a, _, b)
+            | JoinExpr::And(a, b)
+            | JoinExpr::Or(a, b) => {
+                a.collect_slots(out);
+                b.collect_slots(out);
+            }
+            JoinExpr::Between {
+                expr, low, high, ..
+            } => {
+                expr.collect_slots(out);
+                low.collect_slots(out);
+                high.collect_slots(out);
+            }
+            JoinExpr::InList { expr, list, .. } => {
+                expr.collect_slots(out);
+                for x in list {
+                    x.collect_slots(out);
+                }
+            }
+            JoinExpr::Case {
+                operand,
+                whens,
+                else_expr,
+            } => {
+                if let Some(op) = operand {
+                    op.collect_slots(out);
+                }
+                for (w, t) in whens {
+                    w.collect_slots(out);
+                    t.collect_slots(out);
+                }
+                if let Some(el) = else_expr {
+                    el.collect_slots(out);
+                }
+            }
+        }
+    }
 }
 
 fn compile_join_expr(
@@ -4449,113 +4648,108 @@ fn build_snowflake_branch(
                 node_cols_set.insert(rc);
             }
         }
+        let mut resolved_child_fks: Vec<String> = Vec::with_capacity(built_children.len());
         for (pcol, _) in &built_children {
-            if let Some(rc) = rels[node].rel.resolve_col_name(pcol) {
-                node_cols_set.insert(rc);
-            }
+            let rc = rels[node].rel.resolve_col_name(pcol)?;
+            node_cols_set.insert(rc.clone());
+            resolved_child_fks.push(rc);
         }
-        let mut scan_cols_set = node_cols_set.clone();
-        for lf in &local_filters[node] {
-            lf.collect_cols(&rels[node].rel, &mut scan_cols_set);
-        }
-        if scan_cols_set.is_empty()
+        if node_cols_set.is_empty()
             && let Some(first_c) = rels[node].rel.col_order().first()
         {
-            scan_cols_set.insert(first_c.clone());
+            node_cols_set.insert(first_c.clone());
         }
         let keep_node_cols: Vec<String> = node_cols_set.into_iter().collect();
-        let scan_cols_vec: Vec<String> = scan_cols_set.into_iter().collect();
-        let scan_refs: Vec<&str> = scan_cols_vec.iter().map(String::as_str).collect();
+        let keep_refs: Vec<&str> = keep_node_cols.iter().map(String::as_str).collect();
 
         // Prepare output builders for `keep_node_cols` + all `built_children` columns
         let mut out_builders: Option<(Vec<(usize, String)>, Vec<ColBuilder>)> = None;
 
-        for si in 0..rels[node].rel.num_segments() {
-            let seg = rels[node].rel.load_segment(si, &scan_refs)?;
-            let tc = seg.tc();
-            let sel = filter_segment_rows(tc, &local_filters[node])?;
-            if out_builders.is_none() {
-                let mut ids = Vec::new();
-                let mut blds = Vec::new();
-                for kc in &keep_node_cols {
-                    let c = tc.cols.get(kc)?;
-                    ids.push((node, kc.clone()));
-                    blds.push(ColBuilder::new_for_sample(c)?);
-                }
-                for (_, cb) in &built_children {
-                    for cc in &cb.cols {
-                        ids.push(cc.id.clone());
-                        blds.push(ColBuilder::new_for_sample(&cc.data)?);
-                    }
-                }
-                out_builders = Some((ids, blds));
-            }
-            if sel.is_empty() {
-                continue;
-            }
-            let (_, blds) = out_builders.as_mut()?;
+        let n_segs = rels[node].rel.num_segments();
+        const PAR_BATCH_SEGS: usize = 16;
+        for seg_base in (0..n_segs).step_by(PAR_BATCH_SEGS) {
+            let seg_end = (seg_base + PAR_BATCH_SEGS).min(n_segs);
+            let loaded_batch: Vec<Option<(SegData<'_>, Vec<u32>)>> = (seg_base..seg_end)
+                .into_par_iter()
+                .map(|si| {
+                    rels[node]
+                        .rel
+                        .load_filtered_segment(si, &keep_refs, &local_filters[node])
+                })
+                .collect::<Option<Vec<_>>>()?;
 
-            let node_col_refs: Vec<&Col> = keep_node_cols
-                .iter()
-                .filter_map(|kc| tc.cols.get(kc))
-                .collect();
-            if node_col_refs.len() != keep_node_cols.len() {
-                return None;
-            }
-            let child_fk_cols: Vec<&Col> = built_children
-                .iter()
-                .filter_map(|(fk, _)| tc.cols.get(fk))
-                .collect();
-            if child_fk_cols.len() != built_children.len() {
-                return None;
-            }
-
-            // Recursive emission across `built_children` (handles both 1:1 and 1:N child matches)
-            fn emit_with_children(
-                ci_idx: usize,
-                node_row: usize,
-                node_col_refs: &[&Col],
-                child_fk_cols: &[&Col],
-                built_children: &[(String, BuiltBranch)],
-                chosen_child_rows: &mut Vec<usize>,
-                blds: &mut [ColBuilder],
-            ) {
-                if ci_idx == built_children.len() {
-                    let mut bi = 0usize;
-                    for &nc in node_col_refs {
-                        blds[bi].push_from_col(nc, node_row);
-                        bi += 1;
+            for entry in loaded_batch {
+                let Some((seg, sel)) = entry else {
+                    continue;
+                };
+                let tc = seg.tc();
+                if out_builders.is_none() {
+                    let mut ids = Vec::new();
+                    let mut blds = Vec::new();
+                    for kc in &keep_node_cols {
+                        let c = tc.cols.get(kc)?;
+                        ids.push((node, kc.clone()));
+                        blds.push(ColBuilder::new_for_sample(c)?);
                     }
-                    for (chi, (_, cb)) in built_children.iter().enumerate() {
-                        let crow = chosen_child_rows[chi];
+                    for (_, cb) in &built_children {
                         for cc in &cb.cols {
-                            blds[bi].push_from_col(&cc.data, crow);
-                            bi += 1;
+                            ids.push(cc.id.clone());
+                            blds.push(ColBuilder::new_for_sample(&cc.data)?);
                         }
                     }
-                    return;
+                    out_builders = Some((ids, blds));
                 }
-                let BVal::Int(fk) = read_col_bval(child_fk_cols[ci_idx], node_row) else {
-                    return;
-                };
-                let cb = &built_children[ci_idx].1;
-                if let Some(r_idx) = cb.probe_single_1(fk) {
-                    chosen_child_rows.push(r_idx as usize);
-                    emit_with_children(
-                        ci_idx + 1,
-                        node_row,
-                        node_col_refs,
-                        child_fk_cols,
-                        built_children,
-                        chosen_child_rows,
-                        blds,
-                    );
-                    chosen_child_rows.pop();
-                } else if let BranchLookup::HashMulti1 { map, row_ids } = &cb.lookup
-                    && let Some(&(st, ln)) = map.get(&fk)
-                {
-                    for &ri_u32 in &row_ids[st as usize..(st + ln) as usize] {
-                        chosen_child_rows.push(ri_u32 as usize);
+                if sel.is_empty() {
+                    continue;
+                }
+                let (_, blds) = out_builders.as_mut()?;
+
+                let node_col_refs: Vec<&Col> = keep_node_cols
+                    .iter()
+                    .filter_map(|kc| tc.cols.get(kc))
+                    .collect();
+                if node_col_refs.len() != keep_node_cols.len() {
+                    return None;
+                }
+                let child_fk_cols: Vec<&Col> = resolved_child_fks
+                    .iter()
+                    .filter_map(|fk| tc.cols.get(fk))
+                    .collect();
+                if child_fk_cols.len() != built_children.len() {
+                    return None;
+                }
+
+                // Recursive emission across `built_children` (handles both 1:1 and 1:N child matches)
+                fn emit_with_children(
+                    ci_idx: usize,
+                    node_row: usize,
+                    node_col_refs: &[&Col],
+                    child_fk_cols: &[&Col],
+                    built_children: &[(String, BuiltBranch)],
+                    chosen_child_rows: &mut Vec<usize>,
+                    blds: &mut [ColBuilder],
+                ) {
+                    if ci_idx == built_children.len() {
+                        let mut bi = 0usize;
+                        for &nc in node_col_refs {
+                            blds[bi].push_from_col(nc, node_row);
+                            bi += 1;
+                        }
+                        for (chi, (_, cb)) in built_children.iter().enumerate() {
+                            let crow = chosen_child_rows[chi];
+                            for cc in &cb.cols {
+                                blds[bi].push_from_col(&cc.data, crow);
+                                bi += 1;
+                            }
+                        }
+                        return;
+                    }
+                    let BVal::Int(fk) = read_col_bval(child_fk_cols[ci_idx], node_row) else {
+                        return;
+                    };
+                    let cb = &built_children[ci_idx].1;
+                    if let Some(r_idx) = cb.probe_single_1(fk) {
+                        chosen_child_rows.push(r_idx as usize);
                         emit_with_children(
                             ci_idx + 1,
                             node_row,
@@ -4566,22 +4760,58 @@ fn build_snowflake_branch(
                             blds,
                         );
                         chosen_child_rows.pop();
+                    } else if let BranchLookup::HashMulti1 { map, row_ids } = &cb.lookup
+                        && let Some(&(st, ln)) = map.get(&fk)
+                    {
+                        for &ri_u32 in &row_ids[st as usize..(st + ln) as usize] {
+                            chosen_child_rows.push(ri_u32 as usize);
+                            emit_with_children(
+                                ci_idx + 1,
+                                node_row,
+                                node_col_refs,
+                                child_fk_cols,
+                                built_children,
+                                chosen_child_rows,
+                                blds,
+                            );
+                            chosen_child_rows.pop();
+                        }
                     }
                 }
-            }
 
-            let mut chosen = Vec::with_capacity(built_children.len());
-            for &r_u32 in &sel {
-                emit_with_children(
-                    0,
-                    r_u32 as usize,
-                    &node_col_refs,
-                    &child_fk_cols,
-                    &built_children,
-                    &mut chosen,
-                    blds,
-                );
+                let mut chosen = Vec::with_capacity(built_children.len());
+                for &r_u32 in &sel {
+                    emit_with_children(
+                        0,
+                        r_u32 as usize,
+                        &node_col_refs,
+                        &child_fk_cols,
+                        &built_children,
+                        &mut chosen,
+                        blds,
+                    );
+                }
             }
+        }
+
+        if out_builders.is_none() && n_segs > 0 {
+            // Zero surviving rows across all segments: initialize empty typed columns from segment 0
+            let seg0 = rels[node].rel.load_segment(0, &keep_refs)?;
+            let tc0 = seg0.tc();
+            let mut ids = Vec::new();
+            let mut blds = Vec::new();
+            for kc in &keep_node_cols {
+                let c = tc0.cols.get(kc)?;
+                ids.push((node, kc.clone()));
+                blds.push(ColBuilder::new_for_sample(c)?);
+            }
+            for (_, cb) in &built_children {
+                for cc in &cb.cols {
+                    ids.push(cc.id.clone());
+                    blds.push(ColBuilder::new_for_sample(&cc.data)?);
+                }
+            }
+            out_builders = Some((ids, blds));
         }
 
         let (ids, blds) = match out_builders {
@@ -4979,12 +5209,12 @@ fn exec_bushy_plan(
 
     branches.sort_by_key(|b| b.num_rows);
 
-    // Also push single-key selective branches (`<= 65,536` rows and `< probe_rows / 4`) into `probe_ri` local_filters!
+    // Push single-key selective branches (`<= 4,000,000` rows and `<= probe_rows / 3`) into `probe_ri` local_filters!
     let probe_total = rels[probe_ri].rel.total_rows();
     for b in &branches {
         if b.probe_key_cols.len() == 1
-            && b.num_rows <= 65_536
-            && b.num_rows.saturating_mul(4) <= probe_total
+            && b.num_rows <= 4_000_000
+            && b.num_rows.saturating_mul(3) <= probe_total
             && let Some(ks) = b.key_set_1()
         {
             local_filters[probe_ri].push(LocalFilter::KeyIn {
@@ -4995,7 +5225,9 @@ fn exec_bushy_plan(
         }
     }
 
-    // 7. Prepare `probe_ri` column list & fast slot lookup table!
+    // 7. Prepare `probe_ri` Stage-2 payload column list & fast slot lookup table!
+    // Note: filter-only columns stay in `local_filters[probe_ri]` so `load_filtered_segment`
+    // reads them in Stage 1 and never materializes unused payload columns on pruned segments.
     let mut probe_cols_set = needed_cols_by_rel[probe_ri].clone();
     for b in &branches {
         for pk in &b.probe_key_cols {
@@ -5003,9 +5235,6 @@ fn exec_bushy_plan(
                 probe_cols_set.insert(rc);
             }
         }
-    }
-    for lf in &local_filters[probe_ri] {
-        lf.collect_cols(&rels[probe_ri].rel, &mut probe_cols_set);
     }
     if probe_cols_set.is_empty()
         && let Some(first_c) = rels[probe_ri].rel.col_order().first()
@@ -5056,16 +5285,22 @@ fn exec_bushy_plan(
     let n_probe_segs = rels[probe_ri].rel.num_segments();
     let n_slots = slot_map.len();
 
-    // 8. Stream `probe_ri` segments in parallel via Rayon!
+    // 8. Stream `probe_ri` segments in parallel via Rayon (with ZoneMap + 2-stage late materialization)!
     if is_agg_query {
         if compiled_groups.is_empty() {
             // Ungrouped aggregate (`Q06`, `Q14`, `Q17`, `Q19`)
             let seg_accs: Option<Vec<Vec<AggState>>> = (0..n_probe_segs)
                 .into_par_iter()
                 .map(|si| {
-                    let seg = rels[probe_ri].rel.load_segment(si, &probe_col_refs)?;
+                    let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+                        si,
+                        &probe_col_refs,
+                        &local_filters[probe_ri],
+                    )?
+                    else {
+                        return Some(agg_specs.iter().map(|s| AggState::new(s.op)).collect());
+                    };
                     let tc = seg.tc();
-                    let sel = filter_segment_rows(tc, &local_filters[probe_ri])?;
                     let pcols: Vec<&Col> = probe_col_vec
                         .iter()
                         .filter_map(|c| tc.cols.get(c))
@@ -5091,7 +5326,8 @@ fn exec_bushy_plan(
                             &mut tuple,
                             &mut |tup| {
                                 for (ai, spec) in agg_specs.iter().enumerate() {
-                                    let v = spec.arg.as_ref().map_or(BVal::Int(1), |je| je.eval(tup));
+                                    let v =
+                                        spec.arg.as_ref().map_or(BVal::Int(1), |je| je.eval(tup));
                                     accs[ai].update(spec.op, v);
                                 }
                             },
@@ -5125,80 +5361,351 @@ fn exec_bushy_plan(
                 .collect();
             return Some((out_names, vec![row]));
         } else {
-            // Grouped aggregate (`Q03, Q04, Q05, Q07, Q08, Q09, Q10, Q11, Q12, Q16, Q18, Q21, Q22`)
-            let seg_maps: Option<Vec<FxMap<Vec<GKeyElem>, Vec<AggState>>>> = (0..n_probe_segs)
-                .into_par_iter()
-                .map(|si| {
-                    let seg = rels[probe_ri].rel.load_segment(si, &probe_col_refs)?;
-                    let tc = seg.tc();
-                    let sel = filter_segment_rows(tc, &local_filters[probe_ri])?;
-                    let pcols: Vec<&Col> = probe_col_vec
-                        .iter()
-                        .filter_map(|c| tc.cols.get(c))
-                        .collect();
-                    if pcols.len() != probe_col_vec.len() {
-                        return None;
-                    }
-                    let mut gmap: FxMap<Vec<GKeyElem>, Vec<AggState>> = FxMap::default();
-                    let mut chosen_b = vec![0usize; branches.len()];
-                    let mut tuple = vec![BVal::Null; n_slots];
-                    let mut key_buf: Vec<GKeyElem> = Vec::with_capacity(compiled_groups.len());
+            // Fast Path A: 64-Shard Radix-Partitioned Single-`i64` `GROUP BY` (`Q18` `lineitem` 15M groups!)
+            let single_int_group = branches.is_empty()
+                && compiled_residuals.is_empty()
+                && compiled_groups.len() == 1
+                && agg_specs.len() <= 2
+                && !agg_specs
+                    .iter()
+                    .any(|s| matches!(s.op, AggOp::CountDistinctInt | AggOp::Min | AggOp::Max))
+                && matches!(compiled_groups[0], JoinExpr::Slot(gs) if matches!(slot_srcs[gs], SlotSource::Probe(pci) if rels[probe_ri].rel.col_is_int(&probe_col_vec[pci])));
 
-                    for &r_u32 in &sel {
-                        probe_row_recursive(
-                            0,
-                            r_u32 as usize,
-                            &pcols,
-                            &branches,
-                            &branch_probe_key_idxs,
-                            &slot_srcs,
-                            &compiled_residuals,
-                            &mut chosen_b,
-                            &mut tuple,
-                            &mut |tup| {
-                                key_buf.clear();
-                                for ge in &compiled_groups {
-                                    key_buf.push(GKeyElem::from_bval(ge.eval(tup)));
+            if single_int_group {
+                const RADIX_SHARDS: usize = 64;
+                let op0 = agg_specs.first().map_or(AggOp::CountStar, |s| s.op);
+                let op1 = agg_specs.get(1).map_or(AggOp::CountStar, |s| s.op);
+                let seg_shards: Option<Vec<Vec<FxMap<Option<i64>, [AggState; 2]>>>> =
+                    (0..n_probe_segs)
+                        .into_par_iter()
+                        .map(|si| {
+                            let mut shards: Vec<FxMap<Option<i64>, [AggState; 2]>> =
+                                (0..RADIX_SHARDS).map(|_| FxMap::default()).collect();
+                            let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+                                si,
+                                &probe_col_refs,
+                                &local_filters[probe_ri],
+                            )?
+                            else {
+                                return Some(shards);
+                            };
+                            let tc = seg.tc();
+                            let pcols: Vec<&Col> = probe_col_vec
+                                .iter()
+                                .filter_map(|c| tc.cols.get(c))
+                                .collect();
+                            if pcols.len() != probe_col_vec.len() {
+                                return None;
+                            }
+                            let mut tuple = vec![BVal::Null; n_slots];
+                            for &r_u32 in &sel {
+                                let r_idx = r_u32 as usize;
+                                for (si_slot, src) in slot_srcs.iter().enumerate() {
+                                    if let SlotSource::Probe(pci) = *src {
+                                        tuple[si_slot] = read_col_bval(pcols[pci], r_idx);
+                                    }
                                 }
-                                if let Some(accs) = gmap.get_mut(&key_buf) {
-                                    for (ai, spec) in agg_specs.iter().enumerate() {
-                                        let v = spec
-                                            .arg
-                                            .as_ref()
-                                            .map_or(BVal::Int(1), |je| je.eval(tup));
-                                        accs[ai].update(spec.op, v);
+                                let gk = match compiled_groups[0].eval(&tuple) {
+                                    BVal::Int(k) => Some(k),
+                                    BVal::Null => None,
+                                    _ => return None,
+                                };
+                                let sh = match gk {
+                                    Some(k) => {
+                                        (((k as u64).wrapping_mul(0x517cc1b727220a95)) >> 58)
+                                            as usize
+                                    }
+                                    None => 0,
+                                };
+                                let v0 = agg_specs.first().map_or(BVal::Null, |sp| {
+                                    sp.arg.as_ref().map_or(BVal::Int(1), |je| je.eval(&tuple))
+                                });
+                                let v1 = agg_specs.get(1).map_or(BVal::Null, |sp| {
+                                    sp.arg.as_ref().map_or(BVal::Int(1), |je| je.eval(&tuple))
+                                });
+                                let accs = shards[sh]
+                                    .entry(gk)
+                                    .or_insert_with(|| [AggState::new(op0), AggState::new(op1)]);
+                                if !agg_specs.is_empty() {
+                                    accs[0].update(op0, v0);
+                                }
+                                if agg_specs.len() == 2 {
+                                    accs[1].update(op1, v1);
+                                }
+                            }
+                            Some(shards)
+                        })
+                        .collect();
+
+                let seg_shards = seg_shards?;
+                let shard_rows: Vec<Vec<Vec<OwnedVal>>> = (0..RADIX_SHARDS)
+                    .into_par_iter()
+                    .map(|sh| {
+                        let mut merged: FxMap<Option<i64>, [AggState; 2]> = FxMap::default();
+                        for seg_vec in &seg_shards {
+                            for (&gk, part) in &seg_vec[sh] {
+                                if let Some(dst) = merged.get_mut(&gk) {
+                                    if !agg_specs.is_empty() {
+                                        dst[0].merge(op0, part[0].clone());
+                                    }
+                                    if agg_specs.len() == 2 {
+                                        dst[1].merge(op1, part[1].clone());
                                     }
                                 } else {
-                                    let mut accs: Vec<AggState> =
-                                        agg_specs.iter().map(|s| AggState::new(s.op)).collect();
-                                    for (ai, spec) in agg_specs.iter().enumerate() {
-                                        let v = spec
-                                            .arg
-                                            .as_ref()
-                                            .map_or(BVal::Int(1), |je| je.eval(tup));
-                                        accs[ai].update(spec.op, v);
-                                    }
-                                    gmap.insert(key_buf.clone(), accs);
+                                    merged.insert(gk, part.clone());
                                 }
-                            },
-                        );
-                    }
-                    Some(gmap)
-                })
-                .collect();
+                            }
+                        }
+                        let mut out_sh: Vec<Vec<OwnedVal>> = Vec::new();
+                        let mut gvals = vec![OwnedVal::Null; 1];
+                        let mut avals = vec![OwnedVal::Null; agg_specs.len()];
+                        for (gk, st_arr) in merged {
+                            gvals[0] = gk.map_or(OwnedVal::Null, OwnedVal::Int);
+                            for (ai, spec) in agg_specs.iter().enumerate() {
+                                avals[ai] = st_arr[ai].finalize(spec.op);
+                            }
+                            if let Some(ref hc) = having_compiled
+                                && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                            {
+                                continue;
+                            }
+                            let row: Vec<OwnedVal> = post_selects
+                                .iter()
+                                .map(|pe| pe.eval(&gvals, &avals))
+                                .collect();
+                            out_sh.push(row);
+                        }
+                        out_sh
+                    })
+                    .collect();
 
-            let mut merged: FxMap<Vec<GKeyElem>, Vec<AggState>> = FxMap::default();
-            for sm in seg_maps? {
-                for (gk, saccs) in sm {
-                    if let Some(dst) = merged.get_mut(&gk) {
-                        for (ai, part) in saccs.into_iter().enumerate() {
+                let total_out: usize = shard_rows.iter().map(Vec::len).sum();
+                let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(total_out);
+                for sr in shard_rows {
+                    out_owned.extend(sr);
+                }
+                sort_and_slice_owned(&mut out_owned, &order_specs, query.offset, query.limit);
+                let final_rows: Vec<Vec<serde_json::Value>> = out_owned
+                    .into_iter()
+                    .map(|r| {
+                        r.into_iter()
+                            .take(visible_cols)
+                            .map(|v| v.to_json())
+                            .collect()
+                    })
+                    .collect();
+                return Some((out_names, final_rows));
+            }
+
+            // Fast Path B: Branch-Row-Indexed `u32` Pre-Aggregation (`Q10`: 7 wide dimension columns!)
+            // When `branches.len() == 1`, `compiled_residuals.is_empty()`, and all `GROUP BY` slots
+            // originate in `Branch(0, _)`, pre-aggregate by `b_row: u32` during the `probe_ri` scan
+            // so zero strings/dimension columns are touched per fact row!
+            let mut grp_slots_set = HashSet::new();
+            for ge in &compiled_groups {
+                ge.collect_slots(&mut grp_slots_set);
+            }
+            let can_branch_preagg = branches.len() == 1
+                && compiled_residuals.is_empty()
+                && !grp_slots_set.is_empty()
+                && grp_slots_set
+                    .iter()
+                    .all(|&si| matches!(slot_srcs[si], SlotSource::Branch(0, _)));
+
+            let merged: FxMap<Vec<GKeyElem>, Vec<AggState>> = if can_branch_preagg {
+                let mut agg_slots_set = HashSet::new();
+                for sp in &agg_specs {
+                    if let Some(ref je) = sp.arg {
+                        je.collect_slots(&mut agg_slots_set);
+                    }
+                }
+                let agg_slots: Vec<usize> = agg_slots_set.into_iter().collect();
+                let grp_slots: Vec<usize> = grp_slots_set.into_iter().collect();
+
+                let seg_bmaps: Option<Vec<FxMap<u32, Vec<AggState>>>> = (0..n_probe_segs)
+                    .into_par_iter()
+                    .map(|si| {
+                        let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+                            si,
+                            &probe_col_refs,
+                            &local_filters[probe_ri],
+                        )?
+                        else {
+                            return Some(FxMap::default());
+                        };
+                        let tc = seg.tc();
+                        let pcols: Vec<&Col> = probe_col_vec
+                            .iter()
+                            .filter_map(|c| tc.cols.get(c))
+                            .collect();
+                        if pcols.len() != probe_col_vec.len() {
+                            return None;
+                        }
+                        let mut bmap: FxMap<u32, Vec<AggState>> = FxMap::default();
+                        let mut chosen_b = [0usize; 1];
+                        let mut tuple = vec![BVal::Null; n_slots];
+
+                        for &r_u32 in &sel {
+                            let r_idx = r_u32 as usize;
+                            probe_row_recursive_sparse(
+                                0,
+                                r_idx,
+                                &pcols,
+                                &branches,
+                                &branch_probe_key_idxs,
+                                &slot_srcs,
+                                &agg_slots,
+                                &mut chosen_b,
+                                &mut tuple,
+                                &mut |cb, tup| {
+                                    let b_row = cb[0] as u32;
+                                    if let Some(accs) = bmap.get_mut(&b_row) {
+                                        for (ai, spec) in agg_specs.iter().enumerate() {
+                                            let v = spec
+                                                .arg
+                                                .as_ref()
+                                                .map_or(BVal::Int(1), |je| je.eval(tup));
+                                            accs[ai].update(spec.op, v);
+                                        }
+                                    } else {
+                                        let mut accs: Vec<AggState> =
+                                            agg_specs.iter().map(|s| AggState::new(s.op)).collect();
+                                        for (ai, spec) in agg_specs.iter().enumerate() {
+                                            let v = spec
+                                                .arg
+                                                .as_ref()
+                                                .map_or(BVal::Int(1), |je| je.eval(tup));
+                                            accs[ai].update(spec.op, v);
+                                        }
+                                        bmap.insert(b_row, accs);
+                                    }
+                                },
+                            );
+                        }
+                        Some(bmap)
+                    })
+                    .collect();
+
+                let mut merged_b: FxMap<u32, Vec<AggState>> = FxMap::default();
+                for bm in seg_bmaps? {
+                    for (b_row, saccs) in bm {
+                        if let Some(dst) = merged_b.get_mut(&b_row) {
+                            for (ai, part) in saccs.into_iter().enumerate() {
+                                dst[ai].merge(agg_specs[ai].op, part);
+                            }
+                        } else {
+                            merged_b.insert(b_row, saccs);
+                        }
+                    }
+                }
+
+                let mut final_merged: FxMap<Vec<GKeyElem>, Vec<AggState>> =
+                    FxMap::with_capacity_and_hasher(merged_b.len(), Default::default());
+                let mut tuple = vec![BVal::Null; n_slots];
+                let mut key_buf: Vec<GKeyElem> = Vec::with_capacity(compiled_groups.len());
+                for (b_row, baccs) in merged_b {
+                    let br = b_row as usize;
+                    for &si_slot in &grp_slots {
+                        if let SlotSource::Branch(0, ci) = slot_srcs[si_slot] {
+                            tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
+                        }
+                    }
+                    key_buf.clear();
+                    for ge in &compiled_groups {
+                        key_buf.push(GKeyElem::from_bval(ge.eval(&tuple)));
+                    }
+                    if let Some(dst) = final_merged.get_mut(&key_buf) {
+                        for (ai, part) in baccs.into_iter().enumerate() {
                             dst[ai].merge(agg_specs[ai].op, part);
                         }
                     } else {
-                        merged.insert(gk, saccs);
+                        final_merged.insert(key_buf.clone(), baccs);
                     }
                 }
-            }
+                final_merged
+            } else {
+                // General grouped aggregate (`Q03, Q04, Q05, Q07, Q08, Q09, Q11, Q12, Q16, Q21, Q22`)
+                let seg_maps: Option<Vec<FxMap<Vec<GKeyElem>, Vec<AggState>>>> = (0..n_probe_segs)
+                    .into_par_iter()
+                    .map(|si| {
+                        let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+                            si,
+                            &probe_col_refs,
+                            &local_filters[probe_ri],
+                        )?
+                        else {
+                            return Some(FxMap::default());
+                        };
+                        let tc = seg.tc();
+                        let pcols: Vec<&Col> = probe_col_vec
+                            .iter()
+                            .filter_map(|c| tc.cols.get(c))
+                            .collect();
+                        if pcols.len() != probe_col_vec.len() {
+                            return None;
+                        }
+                        let mut gmap: FxMap<Vec<GKeyElem>, Vec<AggState>> = FxMap::default();
+                        let mut chosen_b = vec![0usize; branches.len()];
+                        let mut tuple = vec![BVal::Null; n_slots];
+                        let mut key_buf: Vec<GKeyElem> = Vec::with_capacity(compiled_groups.len());
+
+                        for &r_u32 in &sel {
+                            probe_row_recursive(
+                                0,
+                                r_u32 as usize,
+                                &pcols,
+                                &branches,
+                                &branch_probe_key_idxs,
+                                &slot_srcs,
+                                &compiled_residuals,
+                                &mut chosen_b,
+                                &mut tuple,
+                                &mut |tup| {
+                                    key_buf.clear();
+                                    for ge in &compiled_groups {
+                                        key_buf.push(GKeyElem::from_bval(ge.eval(tup)));
+                                    }
+                                    if let Some(accs) = gmap.get_mut(&key_buf) {
+                                        for (ai, spec) in agg_specs.iter().enumerate() {
+                                            let v = spec
+                                                .arg
+                                                .as_ref()
+                                                .map_or(BVal::Int(1), |je| je.eval(tup));
+                                            accs[ai].update(spec.op, v);
+                                        }
+                                    } else {
+                                        let mut accs: Vec<AggState> =
+                                            agg_specs.iter().map(|s| AggState::new(s.op)).collect();
+                                        for (ai, spec) in agg_specs.iter().enumerate() {
+                                            let v = spec
+                                                .arg
+                                                .as_ref()
+                                                .map_or(BVal::Int(1), |je| je.eval(tup));
+                                            accs[ai].update(spec.op, v);
+                                        }
+                                        gmap.insert(key_buf.clone(), accs);
+                                    }
+                                },
+                            );
+                        }
+                        Some(gmap)
+                    })
+                    .collect();
+
+                let mut gm: FxMap<Vec<GKeyElem>, Vec<AggState>> = FxMap::default();
+                for sm in seg_maps? {
+                    for (gk, saccs) in sm {
+                        if let Some(dst) = gm.get_mut(&gk) {
+                            for (ai, part) in saccs.into_iter().enumerate() {
+                                dst[ai].merge(agg_specs[ai].op, part);
+                            }
+                        } else {
+                            gm.insert(gk, saccs);
+                        }
+                    }
+                }
+                gm
+            };
 
             let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(merged.len());
             for (gk, st_vec) in merged {
@@ -5237,9 +5744,15 @@ fn exec_bushy_plan(
         let seg_rows: Option<Vec<Vec<Vec<OwnedVal>>>> = (0..n_probe_segs)
             .into_par_iter()
             .map(|si| {
-                let seg = rels[probe_ri].rel.load_segment(si, &probe_col_refs)?;
+                let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+                    si,
+                    &probe_col_refs,
+                    &local_filters[probe_ri],
+                )?
+                else {
+                    return Some(Vec::new());
+                };
                 let tc = seg.tc();
-                let sel = filter_segment_rows(tc, &local_filters[probe_ri])?;
                 let pcols: Vec<&Col> = probe_col_vec
                     .iter()
                     .filter_map(|c| tc.cols.get(c))
@@ -5290,6 +5803,118 @@ fn exec_bushy_plan(
             })
             .collect();
         return Some((out_names, final_rows));
+    }
+}
+
+#[inline]
+#[allow(clippy::too_many_arguments)]
+fn probe_row_recursive_sparse<'a, F>(
+    bi: usize,
+    probe_row: usize,
+    pcols: &[&'a Col],
+    branches: &'a [BuiltBranch],
+    branch_probe_key_idxs: &[Vec<usize>],
+    slot_srcs: &[impl ProbeSlotSrc],
+    needed_slots: &[usize],
+    chosen_b: &mut [usize],
+    tuple: &mut [BVal<'a>],
+    emit: &mut F,
+) where
+    F: FnMut(&[usize], &[BVal<'a>]),
+{
+    if bi == branches.len() {
+        for &si in needed_slots {
+            tuple[si] = slot_srcs[si].read_val(probe_row, pcols, branches, chosen_b);
+        }
+        emit(chosen_b, tuple);
+        return;
+    }
+
+    let b = &branches[bi];
+    let kidxs = &branch_probe_key_idxs[bi];
+    if kidxs.len() == 1 {
+        let BVal::Int(k) = read_col_bval(pcols[kidxs[0]], probe_row) else {
+            return;
+        };
+        if let Some(b_row) = b.probe_single_1(k) {
+            chosen_b[bi] = b_row as usize;
+            probe_row_recursive_sparse(
+                bi + 1,
+                probe_row,
+                pcols,
+                branches,
+                branch_probe_key_idxs,
+                slot_srcs,
+                needed_slots,
+                chosen_b,
+                tuple,
+                emit,
+            );
+        } else if let BranchLookup::HashMulti1 { map, row_ids } = &b.lookup
+            && let Some(&(st, ln)) = map.get(&k)
+        {
+            for &ri_u32 in &row_ids[st as usize..(st + ln) as usize] {
+                chosen_b[bi] = ri_u32 as usize;
+                probe_row_recursive_sparse(
+                    bi + 1,
+                    probe_row,
+                    pcols,
+                    branches,
+                    branch_probe_key_idxs,
+                    slot_srcs,
+                    needed_slots,
+                    chosen_b,
+                    tuple,
+                    emit,
+                );
+            }
+        }
+    } else if kidxs.len() == 2 {
+        let (BVal::Int(k1), BVal::Int(k2)) = (
+            read_col_bval(pcols[kidxs[0]], probe_row),
+            read_col_bval(pcols[kidxs[1]], probe_row),
+        ) else {
+            return;
+        };
+        match &b.lookup {
+            BranchLookup::HashUnique2(m) => {
+                if let Some(&b_row) = m.get(&(k1, k2)) {
+                    chosen_b[bi] = b_row as usize;
+                    probe_row_recursive_sparse(
+                        bi + 1,
+                        probe_row,
+                        pcols,
+                        branches,
+                        branch_probe_key_idxs,
+                        slot_srcs,
+                        needed_slots,
+                        chosen_b,
+                        tuple,
+                        emit,
+                    );
+                }
+            }
+            BranchLookup::HashMulti2 { map, row_ids } => {
+                if let Some(&(st, ln)) = map.get(&(k1, k2)) {
+                    for &ri_u32 in &row_ids[st as usize..(st + ln) as usize] {
+                        chosen_b[bi] = ri_u32 as usize;
+                        probe_row_recursive_sparse(
+                            bi + 1,
+                            probe_row,
+                            pcols,
+                            branches,
+                            branch_probe_key_idxs,
+                            slot_srcs,
+                            needed_slots,
+                            chosen_b,
+                            tuple,
+                            emit,
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
 

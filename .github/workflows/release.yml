@@ -86,6 +86,14 @@ jobs:
           cp target/${{ matrix.target }}/release/jouledb* "dist/$BASE/" 2>/dev/null || true
           rm -f "dist/$BASE"/*.d "dist/$BASE"/*.pdb
           cp LICENSE-MIT LICENSE-APACHE COPYRIGHT README.md "dist/$BASE/"
+          if [ "${{ runner.os }}" != "Windows" ] && [ -f "dist/$BASE/jouledb" ]; then
+            mkdir -p "dist/mcpb/bin"
+            cp "dist/$BASE/jouledb" "dist/mcpb/bin/jouledb"
+            chmod +x "dist/mcpb/bin/jouledb"
+            cp deploy/claude-app/manifest.json deploy/claude-app/icon.svg deploy/claude-app/README.md "dist/mcpb/"
+            (cd dist/mcpb && zip -rq "../${BASE}.mcpb" manifest.json icon.svg README.md bin/jouledb)
+            rm -rf "dist/mcpb"
+          fi
           cd dist
           if [ "${{ runner.os }}" = "Windows" ]; then
             7z a -tzip "$BASE.zip" "$BASE" >/dev/null && sha256sum "$BASE.zip" > "$BASE.zip.sha256"

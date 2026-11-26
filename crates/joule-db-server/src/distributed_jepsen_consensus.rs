@@ -500,7 +500,7 @@ pub fn generate_iac_compliance_blueprint(tier: u8) -> serde_json::Value {
     };
     serde_json::json!({
         "kind": "starter_iac_template_summary",
-        "version": "0.6.0",
+        "version": env!("CARGO_PKG_VERSION"),
         "external_audit_performed": false,
         "chart_path": "deploy/helm/jouledb",
         "terraform_module_path": "deploy/terraform/jouledb",
@@ -511,7 +511,7 @@ pub fn generate_iac_compliance_blueprint(tier: u8) -> serde_json::Value {
         "network_policy_flag": airgap_netpol,
         "hybrid_pqc_and_mac_flag": pqc_mls,
         "in_repo_http_client_wrappers": [
-            "Rust (crates/joule-db-client; CLI installer stub on crates.io jouledb 0.6.0)",
+            concat!("Rust (crates/joule-db-client; CLI installer stub on crates.io jouledb ", env!("CARGO_PKG_VERSION"), ")"),
             "Python (python/ PyO3 + HTTP bindings — wheels on GitHub Releases; not on PyPI)",
             "TypeScript minimal HTTP wrapper (sdks/typescript — in-repo source, not on npm)",
             "Go minimal HTTP wrapper (sdks/go — in-repo source)",
@@ -550,7 +550,7 @@ pub fn run_v1_global_powerhouse_suite() -> serde_json::Value {
     let all_6_passed = c1_ok && c2_ok && c3_ok && c4_ok && c5_ok && c6_ok;
 
     serde_json::json!({
-        "version": "0.6.0",
+        "version": env!("CARGO_PKG_VERSION"),
         "release_stage": "pre-1.0-research-preview",
         "suite_kind": "in_process_subsystem_smoke_checks",
         "disclaimer": "Runs 6 fast in-process deterministic unit/smoke checks. Not an external benchmark run and not a third-party compliance audit. For real external benchmarks see bench/ (ClickBench & multi-process TCP Raft + Elle).",

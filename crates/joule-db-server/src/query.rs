@@ -232,6 +232,29 @@ pub trait QueryExecutor: Send + Sync {
         None
     }
 
+    /// Columnar-first bulk insert of Arrow batches with an optional total file row hint.
+    fn bulk_insert_arrow_with_hint(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: &[arrow::record_batch::RecordBatch],
+        _total_rows_hint: Option<usize>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.bulk_insert_arrow(table, columns, batches)
+    }
+
+    /// Owned-batch variant of [`Self::bulk_insert_arrow_with_hint`] that drops `batches`
+    /// immediately after extracting `ColumnBatch` so Arrow buffers never pin heap arenas.
+    fn bulk_insert_arrow_owned_with_hint(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: Vec<arrow::record_batch::RecordBatch>,
+        total_rows_hint: Option<usize>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.bulk_insert_arrow_with_hint(table, columns, &batches, total_rows_hint)
+    }
+
     /// Statically infer PostgreSQL parameter OIDs (`$1..$N`) and result
     /// `(column_name, pg_oid)` metadata from catalog schemas without executing
     /// the query. Returns `None` when dynamic execution is required.
@@ -833,13 +856,49 @@ impl QueryExecutor for SimpleQueryExecutor {
         columns: &[String],
         batches: &[arrow::record_batch::RecordBatch],
     ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.bulk_insert_arrow_with_hint(table, columns, batches, None)
+    }
+
+    fn bulk_insert_arrow_with_hint(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: &[arrow::record_batch::RecordBatch],
+        total_rows_hint: Option<usize>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
         let t0 = std::time::Instant::now();
         let batch = self.column_batch_for(table, columns, batches)?;
         if batch.len == 0 {
             return None;
         }
         let t1 = std::time::Instant::now();
-        let r = self.insert_column_batch_logged(table, batch);
+        let r = self.insert_column_batch_logged_with_hint(table, batch, total_rows_hint);
+        if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+            eprintln!(
+                "bulk_insert_arrow convert+checks={:?} insert+commit={:?}",
+                t1 - t0,
+                t1.elapsed()
+            );
+        }
+        Some(r)
+    }
+
+    fn bulk_insert_arrow_owned_with_hint(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: Vec<arrow::record_batch::RecordBatch>,
+        total_rows_hint: Option<usize>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        let t0 = std::time::Instant::now();
+        let batch_opt = self.column_batch_for(table, columns, &batches);
+        drop(batches);
+        let batch = batch_opt?;
+        if batch.len == 0 {
+            return None;
+        }
+        let t1 = std::time::Instant::now();
+        let r = self.insert_column_batch_logged_with_hint(table, batch, total_rows_hint);
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
             eprintln!(
                 "bulk_insert_arrow convert+checks={:?} insert+commit={:?}",
@@ -6958,9 +7017,20 @@ impl SimpleQueryExecutor {
         table: &str,
         batch: joule_db_amorphic::column_batch::ColumnBatch,
     ) -> Result<usize, QueryErrorResponse> {
+        self.insert_column_batch_logged_with_hint(table, batch, None)
+    }
+
+    fn insert_column_batch_logged_with_hint(
+        &self,
+        table: &str,
+        batch: joule_db_amorphic::column_batch::ColumnBatch,
+        total_rows_hint: Option<usize>,
+    ) -> Result<usize, QueryErrorResponse> {
         self.fire_triggers(table, "BEFORE", "INSERT");
         crate::amorphic_adapter::take_commit_error();
-        let r = self.amorphic.insert_column_batch(table, batch);
+        let r = self
+            .amorphic
+            .insert_column_batch_with_hint(table, batch, total_rows_hint);
         let r = match (r, crate::amorphic_adapter::take_commit_error()) {
             (_, Some(e)) => Err(QueryErrorResponse::execution_error(&e)),
             (Err(e), None) => Err(QueryErrorResponse::execution_error(&e.to_string())),

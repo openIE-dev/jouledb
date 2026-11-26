@@ -707,20 +707,9 @@ impl AmorphicTableStorage {
         self.store.group_sync()
     }
 
-    pub fn new(mut store: DurableAmorphicStore) -> Self {
+    pub fn new(store: DurableAmorphicStore) -> Self {
         let db_path = store.path().to_path_buf();
         let recovered_disk = crate::disk_col_segments::DiskColumnTable::open_all(&db_path);
-        let max_seg_id = recovered_disk
-            .values()
-            .map(|dt| dt.max_record_id)
-            .max()
-            .unwrap_or(0);
-        if max_seg_id > 0 {
-            let cur_next = store.reserve_disk_segment_ids(0);
-            if max_seg_id > cur_next {
-                let _ = store.reserve_disk_segment_ids((max_seg_id - cur_next) as usize);
-            }
-        }
         Self {
             store: HoloLock::new(store),
             db_path,
@@ -1093,7 +1082,7 @@ impl AmorphicTableStorage {
         }
         let where_expr = query.where_clause.as_ref()?;
         // Must be a single exact `col = lit` predicate (not a multi-conjunct filter)
-        let (eq_col, eq_val) = conversions::extract_eq_predicate(where_expr)?;
+        let (eq_col, mut eq_val) = conversions::extract_eq_predicate(where_expr)?;
         if !matches!(
             eq_val,
             AstValue::Int(_) | AstValue::String(_) | AstValue::Bool(_)
@@ -1115,11 +1104,18 @@ impl AmorphicTableStorage {
         }
         if let Some(def) = schema.defs.iter().find(|d| d.name == eq_col) {
             let dt = def.data_type.to_uppercase();
+            let is_int_col = matches!(
+                dt.as_str(),
+                "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
+            );
+            if is_int_col
+                && let AstValue::String(ref s) = eq_val
+                && let Ok(parsed_i) = s.trim().parse::<i64>()
+            {
+                eq_val = AstValue::Int(parsed_i);
+            }
             let type_ok = match eq_val {
-                AstValue::Int(_) => matches!(
-                    dt.as_str(),
-                    "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
-                ),
+                AstValue::Int(_) => is_int_col,
                 AstValue::String(_) => {
                     matches!(dt.as_str(), "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID")
                 }
@@ -1223,34 +1219,36 @@ impl AmorphicTableStorage {
         if saw_col {
             let off = query.offset.unwrap_or(0);
             let sql_lim = query.limit;
-            let store = self.store.read_primary().ok()?;
-            let matches = store.records_equal(&eq_col, &amorphic_val);
-            if matches.len() > 256 && sql_lim.is_none() {
-                return None;
-            }
-            let out_names: Vec<String> = proj_cols.iter().map(|(_, o)| o.clone()).collect();
-            let mut rows = Vec::with_capacity(matches.len().min(16));
+            let store = self.store.read().ok()?;
+            let mut rows = Vec::with_capacity(sql_lim.unwrap_or(8).min(64));
             let mut skipped = 0usize;
+            let mut matched_total = 0usize;
             let mut truncated = false;
-            for r in matches {
+            let mut exceeded_unbounded = false;
+            store.for_each_record_equal(&eq_col, &amorphic_val, |r| {
                 if r.get(TABLE_FIELD) != Some(&table_tag) {
-                    continue;
+                    return true;
+                }
+                matched_total += 1;
+                if sql_lim.is_none() && matched_total > 256 {
+                    exceeded_unbounded = true;
+                    return false;
                 }
                 if skipped < off {
                     skipped += 1;
-                    continue;
+                    return true;
                 }
                 if let Some(lim) = sql_lim
                     && rows.len() >= lim
                 {
-                    break;
+                    return false;
                 }
                 if sql_lim.is_none()
                     && let Some(rlim) = request_limit
                     && rows.len() >= rlim
                 {
                     truncated = true;
-                    break;
+                    return false;
                 }
                 let mut row = Vec::with_capacity(proj_cols.len());
                 for (src_c, _) in &proj_cols {
@@ -1261,7 +1259,12 @@ impl AmorphicTableStorage {
                     row.push(jv);
                 }
                 rows.push(row);
+                true
+            });
+            if exceeded_unbounded {
+                return None;
             }
+            let out_names: Vec<String> = proj_cols.iter().map(|(_, o)| o.clone()).collect();
             Some((out_names, rows, truncated))
         } else {
             #[derive(Default)]
@@ -1288,10 +1291,11 @@ impl AmorphicTableStorage {
                 })
                 .collect();
 
-            let store = self.store.read_primary().ok()?;
-            for r in store.records_equal(&eq_col, &amorphic_val) {
+            let store = self.store.read().ok()?;
+            let mut non_numeric_abort = false;
+            store.for_each_record_equal(&eq_col, &amorphic_val, |r| {
                 if r.get(TABLE_FIELD) != Some(&table_tag) {
-                    continue;
+                    return true;
                 }
                 for (ai, (kind, _)) in agg_specs.iter().enumerate() {
                     let acc = &mut accs[ai];
@@ -1323,12 +1327,19 @@ impl AmorphicTableStorage {
                                 acc.fmin = acc.fmin.min(*fv);
                                 acc.fmax = acc.fmax.max(*fv);
                             }
-                            _ => return None,
+                            _ => {
+                                non_numeric_abort = true;
+                                return false;
+                            }
                         },
                     }
                 }
-            }
+                true
+            });
             drop(store);
+            if non_numeric_abort {
+                return None;
+            }
 
             let out_names: Vec<String> = agg_specs.iter().map(|(_, o)| o.clone()).collect();
             let mut out_row = Vec::with_capacity(agg_specs.len());

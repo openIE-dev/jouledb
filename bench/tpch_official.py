@@ -189,8 +189,9 @@ def main() -> int:
         work_dir = Path(tempfile.mkdtemp(prefix=f"tpch_sf{args.sf}_")).resolve()
         cleanup_dir = True
 
-    parquet_dir = work_dir / "parquet"
-    jdb_data_dir = work_dir / "jdb_data"
+    sf_tag = str(args.sf).replace(".", "p")
+    parquet_dir = work_dir / f"parquet_sf{sf_tag}"
+    jdb_data_dir = work_dir / f"jdb_data_sf{sf_tag}"
     if jdb_data_dir.exists():
         shutil.rmtree(jdb_data_dir)
     parquet_dir.mkdir(parents=True, exist_ok=True)

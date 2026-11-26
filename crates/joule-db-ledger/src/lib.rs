@@ -47,6 +47,7 @@ pub mod committer;
 pub mod error;
 #[cfg(feature = "http")]
 pub mod http;
+pub mod kulisch;
 pub mod merkle;
 pub mod receipt;
 
@@ -64,6 +65,10 @@ pub use carbon::{
 pub use collector::{CollectorMetrics, LedgerConfig, ReceiptCollector};
 pub use committer::{BatchCommitter, CommitterMetrics, ReceiptStore};
 pub use error::LedgerError;
+pub use kulisch::{
+    BatchThermodynamicSummary, ExactF64Superaccumulator, KULISCH_F64_WORDS,
+    sum_receipt_joules_exact_kulisch, summarize_receipt_batch_exact,
+};
 pub use merkle::{MerkleProof, MerkleTree};
 pub use receipt::{
     AcquisitionTier, CascadeTierTag, EnergyProvenance, ExecutionStage, ExternalApiSpend,

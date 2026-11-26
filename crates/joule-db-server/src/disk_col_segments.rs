@@ -31,10 +31,34 @@ const SEG_MAGIC_HEAD: &[u8; 8] = b"JCOL\x01\x00\x00\x00";
 const SEG_MAGIC_FOOT: &[u8; 4] = b"JCL1";
 const NULL_CODE_U32: u32 = u32::MAX;
 
+/// Ensure GNU `ptmalloc2` uses `mmap`/`munmap` for `>= 1 MiB` bulk Parquet/Arrow buffers
+/// without starving 32-thread Rayon query workers on arena locks or 32 KiB TLB shootdowns.
+#[inline]
+pub fn ensure_linux_mmap_allocator() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        static INIT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        INIT.get_or_init(|| {
+            const M_MMAP_THRESHOLD: i32 = -3;
+            const M_MMAP_MAX: i32 = -4;
+            unsafe extern "C" {
+                fn mallopt(param: i32, value: i32) -> i32;
+            }
+            // SAFETY: Called at startup before worker threads allocate; keeps per-thread arenas
+            // lock-free for `<= 1 MiB` segment scans while `munmap`ping multi-MB ingest buffers.
+            unsafe {
+                let _ = mallopt(M_MMAP_MAX, 1_048_576);
+                let _ = mallopt(M_MMAP_THRESHOLD, 1_048_576);
+            }
+        });
+    }
+}
+
 /// Return unused multi-MB Rayon thread-arena pages to the OS on GNU/Linux so
 /// multi-million-row streaming `COPY` and out-of-core scans keep `VmRSS` bounded.
 #[inline]
 pub fn trim_unused_heap() {
+    ensure_linux_mmap_allocator();
     #[cfg(all(target_os = "linux", target_env = "gnu"))]
     {
         unsafe extern "C" {
@@ -47,15 +71,20 @@ pub fn trim_unused_heap() {
     }
 }
 
+/// Default row threshold (`128 Ki` rows) above which bulk loads spill directly
+/// into durable `.jcol` disk segments instead of materializing in-memory `AmorphicRecord`s.
+pub const DEFAULT_COL_SPILL_ROWS: usize = 131_072;
+
 /// Row threshold above which streaming `COPY` / `insert_column_batch` spills
 /// a table into durable `.jcol` disk segments instead of holding all rows in RAM.
 pub fn disk_segment_spill_rows() -> usize {
+    ensure_linux_mmap_allocator();
     static THRESH: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
     *THRESH.get_or_init(|| {
         std::env::var("JOULEDB_COL_SPILL_ROWS")
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(MAX_SEGMENT_ROWS)
+            .unwrap_or(DEFAULT_COL_SPILL_ROWS)
     })
 }
 
@@ -1011,7 +1040,7 @@ fn decode_col_payload_selected(
     Ok(Col::Text(codes, compact_dict))
 }
 
-fn write_segment_file(
+fn write_segment_file_raw(
     dir: &Path,
     seq: u64,
     first_id: u64,
@@ -1019,7 +1048,7 @@ fn write_segment_file(
     col_order: &[String],
     mut encoded: Vec<EncodedCol>,
     sync_data: bool,
-) -> io::Result<(String, SegmentMeta)> {
+) -> io::Result<()> {
     let fname = format!("seg_{seq:06}.jcol");
     let tmp_path = dir.join(format!("seg_{seq:06}.jcol.tmp"));
     let final_path = dir.join(&fname);
@@ -1038,9 +1067,8 @@ fn write_segment_file(
             ec.meta.byte_len = ec.payload.len() as u32;
             if !ec.payload.is_empty() {
                 w.write_all(&ec.payload)?;
-                cursor += ec.payload.len() as u64;
+                cursor += ec.payload.len() as u32 as u64;
             }
-            // Free column buffer immediately as we stream to disk
             ec.payload = Vec::new();
         }
         let cols: Vec<ColSliceMeta> = encoded.into_iter().map(|e| e.meta).collect();
@@ -1049,7 +1077,7 @@ fn write_segment_file(
             first_id,
             len,
             col_names: col_order.to_vec(),
-            cols: cols.clone(),
+            cols,
         };
         let footer_bytes = serde_json::to_vec(&footer)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -1065,7 +1093,21 @@ fn write_segment_file(
         }
     }
     fs::rename(&tmp_path, &final_path)?;
+    Ok(())
+}
 
+fn write_segment_file(
+    dir: &Path,
+    seq: u64,
+    first_id: u64,
+    len: u32,
+    col_order: &[String],
+    encoded: Vec<EncodedCol>,
+    sync_data: bool,
+) -> io::Result<(String, SegmentMeta)> {
+    write_segment_file_raw(dir, seq, first_id, len, col_order, encoded, sync_data)?;
+    let fname = format!("seg_{seq:06}.jcol");
+    let final_path = dir.join(&fname);
     let footer = read_segment_footer(&final_path)?;
     Ok((
         fname,
@@ -1258,6 +1300,86 @@ impl DiskColumnTable {
         }
         fs::rename(&tmp, &dst)?;
         Ok(())
+    }
+
+    /// Like [`Self::append_column_batch_from`], taking ownership of `batch` so all Rayon worker
+    /// buffers and `ColumnBatch` vectors are dropped and `malloc_trim(0)` runs **before**
+    /// long-lived `SegmentMeta` headers are allocated on the caller thread.
+    pub fn append_column_batch_owned(
+        &mut self,
+        batch: ColumnBatch,
+        row_offset: usize,
+        first_id_base: u64,
+        sync_data: bool,
+    ) -> io::Result<usize> {
+        use rayon::prelude::*;
+        if row_offset >= batch.len {
+            drop(batch);
+            trim_unused_heap();
+            return Ok(0);
+        }
+        let mut ranges: Vec<(u64, usize, usize)> = Vec::new();
+        let mut cur = row_offset;
+        let mut seq = self.next_seq;
+        while cur < batch.len {
+            let end = (cur + MAX_SEGMENT_ROWS).min(batch.len);
+            ranges.push((seq, cur, end));
+            seq += 1;
+            cur = end;
+        }
+        let dir = &self.dir;
+        let col_order = &self.col_order;
+        // Return ONLY `u64` segment sequence numbers from Rayon workers so ZERO long-lived heap
+        // allocations (`PathBuf` / `Vec<ColSliceMeta>`) pin Rayon thread `sub_heap` arenas!
+        let built_seqs: Vec<io::Result<u64>> = ranges
+            .par_iter()
+            .map(|&(seg_seq, s, e)| {
+                let seg_len = (e - s) as u32;
+                let seg_first_id = first_id_base + (s - row_offset) as u64;
+                let encoded: Vec<EncodedCol> = col_order
+                    .par_iter()
+                    .map(|cn| encode_batch_col(&batch, cn, s, e))
+                    .collect();
+                let _ = write_segment_file_raw(
+                    dir,
+                    seg_seq,
+                    seg_first_id,
+                    seg_len,
+                    col_order,
+                    encoded,
+                    sync_data,
+                )?;
+                Ok(seg_seq)
+            })
+            .collect();
+
+        // Drop `batch` and release all temporary Rayon/main-arena pages BEFORE allocating `SegmentMeta`!
+        drop(batch);
+        drop(ranges);
+        trim_unused_heap();
+
+        let mut written = 0usize;
+        for res in built_seqs {
+            let seg_seq = res?;
+            let final_path = self.dir.join(format!("seg_{seg_seq:06}.jcol"));
+            let footer = read_segment_footer(&final_path)?;
+            let meta = SegmentMeta {
+                seq: footer.seq,
+                first_id: footer.first_id,
+                len: footer.len,
+                path: final_path,
+                cols: footer.cols,
+            };
+            written += meta.len as usize;
+            self.total_rows += meta.len as usize;
+            self.max_record_id = self
+                .max_record_id
+                .max(meta.first_id.saturating_add(meta.len as u64));
+            self.segments.push(meta);
+        }
+        self.next_seq = seq;
+        self.save_manifest(sync_data)?;
+        Ok(written)
     }
 
     /// Append rows `[row_offset .. batch.len]` of `batch` as one or more

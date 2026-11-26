@@ -45,6 +45,8 @@ const MAX_PGWIRE_MESSAGE_SIZE: usize = 256 * 1024 * 1024;
 const IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 // SSL request magic number
 const SSL_REQUEST: i32 = 80877103;
+// GSSAPI encryption request magic number (PostgreSQL 12+ libpq default on macOS/Kerberos)
+const GSSENC_REQUEST: i32 = 80877104;
 // Cancel request magic number
 const CANCEL_REQUEST: i32 = 80877102;
 
@@ -242,16 +244,30 @@ async fn handle_connection(
 ) -> Result<(), PgWireError> {
     stream.set_nodelay(true).ok();
 
-    // Phase 0: Check for SSL request before splitting the stream
-    // Read first 8 bytes: length(4) + version/code(4)
+    // Phase 0: Check for GSSAPI / SSL negotiation requests before splitting the stream
+    // Read first 8 bytes: length(4) + version/code(4). Clients (e.g. libpq) may send
+    // GSSENCRequest (80877104) followed by SSLRequest (80877103) before StartupMessage.
     let mut initial = [0u8; 8];
-    stream
-        .read_exact(&mut initial)
-        .await
-        .map_err(|e| PgWireError::Io(e.to_string()))?;
-
-    let _length = i32::from_be_bytes([initial[0], initial[1], initial[2], initial[3]]);
-    let version = i32::from_be_bytes([initial[4], initial[5], initial[6], initial[7]]);
+    let mut version = 0i32;
+    for _ in 0..3 {
+        stream
+            .read_exact(&mut initial)
+            .await
+            .map_err(|e| PgWireError::Io(e.to_string()))?;
+        version = i32::from_be_bytes([initial[4], initial[5], initial[6], initial[7]]);
+        if version == GSSENC_REQUEST {
+            stream
+                .write_all(&[b'N'])
+                .await
+                .map_err(|e| PgWireError::Io(e.to_string()))?;
+            stream
+                .flush()
+                .await
+                .map_err(|e| PgWireError::Io(e.to_string()))?;
+            continue;
+        }
+        break;
+    }
 
     if version == SSL_REQUEST {
         #[cfg(feature = "tls")]
@@ -1007,9 +1023,9 @@ where
         .await
         .map_err(|e| PgWireError::Io(e.to_string()))?;
 
-    // Handle SSL request
-    if version == SSL_REQUEST {
-        // Decline SSL (send 'N')
+    // Handle SSL or GSSAPI encryption negotiation request
+    if version == SSL_REQUEST || version == GSSENC_REQUEST {
+        // Decline SSL/GSSAPI (send 'N')
         writer
             .write_u8(b'N')
             .await
@@ -1936,29 +1952,38 @@ fn copy_file(
             let mut total_inserted = 0usize;
             let mut streamed = true;
             let mut chunk_err: Option<(String, String)> = None;
-            crate::file_formats::for_each_parquet_batch_group(p_str, 4, |chunk| {
-                match executor.bulk_insert_arrow(&spec.target, &spec.columns, chunk) {
-                    Some(Ok(n)) => {
-                        total_inserted += n;
-                        Ok(true)
+            crate::file_formats::for_each_parquet_batch_group_owned(
+                p_str,
+                1,
+                |chunk, total_hint| {
+                    match executor.bulk_insert_arrow_owned_with_hint(
+                        &spec.target,
+                        &spec.columns,
+                        chunk,
+                        total_hint,
+                    ) {
+                        Some(Ok(n)) => {
+                            total_inserted += n;
+                            Ok(true)
+                        }
+                        Some(Err(e)) => {
+                            chunk_err = Some((e.code, e.message));
+                            Ok(false)
+                        }
+                        None if total_inserted == 0 => {
+                            streamed = false;
+                            Ok(false)
+                        }
+                        None => {
+                            chunk_err = Some((
+                                "22000".to_string(),
+                                "Parquet row-group schema changed mid-stream".to_string(),
+                            ));
+                            Ok(false)
+                        }
                     }
-                    Some(Err(e)) => {
-                        chunk_err = Some((e.code, e.message));
-                        Ok(false)
-                    }
-                    None if total_inserted == 0 => {
-                        streamed = false;
-                        Ok(false)
-                    }
-                    None => {
-                        chunk_err = Some((
-                            "22000".to_string(),
-                            "Parquet row-group schema changed mid-stream".to_string(),
-                        ));
-                        Ok(false)
-                    }
-                }
-            })
+                },
+            )
             .map_err(bad)?;
             if let Some(e) = chunk_err {
                 return Err(e);

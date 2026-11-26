@@ -9,6 +9,24 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-26
+
+### Added
+- **Binary `JWU1` Delta `UPDATE` WAL Codec, Deferred-Hologram `UPDATE`s & 64-Shard `table_id_shards` (`crates/joule-db-amorphic/src/{wal_codec.rs, lib.rs, durable.rs}`, `crates/joule-db-server/src/mvcc_adapter.rs`)**:
+  - Added binary `JWU1` `UpdateFields` WAL encoding (`roundtrip_jwu1_update` test), `update_fields_deferred_holo` + unchanged-column index/columnar skip, `SegmentedHologram::remove_one`, zero-allocation `for_each_record_equal`, and 64-shard `table_id_shards` in `MvccTableStorage` with changed-column-only `AtomicBatchOp::Update` deltas.
+  - Measured head-to-head on `100`-warehouse (`100,000`-account) TCP `pgwire` OLTP over **physical NVMe `fdatasync`** (`--work-dir /var/tmp` rather than RAM `tmpfs`, `bench/results/oltp_pgwire_100wh.json`, `idle_watts = 10.68 W`, `invariant_verified = true` & `0` errors across all 5 runs): JouleDB `0.12.0` **beats `PostgreSQL 16.16` `1.63×` at `c=1` Simple (`1,950.53` vs `1,199.69 TPS`, `13.39` vs `45.79 mJ/txn`)** and scales to **`5,154.08 TPS` Simple (`0.718 ms` `p50`, `10.34 mJ/txn`) / `5,159.73 TPS` Extended Pipeline (`0.773 ms` `p50`, `11.71 mJ/txn`) at `c=16`**, narrowing the `c=16` gap vs `PostgreSQL 16.16` (`10,419.39` Simple / `9,635.60` Pipelined) to **`2.02×` / `1.87×`**.
+
+### Fixed
+- **`46.1×` Reduction in Out-of-Core `.jcol` Post-Load RSS (`34.81 GB -> 755.3 MB` at `SF=10.0`) & `2.20×` Faster `SF=10.0` `TPC-H` (`amorphic_adapter/{crud.rs, mod.rs}`, `disk_col_segments.rs`, `file_formats.rs`, `columnar_join.rs`)**:
+  - Separated `.jcol` segment record IDs (`JCOL_ID_TAG = 1 << 62`) from `AmorphicStore.next_id` so multi-million-row `.jcol` loads never inflate `next_id` or zero-fill dense `1,280`-byte VSA hologram slots on subsequent DDL writes, paired with owned-batch Parquet streaming (`for_each_parquet_batch_group_owned`, `append_column_batch_owned`) and isolated per-scale `--work-dir` paths in `bench/tpch_official.py`.
+  - Added ZoneMap `DenseKeyBits::overlaps_range` zero-I/O segment pruning, two-stage sparse dictionary loading (`load_filtered_segment`), parallel batched `materialize_node`, `<= 20,000,000`-row `propagate_initial_key_sets` (`Q10` `orders` quarter semi-join pushdown), outer-domain pushdown for `NeqExists`/`CorrScalar` (`Q17`, `Q20`, `Q21`), 64-shard radix-partitioned single-`i64` `GROUP BY` (`Q18`), and branch-row-indexed `u32` pre-aggregation.
+  - Verified **`22 / 22` (`100%`, `0` errors) Official `TPC-H` exact across all three scales** (`bench/results/tpch_official_{sf01,sf1,sf10}.json`, NVMe + Linux `rapl-package` `reported_j`):
+    - **`SF = 0.1` (`866,602` rows):** `253.0 ms` total vs DuckDB `88.2 ms` (**`1.992×` geomean**, **`5 / 22` faster than DuckDB `2.0.1`**: `Q22: 0.53×`, `Q11: 0.53×`, `Q02: 0.80×`, `Q20: 0.83×`, `Q16: 0.97×`), `780.8 MB` post-load RSS (`939.3 MB` `VmHWM`).
+    - **`SF = 1.0` (`8,661,245` rows):** **`201.4 MB` post-load RSS (`28.6×` down from `5,769.3 MB`; `1,561.8 MB` `VmHWM`)**, **`1,779.0 ms` (`1.78 s`) total (`1.57×` faster)**, **`4.331×` geomean (`median 3.604×`, down from `6.180×`)**.
+    - **`SF = 10.0` (`86,586,082` rows, `60.0M` `lineitem`):** **`755.3 MB` post-load RSS (`46.1×` down from `34,809.5 MB`; `15,586.4 MB` `VmHWM`)**, **`15,464.6 ms` (`15.46 s`) total (`2.20×` faster than `34.06 s`)**, **`8.494×` geomean (`median 8.377×`, cut nearly `2×` from `16.026×`; `Q17: 88.6 ms` [`17.2×` faster], `Q20: 99.7 ms` [`6.59×` faster], `Q18: 1,799.8 ms` [`6.29×` faster], `Q21: 1,187.4 ms` [`2.32×` faster], `Q10: 5,230.7 ms` [`1.74×` faster])**.
+- **`pgwire` Client Protocol Compatibility (`pgwire.rs`, `energy_executor.rs`, `columnar_exec.rs`, `columnar_join.rs`)**:
+  - Coerced untyped text-formatted numeric bind parameters (`"1" -> 1`) across `try_direct_indexed_eq_query`, `columnar_exec::prepare_preds`, and `columnar_join::cmp_bvals` (fixing `node-postgres` `tests/clients/node_pg.js` `select_params` — 5/5 passing), added PostgreSQL v12+ `GSSENCRequest` (`80877104`) `'N'` negotiation for default `libpq`/`psycopg` connections, forwarded `EnergyAwareExecutor::describe_query` & `bulk_insert_arrow_owned_with_hint`, and replaced hardcoded `"0.6.0"` strings in `jouledb self-check` with `env!("CARGO_PKG_VERSION")`.
+
 ## [0.11.0] - 2026-11-26
 
 ### Added

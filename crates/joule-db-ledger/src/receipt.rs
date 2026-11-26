@@ -304,7 +304,9 @@ impl LedgerEnergyReceipt {
         if self.energy_joules_total < 0.0 || self.energy_joules_total.is_nan() {
             return Err(ProvenanceError::NegativeSiliconEnergy);
         }
-        let stage_sum: f64 = self.energy_joules_by_stage.values().copied().sum();
+        let stage_sum = crate::kulisch::ExactF64Superaccumulator::sum_iter_exact(
+            self.energy_joules_by_stage.values().copied(),
+        );
         if self.energy_joules_total == 0.0 && stage_sum > 1e-12 {
             return Err(ProvenanceError::MeasuredSiliconZeroWithPositiveStageSum);
         }
@@ -315,10 +317,12 @@ impl LedgerEnergyReceipt {
                 }
             }
             if let Some(ref ch) = prov.channels {
-                let rail_sum = ch.cpu_joules.unwrap_or(0.0)
-                    + ch.gpu_joules.unwrap_or(0.0)
-                    + ch.npu_joules.unwrap_or(0.0)
-                    + ch.dram_joules.unwrap_or(0.0);
+                let rail_sum = crate::kulisch::ExactF64Superaccumulator::sum_slice_exact(&[
+                    ch.cpu_joules.unwrap_or(0.0),
+                    ch.gpu_joules.unwrap_or(0.0),
+                    ch.npu_joules.unwrap_or(0.0),
+                    ch.dram_joules.unwrap_or(0.0),
+                ]);
                 if rail_sum > self.energy_joules_total + 1e-9 {
                     return Err(ProvenanceError::ChannelSumExceedsTotalSiliconEnergy);
                 }

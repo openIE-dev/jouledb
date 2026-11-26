@@ -231,6 +231,32 @@ impl<E: QueryExecutor> QueryExecutor for EnergyAwareExecutor<E> {
         self.inner.bulk_insert_arrow(table, columns, batches)
     }
 
+    fn bulk_insert_arrow_with_hint(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: &[arrow::record_batch::RecordBatch],
+        total_rows_hint: Option<usize>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.inner
+            .bulk_insert_arrow_with_hint(table, columns, batches, total_rows_hint)
+    }
+
+    fn bulk_insert_arrow_owned_with_hint(
+        &self,
+        table: &str,
+        columns: &[String],
+        batches: Vec<arrow::record_batch::RecordBatch>,
+        total_rows_hint: Option<usize>,
+    ) -> Option<Result<usize, QueryErrorResponse>> {
+        self.inner
+            .bulk_insert_arrow_owned_with_hint(table, columns, batches, total_rows_hint)
+    }
+
+    fn describe_query(&self, sql: &str) -> Option<(Vec<i32>, Option<Vec<(String, i32)>>)> {
+        self.inner.describe_query(sql)
+    }
+
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let t_all = std::time::Instant::now();
         // Classify the SQL statement for energy tracking

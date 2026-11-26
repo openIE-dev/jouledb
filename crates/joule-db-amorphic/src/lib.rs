@@ -756,6 +756,16 @@ impl SegmentedHologram {
         }
     }
 
+    pub fn remove_one(&mut self, id: RecordId, old: &BinaryHV) {
+        let g = self.inner_mut();
+        g.generation += 1;
+        g.flush();
+        if let Some(s) = g.of.remove(&id) {
+            g.segments[s].subtract(old);
+            g.counts[s] = g.counts[s].saturating_sub(1);
+        }
+    }
+
     /// The active (newest) segment, caught up.
     pub fn active(&self) -> BundleAccumulator {
         let mut g = self.lock();
@@ -2431,6 +2441,26 @@ impl AmorphicStore {
             .unwrap_or_default()
     }
 
+    /// Zero-allocation streaming visitor over records matching `field == value`
+    /// (stops early if `f` returns `false`).
+    #[inline]
+    pub fn for_each_record_equal<F>(&self, field: &str, value: &Value, mut f: F)
+    where
+        F: FnMut(&AmorphicRecord) -> bool,
+    {
+        let value_hash = Self::hash_value(field, value);
+        if let Some(ids) = self.value_index.get(&value_hash) {
+            for id in ids.iter() {
+                if let Some(r) = self.records.get(id)
+                    && r.fields.get(field) == Some(value)
+                    && !f(r)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
     /// Query by exact field-value match
     pub fn query_equals(&self, field: &str, value: &Value) -> QueryResult {
         let value_hash = Self::hash_value(field, value);
@@ -3455,6 +3485,13 @@ impl AmorphicStore {
                 edges.retain(|(_, s)| !gone.contains(s));
             }
         }
+        if self.records.is_empty() {
+            self.records.shrink_to_fit();
+            self.hologram_array.clear();
+            self.hologram_array.shrink_to_fit();
+            self.deferred.shrink_to_fit();
+            self.deferred_set.shrink_to_fit();
+        }
         // primary data changed even if no hologram did
         self.data_generation = self.data_generation.wrapping_add(1);
         gone.len()
@@ -3514,31 +3551,58 @@ impl AmorphicStore {
         id: RecordId,
         updates: HashMap<String, Value>,
     ) -> AmorphicResult<()> {
+        self.update_fields_inner(id, updates, false)
+    }
+
+    /// Update fields while deferring 10,240-bit hypervector & LSH re-encoding to
+    /// `catch_up_holograms` so concurrent OLTP `UPDATE` commits never stall on HDC math.
+    pub fn update_fields_deferred_holo(
+        &mut self,
+        id: RecordId,
+        updates: HashMap<String, Value>,
+    ) -> AmorphicResult<()> {
+        self.update_fields_inner(id, updates, true)
+    }
+
+    fn update_fields_inner(
+        &mut self,
+        id: RecordId,
+        updates: HashMap<String, Value>,
+        defer_holo: bool,
+    ) -> AmorphicResult<()> {
         let is_deferred = self.deferred_set.contains(&id);
-        // First, extract what we need from the record to avoid borrow conflicts
+        let mut changed_updates: HashMap<String, Value> = HashMap::with_capacity(updates.len());
         let (old_values, updated_fields, old_hologram) = {
             let record = self
                 .records
                 .get_mut(&id)
                 .ok_or(AmorphicError::RecordNotFound(id))?;
 
-            // Track old values for index cleanup
             let mut old_values: HashMap<String, Value> = HashMap::new();
-            for (field, new_value) in &updates {
-                if let Some(old_value) = record.fields.get(field) {
+            for (field, new_value) in updates {
+                if let Some(old_value) = record.fields.get(&field) {
+                    if old_value == &new_value {
+                        continue;
+                    }
                     old_values.insert(field.clone(), old_value.clone());
                 }
-                // Update the materialized field
                 record.fields.insert(field.clone(), new_value.clone());
+                changed_updates.insert(field, new_value);
             }
 
-            let updated_fields = if is_deferred {
+            if changed_updates.is_empty() {
+                return Ok(());
+            }
+
+            let updated_fields = if is_deferred || defer_holo {
                 HashMap::new()
             } else {
                 record.fields.clone()
             };
             let old_hologram = if is_deferred {
                 BinaryHV::zeros(DIMENSION)
+            } else if defer_holo {
+                std::mem::replace(&mut record.hologram, BinaryHV::zeros(DIMENSION))
             } else {
                 record.hologram.clone()
             };
@@ -3547,12 +3611,23 @@ impl AmorphicStore {
         };
 
         if is_deferred {
-            // Record's hologram is still queued in `self.deferred` and will be
-            // encoded from the updated `record.fields` when `catch_up_holograms` runs.
-            // Bump `data_generation` so column caches observe the mutation.
+            self.data_generation = self.data_generation.wrapping_add(1);
+        } else if defer_holo {
+            if (id as usize) <= self.hologram_array.len() {
+                self.hologram_array[(id - 1) as usize] = BinaryHV::zeros(DIMENSION);
+            }
+            self.hologram.remove_one(id, &old_hologram);
+            for table_idx in 0..self.lsh_bit_positions.len() {
+                let h_old = self.lsh_hash_for_table(&old_hologram, table_idx);
+                if let Some(ids) = self.lsh_tables[table_idx].get_mut(&h_old) {
+                    ids.retain(|&x| x != id);
+                }
+            }
+            if self.deferred_set.insert(id) {
+                self.deferred.push_back(id);
+            }
             self.data_generation = self.data_generation.wrapping_add(1);
         } else {
-            // Re-encode only this record's hologram (do not force catch-up of unrelated records).
             let new_hologram = self.encode_record(&updated_fields);
 
             if let Some(record) = self.records.get_mut(&id) {
@@ -3563,7 +3638,6 @@ impl AmorphicStore {
                 self.hologram_array[(id - 1) as usize] = new_hologram.clone();
             }
 
-            // Update global hologram: subtract old, add new (also increments hologram generation)
             self.hologram.replace(id, &old_hologram, &new_hologram);
 
             let lsh_hashes_old: Vec<u64> = (0..self.lsh_bit_positions.len())
@@ -3582,16 +3656,13 @@ impl AmorphicStore {
         }
 
         // Update indices for changed fields only
-        for (field, new_value) in &updates {
-            // Remove old value from indices
+        for (field, new_value) in &changed_updates {
             if let Some(old_value) = old_values.get(field) {
-                // Remove from value index
                 let old_hash = Self::hash_value(field, old_value);
                 if let Some(ids) = self.value_index.get_mut(&old_hash) {
                     ids.remove_one(id);
                 }
 
-                // Remove from numeric index
                 if let Some(old_num) = old_value.as_f64() {
                     if let Some(btree) = self.numeric_index.get_mut(field) {
                         if let Some(ids) = btree.get_mut(&OrderedFloat(old_num)) {
@@ -3601,7 +3672,6 @@ impl AmorphicStore {
                 }
             }
 
-            // Add new value to indices
             let new_hash = Self::hash_value(field, new_value);
             self.value_index.entry(new_hash).or_default().push(id);
 
@@ -3614,21 +3684,17 @@ impl AmorphicStore {
                     .push(id);
             }
 
-            // Update name index if applicable
             if field == "name" || field == "_name" {
-                // Remove old name
                 if let Some(Value::String(old_name)) = old_values.get(field) {
                     self.name_to_id.remove(old_name);
                 }
-                // Add new name
                 if let Value::String(new_name) = new_value {
                     self.name_to_id.insert(new_name.clone(), id);
                 }
             }
         }
 
-        // Update columnar store
-        self.columnar.update_values(id, &updates);
+        self.columnar.update_values(id, &changed_updates);
 
         Ok(())
     }

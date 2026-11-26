@@ -306,7 +306,7 @@ impl AmorphicTableStorage {
         guard.begin_batch().map_err(amorphic_error)?;
 
         let mut assigned_ids = Vec::new();
-        let mut any_insert = false;
+        let mut any_holo_change = false;
         for op in ops {
             let step_res: QueryResult<()> = match op {
                 AtomicBatchOp::Insert {
@@ -321,7 +321,7 @@ impl AmorphicTableStorage {
                     }
                     match guard.batch_ingest_fields(fields) {
                         Ok(id) => {
-                            any_insert = true;
+                            any_holo_change = true;
                             assigned_ids.push((key_idx, id));
                             Ok(())
                         }
@@ -329,6 +329,7 @@ impl AmorphicTableStorage {
                     }
                 }
                 AtomicBatchOp::Update { id, updates } => {
+                    any_holo_change = true;
                     guard.batch_update_fields(id, updates).map_err(amorphic_error)
                 }
                 AtomicBatchOp::Delete { id } => guard.batch_delete(id).map_err(amorphic_error),
@@ -344,7 +345,7 @@ impl AmorphicTableStorage {
             return Err(amorphic_error(e));
         }
 
-        let has_pending_holo = any_insert && guard.pending_holograms() > 0;
+        let has_pending_holo = any_holo_change && guard.pending_holograms() > 0;
         let lsn = sync_arc.as_ref().map(|g| g.committed_lsn());
         drop(guard);
         if has_pending_holo {
@@ -375,54 +376,52 @@ impl AmorphicTableStorage {
             return Ok(None);
         }
         let store = self.store.read().map_err(lock_error)?;
-        let columns = self.get_schema_columns(&store, table)?;
-        if !columns.iter().any(|c| c == col) {
+        let schema = self.cached_schema_with_store(&store, table)?;
+        if !schema.columns.iter().any(|c| c == col) {
             return Ok(None);
         }
-        if let Ok(defs) = self.get_column_defs_from_store(&store, table) {
-            if let Some(def) = defs.iter().find(|d| d.name == col) {
-                let dt = def.data_type.to_uppercase();
-                let type_ok = match val {
-                    AstValue::Int(_) => matches!(
-                        dt.as_str(),
-                        "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
-                    ),
-                    AstValue::String(_) => {
-                        matches!(dt.as_str(), "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID")
-                    }
-                    AstValue::Bool(_) => matches!(dt.as_str(), "BOOL" | "BOOLEAN"),
-                    _ => false,
-                };
-                if !type_ok && !dt.is_empty() {
-                    return Ok(None);
+        if let Some(def) = schema.defs.iter().find(|d| d.name == col) {
+            let dt = def.data_type.to_uppercase();
+            let type_ok = match val {
+                AstValue::Int(_) => matches!(
+                    dt.as_str(),
+                    "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
+                ),
+                AstValue::String(_) => {
+                    matches!(dt.as_str(), "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID")
                 }
-            } else if matches!(val, AstValue::Int(_)) {
-                // Untyped schema: avoid missing Float(42.0) == Int(42)
+                AstValue::Bool(_) => matches!(dt.as_str(), "BOOL" | "BOOLEAN"),
+                _ => false,
+            };
+            if !type_ok && !dt.is_empty() {
                 return Ok(None);
             }
+        } else if matches!(val, AstValue::Int(_)) {
+            return Ok(None);
         }
         let amorphic_val = ast_to_amorphic(val);
         let table_tag = AmorphicValue::String(table.to_string());
-        let rows = store
-            .records_equal(col, &amorphic_val)
-            .into_iter()
-            .filter(|r| r.get(TABLE_FIELD) == Some(&table_tag))
-            .map(|r| (r.id, Self::record_to_row(r, &columns)))
-            .collect();
+        let mut rows = Vec::new();
+        store.for_each_record_equal(col, &amorphic_val, |r| {
+            if r.get(TABLE_FIELD) == Some(&table_tag) {
+                rows.push((r.id, Self::record_to_row(r, &schema.columns)));
+            }
+            true
+        });
         Ok(Some(rows))
     }
 
     /// Fetch a single row of `table` by its amorphic `RecordId`.
     pub fn get_table_row_by_id(&self, table: &str, id: RecordId) -> QueryResult<Option<RowData>> {
         let store = self.store.read().map_err(lock_error)?;
-        let columns = self.get_schema_columns(&store, table)?;
+        let schema = self.cached_schema_with_store(&store, table)?;
         let Some(rec) = store.get(id) else {
             return Ok(None);
         };
         if rec.get(TABLE_FIELD) != Some(&AmorphicValue::String(table.to_string())) {
             return Ok(None);
         }
-        Ok(Some(Self::record_to_row(rec, &columns)))
+        Ok(Some(Self::record_to_row(rec, &schema.columns)))
     }
 
     /// Check if the WAL needs a checkpoint and perform one if so.
@@ -536,11 +535,15 @@ impl AmorphicTableStorage {
 
         if let Some(dt) = self.disk_column_table(table) {
             if let Ok(seg_rows) = dt.scan_rows(&columns) {
+                const JCOL_ID_TAG: u64 = 1u64 << 62;
                 let mut id_cursor = 0usize;
                 for seg in &dt.segments {
                     for off in 0..(seg.len as usize) {
                         if let Some(r) = seg_rows.get(id_cursor) {
-                            rows.push(((seg.first_id + off as u64).to_string(), r.clone()));
+                            rows.push((
+                                (JCOL_ID_TAG | (seg.first_id + off as u64)).to_string(),
+                                r.clone(),
+                            ));
                             id_cursor += 1;
                         }
                     }
@@ -754,7 +757,19 @@ impl AmorphicTableStorage {
     pub fn insert_column_batch(
         &self,
         table: &str,
+        batch: joule_db_amorphic::column_batch::ColumnBatch,
+    ) -> QueryResult<usize> {
+        self.insert_column_batch_with_hint(table, batch, None)
+    }
+
+    /// Like [`Self::insert_column_batch`], with an optional file-level total row hint
+    /// (e.g. from Parquet footer metadata) so Chunk 0 spills directly to `.jcol`
+    /// without staging rows in `AmorphicStore` RAM.
+    pub fn insert_column_batch_with_hint(
+        &self,
+        table: &str,
         mut batch: joule_db_amorphic::column_batch::ColumnBatch,
+        total_rows_hint: Option<usize>,
     ) -> QueryResult<usize> {
         let t_lock = std::time::Instant::now();
         let mut store = self.store.write_bulk().map_err(lock_error)?;
@@ -800,7 +815,10 @@ impl AmorphicTableStorage {
                         .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
                         .len(),
                 );
-            if existing_rows.saturating_add(n) > spill_thresh {
+            let projected_rows = existing_rows
+                .saturating_add(n)
+                .max(total_rows_hint.unwrap_or(0));
+            if projected_rows > spill_thresh {
                 let defs = self
                     .get_column_defs_from_store(&store, table)
                     .unwrap_or_default();
@@ -834,7 +852,10 @@ impl AmorphicTableStorage {
                     .drain_table_for_disk_spill(TABLE_FIELD, table)
                     .map_err(amorphic_error)?
             };
-            let first_id = store.reserve_disk_segment_ids(n);
+            // Bump `col_gen` without advancing `AmorphicStore.next_id`: `.jcol` rows live in
+            // per-table disk segments (`JCOL_ID_TAG`), and advancing `next_id` by `10M-100M` would
+            // force subsequent `AmorphicStore` DDL writes to zero-fill `next_id` dense VSA slots!
+            let _ = store.reserve_disk_segment_ids(0);
             drop(store);
 
             if let Ok(mut c) = self.col_cache.lock() {
@@ -863,14 +884,16 @@ impl AmorphicTableStorage {
                     })?;
             }
             for (off, pb) in drained_batches {
+                let pb_first = dt_owned.max_record_id.max(1);
                 dt_owned
-                    .append_column_batch_from(&pb, off, pb.first_id + off as u64, sync_on)
+                    .append_column_batch_from(&pb, off, pb_first, sync_on)
                     .map_err(|e| {
                         QueryError::ExecutionError(format!("spill pending to .jcol failed: {e}"))
                     })?;
             }
+            let first_id = dt_owned.max_record_id.max(1);
             dt_owned
-                .append_column_batch_from(&batch, 0, first_id, sync_on)
+                .append_column_batch_owned(batch, 0, first_id, sync_on)
                 .map_err(|e| QueryError::ExecutionError(format!("append .jcol failed: {e}")))?;
 
             dc_guard.insert(table.to_string(), std::sync::Arc::new(dt_owned));

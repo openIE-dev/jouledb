@@ -210,6 +210,16 @@ impl DurableAmorphicStore {
                         continue;
                     }
                 }
+            } else if crate::wal_codec::is_binary_update(data) {
+                match crate::wal_codec::decode_update(data) {
+                    Ok((id, updates)) => {
+                        let _ = store.update_fields_deferred_holo(id, updates);
+                    }
+                    Err(e) => {
+                        eprintln!("⚠ Skipping corrupt JWU1 WAL update during recovery: {e}");
+                        continue;
+                    }
+                }
             } else if let Ok(op) = serde_json::from_slice::<WalOperation>(data) {
                 match op {
                     WalOperation::Ingest {
@@ -607,6 +617,7 @@ impl DurableAmorphicStore {
     }
 
     /// Update specific fields of a record within the current batch transaction
+    /// using binary `JWU1` WAL framing and deferred hologram re-encoding.
     pub fn batch_update_fields(
         &mut self,
         id: RecordId,
@@ -618,24 +629,14 @@ impl DurableAmorphicStore {
             .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
 
         let tx_id = batch.tx_id;
-
-        // WAL-log the update operation
-        let op = WalOperation::UpdateFields {
-            id,
-            updates: updates.clone(),
-        };
-        let serialized = serde_json::to_vec(&op)
-            .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
+        let serialized = crate::wal_codec::encode_update(id, &updates);
 
         let virtual_page_id = u64::MAX - tx_id - batch.records.len() as u64 - 1;
         self.wal
             .log_page_write(tx_id, virtual_page_id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
-        // Apply to store
-        self.store.update_fields(id, updates)?;
-
-        // Track in batch
+        self.store.update_fields_deferred_holo(id, updates)?;
         batch.records.push((virtual_page_id, serialized));
 
         Ok(())
@@ -1032,6 +1033,15 @@ impl DurableAmorphicStore {
     /// Borrowing variant of `query_equals` (no record clones).
     pub fn records_equal(&self, field: &str, value: &Value) -> Vec<&crate::AmorphicRecord> {
         self.store.records_equal(field, value)
+    }
+
+    /// Zero-allocation visitor variant of `query_equals`.
+    #[inline]
+    pub fn for_each_record_equal<F>(&self, field: &str, value: &Value, f: F)
+    where
+        F: FnMut(&crate::AmorphicRecord) -> bool,
+    {
+        self.store.for_each_record_equal(field, value, f);
     }
 
     /// Query by range

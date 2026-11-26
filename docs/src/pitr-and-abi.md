@@ -2,7 +2,7 @@
 
 `crates/joule-db-core/src/v1_stability_and_pitr.rs` implements versioned binary framing (`JWAL`, `JSYN`, `JWPV`, `ASNP`, `TCAP`) and an in-engine hash-chained WAL archive with `LSN` and microsecond timestamp Point-in-Time Recovery (`ContinuousPitrArchive`).
 
-> **Pre-1.0 Status (`v0.11.0`):** Although the framing header supports forward/backward Tag-Length-Value (`TLV`) extensions (`JWAL`, `JSYN`, `JWPV`, `ASNP`, `TCAP`, plus binary `JMVR\x01` & `JWB1` MVCC/WAL encoding), JouleDB itself is at `v0.11.0` (pre-1.0) and wire/storage schemas may still evolve prior to a future `1.0` release.
+> **Pre-1.0 Status (`v0.12.0`):** Although the framing header supports forward/backward Tag-Length-Value (`TLV`) extensions (`JWAL`, `JSYN`, `JWPV`, `ASNP`, `TCAP`, plus binary `JMVR\x01` & `JWB1` MVCC/WAL encoding), JouleDB itself is at `v0.12.0` (pre-1.0) and wire/storage schemas may still evolve prior to a future `1.0` release.
 
 ## Capabilities Implemented
 

@@ -16,15 +16,106 @@ use crate::{RecordId, Value};
 use std::collections::HashMap;
 
 pub const MAGIC: &[u8; 4] = b"JWB1";
+pub const UPDATE_MAGIC: &[u8; 4] = b"JWU1";
 
 pub(crate) const T_MIXED: u8 = 0;
 pub(crate) const T_INT: u8 = 1;
 pub(crate) const T_FLOAT: u8 = 2;
 pub(crate) const T_BOOL: u8 = 3;
 pub(crate) const T_STR: u8 = 4;
+pub(crate) const T_NULL: u8 = 5;
 
 pub fn is_binary(data: &[u8]) -> bool {
     data.len() >= 4 && &data[..4] == MAGIC
+}
+
+pub fn is_binary_update(data: &[u8]) -> bool {
+    data.len() >= 4 && &data[..4] == UPDATE_MAGIC
+}
+
+/// Compact binary WAL frame (`JWU1`) for single-record `UpdateFields` mutations.
+pub fn encode_update(id: RecordId, updates: &HashMap<String, Value>) -> Vec<u8> {
+    let mut out = Vec::with_capacity(20 + updates.len() * 24);
+    out.extend_from_slice(UPDATE_MAGIC);
+    out.extend_from_slice(&id.to_le_bytes());
+    out.extend_from_slice(&(updates.len() as u16).to_le_bytes());
+    for (name, val) in updates {
+        out.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        out.extend_from_slice(name.as_bytes());
+        match val {
+            Value::Null => out.push(T_NULL),
+            Value::Int(x) => {
+                out.push(T_INT);
+                out.extend_from_slice(&x.to_le_bytes());
+            }
+            Value::Float(x) => {
+                out.push(T_FLOAT);
+                out.extend_from_slice(&x.to_le_bytes());
+            }
+            Value::Bool(b) => {
+                out.push(T_BOOL);
+                out.push(u8::from(*b));
+            }
+            Value::String(s) => {
+                out.push(T_STR);
+                out.extend_from_slice(&(s.len() as u32).to_le_bytes());
+                out.extend_from_slice(s.as_bytes());
+            }
+            other => {
+                out.push(T_MIXED);
+                let j = serde_json::to_vec(other).unwrap_or_default();
+                out.extend_from_slice(&(j.len() as u32).to_le_bytes());
+                out.extend_from_slice(&j);
+            }
+        }
+    }
+    let crc = crc32fast::hash(&out);
+    out.extend_from_slice(&crc.to_le_bytes());
+    out
+}
+
+/// Decode a `JWU1` binary `UpdateFields` WAL frame.
+pub fn decode_update(data: &[u8]) -> Result<(RecordId, HashMap<String, Value>), String> {
+    if !is_binary_update(data) || data.len() < 18 {
+        return Err("not a JWU1 record".into());
+    }
+    let Some((body, tail)) = data.split_last_chunk::<4>() else {
+        return Err("not a JWU1 record".into());
+    };
+    if crc32fast::hash(body) != u32::from_le_bytes(*tail) {
+        return Err("JWU1 crc mismatch".into());
+    }
+    let mut r = Rd { b: body, p: 4 };
+    let id = r.u64()?;
+    let count = r.u16()? as usize;
+    let mut updates = HashMap::with_capacity(count);
+    for _ in 0..count {
+        let nl = r.u16()? as usize;
+        let name = std::str::from_utf8(r.take(nl)?)
+            .map_err(|e| e.to_string())?
+            .to_string();
+        let tag = r.take(1)?[0];
+        let val = match tag {
+            T_NULL => Value::Null,
+            T_INT => Value::Int(i64::from_le_bytes(*r.chunk::<8>()?)),
+            T_FLOAT => Value::Float(f64::from_le_bytes(*r.chunk::<8>()?)),
+            T_BOOL => Value::Bool(r.take(1)?[0] != 0),
+            T_STR => {
+                let sl = r.u32()? as usize;
+                let s = std::str::from_utf8(r.take(sl)?)
+                    .map_err(|e| e.to_string())?
+                    .to_string();
+                Value::String(s)
+            }
+            T_MIXED => {
+                let jl = r.u32()? as usize;
+                serde_json::from_slice(r.take(jl)?).map_err(|e| e.to_string())?
+            }
+            t => return Err(format!("JWU1 unknown value tag {t}")),
+        };
+        updates.insert(name, val);
+    }
+    Ok((id, updates))
 }
 
 /// Encode a chunk of rows (column order = first appearance).
@@ -309,5 +400,26 @@ mod tests {
         bad[20] ^= 1;
         assert!(decode_chunk(&bad).is_err());
         assert!(decode_chunk(&enc[..enc.len() - 3]).is_err());
+    }
+
+    #[test]
+    fn roundtrip_jwu1_update() {
+        let mut updates = HashMap::new();
+        updates.insert("balance".into(), Value::Int(123_456));
+        updates.insert("rate".into(), Value::Float(3.125));
+        updates.insert("active".into(), Value::Bool(true));
+        updates.insert("memo".into(), Value::String("tx-99".into()));
+        updates.insert("cleared".into(), Value::Null);
+        updates.insert("tags".into(), Value::Array(vec![Value::Int(7)]));
+        let enc = encode_update(42_001, &updates);
+        assert!(is_binary_update(&enc));
+        assert!(!is_binary(&enc));
+        let (id, dec) = decode_update(&enc).unwrap();
+        assert_eq!(id, 42_001);
+        assert_eq!(dec, updates);
+        let mut bad = enc.clone();
+        bad[10] ^= 0xff;
+        assert!(decode_update(&bad).is_err());
+        assert!(decode_update(&enc[..enc.len() - 2]).is_err());
     }
 }

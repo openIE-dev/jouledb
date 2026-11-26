@@ -207,16 +207,45 @@ pub fn for_each_parquet_batch_group<F>(
 where
     F: FnMut(&[RecordBatch]) -> Result<bool, String>,
 {
+    for_each_parquet_batch_group_with_total(path, groups_per_chunk, |chunk, _total| on_chunk(chunk))
+}
+
+/// Like [`for_each_parquet_batch_group`], additionally passing the Parquet footer's
+/// total file row count so streaming `COPY` can route Chunk 0 directly to `.jcol`
+/// segments whenever the file exceeds `JOULEDB_COL_SPILL_ROWS`.
+pub fn for_each_parquet_batch_group_with_total<F>(
+    path: &str,
+    groups_per_chunk: usize,
+    mut on_chunk: F,
+) -> Result<(), String>
+where
+    F: FnMut(&[RecordBatch], Option<usize>) -> Result<bool, String>,
+{
+    for_each_parquet_batch_group_owned(path, groups_per_chunk, |sub, total| on_chunk(&sub, total))
+}
+
+/// Owned-batch variant of [`for_each_parquet_batch_group_with_total`] so streaming `COPY` can
+/// drop every Arrow `RecordBatch` **before** persisting `.jcol` segment metadata.
+pub fn for_each_parquet_batch_group_owned<F>(
+    path: &str,
+    groups_per_chunk: usize,
+    mut on_chunk: F,
+) -> Result<(), String>
+where
+    F: FnMut(Vec<RecordBatch>, Option<usize>) -> Result<bool, String>,
+{
     use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ParquetRecordBatchReaderBuilder as B};
     use rayon::prelude::*;
+    crate::disk_col_segments::ensure_linux_mmap_allocator();
     let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
     let shared_meta = ArrowReaderMetadata::load(&f, Default::default()).map_err(err)?;
     let groups = shared_meta.metadata().num_row_groups();
     if groups == 0 {
         return Ok(());
     }
+    let file_total_rows = usize::try_from(shared_meta.metadata().file_metadata().num_rows()).ok();
     let step = groups_per_chunk.max(1);
-    const MAX_CHUNK_ROWS: usize = 524_288;
+    const MAX_CHUNK_ROWS: usize = 262_144;
     let mut g0 = 0usize;
     while g0 < groups {
         let g1 = (g0 + step).min(groups);
@@ -232,27 +261,30 @@ where
                 rd.collect::<Result<Vec<_>, _>>().map_err(err)
             })
             .collect::<Result<_, String>>()?;
-        let chunk: Vec<RecordBatch> = parts.into_iter().flatten().collect();
-        let mut b0 = 0usize;
-        while b0 < chunk.len() {
+        let mut queue: std::collections::VecDeque<RecordBatch> =
+            parts.into_iter().flatten().collect();
+        while !queue.is_empty() {
             let mut sub_rows = 0usize;
-            let mut b1 = b0;
-            while b1 < chunk.len() {
-                let nr = chunk[b1].num_rows();
-                if b1 > b0 && sub_rows.saturating_add(nr) > MAX_CHUNK_ROWS {
+            let mut sub = Vec::new();
+            while let Some(front) = queue.front() {
+                let nr = front.num_rows();
+                if !sub.is_empty() && sub_rows.saturating_add(nr) > MAX_CHUNK_ROWS {
                     break;
                 }
-                sub_rows = sub_rows.saturating_add(nr);
-                b1 += 1;
+                if let Some(b) = queue.pop_front() {
+                    sub_rows = sub_rows.saturating_add(nr);
+                    sub.push(b);
+                }
             }
-            if !on_chunk(&chunk[b0..b1])? {
+            if !on_chunk(sub, file_total_rows)? {
+                drop(queue);
+                crate::disk_col_segments::trim_unused_heap();
                 return Ok(());
             }
-            b0 = b1;
         }
-        drop(chunk);
         g0 = g1;
     }
+    drop(shared_meta);
     crate::disk_col_segments::trim_unused_heap();
     Ok(())
 }
@@ -427,8 +459,33 @@ pub fn batches_to_columns(
     let cols: Option<Vec<BatchColumn>> = (0..names.len())
         .into_par_iter()
         .map(|ci| {
-            let dt = schema.field(ci).data_type().clone();
-            let arrays: Vec<&dyn Array> = batches.iter().map(|b| b.column(ci).as_ref()).collect();
+            let raw_dt = schema.field(ci).data_type().clone();
+            let mut casted_storage: Option< Vec<ArrayRef> > = None;
+            let dt = match raw_dt {
+                DataType::Dictionary(_, vt) => {
+                    let mut v = Vec::with_capacity(batches.len());
+                    for b in batches {
+                        v.push(arrow::compute::cast(b.column(ci).as_ref(), vt.as_ref()).ok()?);
+                    }
+                    casted_storage = Some(v);
+                    (*vt).clone()
+                }
+                DataType::Decimal256(p, _) if p <= 18 => {
+                    let mut v = Vec::with_capacity(batches.len());
+                    for b in batches {
+                        v.push(
+                            arrow::compute::cast(b.column(ci).as_ref(), &DataType::Float64).ok()?,
+                        );
+                    }
+                    casted_storage = Some(v);
+                    DataType::Float64
+                }
+                other => other,
+            };
+            let arrays: Vec<&dyn Array> = match &casted_storage {
+                Some(cs) => cs.iter().map(|a| a.as_ref()).collect(),
+                None => batches.iter().map(|b| b.column(ci).as_ref()).collect(),
+            };
             let nulls: usize = arrays.iter().map(|a| a.null_count()).sum();
             let valid = (nulls > 0).then(|| {
                 let mut v = Vec::with_capacity(total);

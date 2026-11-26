@@ -1,8 +1,8 @@
-# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.11.0`)
+# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.12.0`)
 
-> **Audit Remediation & Evidence Standard (`v0.11.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
+> **Audit Remediation & Evidence Standard (`v0.12.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
 >
-> Below we strictly separate **(1) reproducible external dataset, multi-table `TPC-H` (`SF=0.1..10.0`), multi-client `pgwire` OLTP, & multi-host WAN consensus evaluations** (with every win, loss, memory profile, and architectural bottleneck reported openly) from **(2) fast in-process functional smoke checks**, and tag every energy figure as **`reported_j`** (hardware RAPL / SMC counters) or **`est_j`** (analytical cost model).
+> Below we strictly separate **(1) reproducible external dataset, multi-table `TPC-H` (`SF=0.1..10.0`), physical-NVMe multi-client `pgwire` OLTP, & multi-host WAN consensus evaluations** (with every win, loss, memory profile, and architectural bottleneck reported openly) from **(2) fast in-process functional smoke checks**, and tag every energy figure as **`reported_j`** (hardware RAPL / SMC counters) or **`est_j`** (analytical cost model).
 
 ---
 
@@ -39,48 +39,49 @@
 ## 2. Official 22-Query `TPC-H` Relational Suite (`tpch_queries()`, 8 Tables, `SF = 0.1`, `1.0` & `10.0`) vs. DuckDB `2.0.1`
 
 - **Harness & Raw Artifacts:** [`bench/tpch_official.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/tpch_official.py), [`tpch_official_sf01.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf01.json), [`tpch_official_sf1.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf1.json), **[`tpch_official_sf10.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf10.json)**.
-- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)`, loads them into JouleDB `0.11.0` over TCP `pgwire` (`COPY ... FROM` Parquet, spilling `.jcol` segments above `262,144` rows), and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` with row-by-row numeric/text verification against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
+- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)` on physical NVMe (`--work-dir /var/tmp`), loads them into JouleDB `0.12.0` over TCP `pgwire` (`COPY ... FROM` Parquet, spilling `.jcol` segments above `131,072` rows in disjoint `JCOL_ID_TAG` ID space), and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` with row-by-row verification against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
 
-| `TPC-H` Scale | Total Rows (8 Tables) | Parquet Load (`DuckDB` vs `JouleDB`) | Peak `VmHWM` | Verified Exact (`Faster`) | Total 22-Query Time (`DuckDB` vs `JouleDB`) | Geomean Latency (`JouleDB / DuckDB`) |
+| `TPC-H` Scale | Total Rows (8 Tables) | Parquet Load (`DuckDB` vs `JouleDB`) | Post-Load RSS (`VmHWM` Peak) | Verified Exact (`Faster`) | Total 22-Query Time (`DuckDB` vs `JouleDB`) | Geomean Latency (`JouleDB / DuckDB`) |
 |---|---:|---:|---:|---:|---:|---:|
-| **`SF = 0.1`** | `866,602` rows | `0.328 s` (`13.8 J`) vs `1.979 s` (`135.3 J`) | `2,204.7 MB` | **`22 / 22` (`3` wins)** | `99.5 ms` vs **`318.0 ms`** | **`2.22×` slower** (`median 1.92×`, vs `125.5×` in `v0.10.0`) |
-| **`SF = 1.0`** | `8,661,245` rows (`6.0M` `lineitem`) | `1.099 s` (`70.9 J`) vs **`4.884 s` (`256.0 J`)** | **`6,303.2 MB`** | **`22 / 22` (`1` win)** | `239.4 ms` vs **`2,787.1 ms`** | **`6.18×` slower** (`median 6.39×`, vs `13/22` in `v0.10.0`) |
-| **`SF = 10.0`** | **`86,586,082` rows (`60.0M` `lineitem`)** | `4.964 s` (`530.4 J`) vs **`27.813 s` (`2,026.3 J`)** | `40,031.2 MB` | **`22 / 22` (`0` err)** | `979.8 ms` vs **`34,060.0 ms`** | **`16.03×` slower** (`median 12.44×`, `18/22 < 1.0 s`) |
+| **`SF = 0.1`** | `866,602` rows | `0.430 s` (`12.2 J`) vs `1.380 s` (`54.5 J`) | **`780.8 MB`** (`939.3 MB`) | **`22 / 22` (`5` wins)** | `88.2 ms` vs **`253.0 ms`** | **`1.99×` slower** (`median 2.16×`, vs `125.5×` in `v0.10.0`) |
+| **`SF = 1.0`** | `8,661,245` rows (`6.0M` `lineitem`) | `1.142 s` (`64.6 J`) vs `5.504 s` (`288.5 J`) | **`201.4 MB`** (`1,561.8 MB`) | **`22 / 22` (`0` err)** | `253.0 ms` vs **`1,779.0 ms`** (`1.57×` vs `v0.11.0`) | **`4.33×` slower** (`median 3.60×`, down from `6.18×`) |
+| **`SF = 10.0`** | **`86,586,082` rows (`60.0M` `lineitem`)** | `5.434 s` (`506.5 J`) vs `38.059 s` (`1,242.5 J`) | **`755.3 MB`** (`15,586.4 MB`) | **`22 / 22` (`0` err)** | `1,001.4 ms` vs **`15,464.6 ms`** (**`2.20×` vs `v0.11.0`**) | **`8.49×` slower** (`median 8.38×`, `20/22 < 1.2 s`) |
 
 ### Selected Per-Query `TPC-H` Latencies (`SF = 0.1`, `SF = 1.0` & `SF = 10.0`, `reported_j`)
 
 | Query | Relational Pattern | `SF = 0.1` (`JDB` vs `DuckDB`) | `SF = 1.0` (`JDB` vs `DuckDB`) | `SF = 10.0` (`JDB` vs `DuckDB`) |
 |---|---|---|---|---|
-| `Q22` | `NOT EXISTS` + `AVG` scalar subquery + `SUBSTRING` | **`1.31 ms`** vs `4.27 ms` (**`0.31×` win**) | **`12.59 ms`** vs `17.12 ms` (**`0.74×` win**) | `138.0 ms` vs `32.9 ms` (`4.19×`) |
-| `Q11` | 3-table join + `HAVING SUM > scalar subquery` | **`2.46 ms`** vs `4.40 ms` (**`0.56×` win**) | `14.99 ms` vs `4.44 ms` (`3.38×`) | `189.0 ms` vs `8.32 ms` (`22.7×`) |
-| `Q20` | Nested `IN` + correlated `0.5 * SUM(l_quantity)` | **`3.54 ms`** vs `5.66 ms` (**`0.63×` win**) | `75.06 ms` vs `10.61 ms` (`7.07×`) | `657.2 ms` vs `31.8 ms` (`20.6×`) |
-| `Q06` | Single-table `lineitem` range filter + `SUM` | `3.86 ms` vs `1.05 ms` (`3.67×`) | `9.80 ms` vs `1.51 ms` (`6.49×`) | `74.38 ms` vs `9.85 ms` (`7.55×`) |
-| `Q14` | `lineitem ⋈ part` promo `CASE` ratio | `5.25 ms` vs `2.19 ms` (`2.40×`) | `16.81 ms` vs `7.67 ms` (`2.19×`) | `176.0 ms` vs `31.4 ms` (`5.61×`) |
-| `Q17` | `lineitem ⋈ part` correlated `0.2 * AVG(l_quantity)` | `5.13 ms` vs `3.59 ms` (`1.43×`) | `15.00 ms` vs `6.83 ms` (`2.20×`) | `1,528.8 ms` vs `32.6 ms` (`46.9×`) |
-| `Q05` | 6-table cyclic `region..lineitem` join (`36 GB` OOM in `v0.10.0`) | `10.66 ms` vs `5.57 ms` (`1.92×`) | **`61.83 ms`** vs `8.80 ms` (`7.03×`) | `790.2 ms` vs `40.8 ms` (`19.4×`) |
-| `Q08` | 8-table Snowflake join + `CASE` market share (`>25 s` in `v0.10.0`) | `8.64 ms` vs `4.79 ms` (`1.80×`) | **`52.48 ms`** vs `9.83 ms` (`5.34×`) | `476.4 ms` vs `40.1 ms` (`11.9×`) |
-| `Q13` | `customer LEFT OUTER JOIN orders` derived `GROUP BY` | `19.50 ms` vs `10.19 ms` (`1.91×`) | `98.46 ms` vs `22.29 ms` (`4.42×`) | `745.3 ms` vs `104.0 ms` (`7.16×`) |
-| `Q21` | 4-table `EXISTS` + `NOT EXISTS` (`NeqSummary`, `>25 s` in `v0.10.0`) | `28.71 ms` vs `6.08 ms` (`4.72×`) | `195.74 ms` vs `14.93 ms` (`13.1×`) | `2,759.6 ms` vs `67.2 ms` (`41.1×`) |
-| `Q18` | `IN (SELECT l_orderkey GROUP BY HAVING SUM > 300)` (widest tail) | `74.08 ms` vs `4.95 ms` (`15.0×`) | `874.07 ms` vs `15.30 ms` (`57.1×`) | `11,328.8 ms` vs `119.5 ms` (`94.8×`) |
+| `Q22` | `NOT EXISTS` + `AVG` scalar subquery + `SUBSTRING` | **`1.97 ms`** vs `3.73 ms` (**`0.53×` win**) | `33.08 ms` vs `16.55 ms` (`2.00×`) | **`65.48 ms`** vs `37.07 ms` (`1.77×`) |
+| `Q11` | 3-table join + `HAVING SUM > scalar subquery` | **`2.51 ms`** vs `4.72 ms` (**`0.53×` win**) | `20.41 ms` vs `6.92 ms` (`2.95×`) | `173.4 ms` vs `10.4 ms` (`16.6×`) |
+| `Q02` | 5-table join + correlated `MIN(ps_supplycost)` | **`2.39 ms`** vs `2.99 ms` (**`0.80×` win**) | `15.53 ms` vs `5.57 ms` (`2.79×`) | `572.1 ms` vs `21.8 ms` (`26.3×`) |
+| `Q20` | Nested `IN` + correlated `0.5 * SUM(l_quantity)` | **`3.03 ms`** vs `3.66 ms` (**`0.83×` win**) | **`16.99 ms`** vs `10.41 ms` (`1.63×`) | **`99.73 ms`** vs `34.4 ms` (`2.90×`, `6.59×` vs `v0.11`) |
+| `Q16` | `partsupp ⋈ part` + `NOT IN (SELECT s_suppkey ...)` | **`5.07 ms`** vs `5.24 ms` (**`0.97×` win**) | `61.71 ms` vs `17.97 ms` (`3.43×`) | `333.6 ms` vs `43.8 ms` (`7.61×`) |
+| `Q04` | `orders` quarter filter + `EXISTS (lineitem)` | `3.80 ms` vs `2.23 ms` (`1.70×`) | **`11.09 ms`** vs `6.43 ms` (`1.73×`) | **`65.07 ms`** vs `41.7 ms` (`1.56×`, `3.47×` vs `v0.11`) |
+| `Q17` | `lineitem ⋈ part` correlated `0.2 * AVG(l_quantity)` | `3.86 ms` vs `3.20 ms` (`1.21×`) | `21.63 ms` vs `8.36 ms` (`2.59×`) | **`88.65 ms`** vs `32.0 ms` (`2.77×`, **`17.2×` vs `v0.11`**) |
+| `Q05` | 6-table cyclic `region..lineitem` join | `8.86 ms` vs `4.46 ms` (`1.99×`) | `37.43 ms` vs `8.76 ms` (`4.27×`) | `470.2 ms` vs `41.6 ms` (`11.3×`) |
+| `Q08` | 8-table Snowflake join + `CASE` market share | `8.14 ms` vs `3.87 ms` (`2.10×`) | `35.11 ms` vs `9.30 ms` (`3.77×`) | `363.2 ms` vs `45.2 ms` (`8.03×`) |
+| `Q21` | 4-table `EXISTS` + `NOT EXISTS` (`NeqSummary`) | `44.45 ms` vs `5.14 ms` (`8.65×`) | `196.55 ms` vs `16.52 ms` (`11.9×`) | `1,187.4 ms` vs `72.4 ms` (`16.4×`, `2.32×` vs `v0.11`) |
+| `Q18` | `IN (SELECT l_orderkey GROUP BY HAVING SUM > 300)` | `34.69 ms` vs `4.53 ms` (`7.65×`) | `260.34 ms` vs `14.93 ms` (`17.4×`) | `1,799.8 ms` vs `99.1 ms` (`18.2×`, **`6.29×` vs `v0.11`**) |
+| `Q10` | 4-table quarter return revenue (`20`-row Top-K, widest tail) | `24.75 ms` vs `6.00 ms` (`4.13×`) | `546.87 ms` vs `25.49 ms` (`21.5×`) | `5,230.7 ms` vs `80.7 ms` (`64.8×`, `1.74×` vs `v0.11`) |
 
 ---
 
-## 3. Head-to-Head `100`-Warehouse TCP `pgwire` OLTP vs. `PostgreSQL 16.16` & `SQLite 3.53.1`
+## 3. Head-to-Head `100`-Warehouse Physical-NVMe TCP `pgwire` OLTP vs. `PostgreSQL 16.16` & `SQLite 3.53.1`
 
 - **Harness & Raw Artifact:** [`bench/oltp_pgwire.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/oltp_pgwire.py), [`oltp_pgwire_100wh.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/oltp_pgwire_100wh.json).
-- **Workload:** `100,000` accounts (`100` warehouses × `1,000` accounts, initial `SUM(balance) = 100,000,000`), `1, 4, 8, 16` concurrent worker threads (`8.0 s` per level), `50%` `SELECT ... WHERE id = $1`, `30%` `BEGIN; UPDATE accounts SET balance = balance + $1 WHERE id = $2; INSERT INTO history ...; COMMIT` (`fsync=on`, `synchronous_commit=on`), `20%` `SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = $1` (`rapl-package` **`reported_j`**, quiet host `idle_watts = 10.96 W`).
+- **Workload:** `100,000` accounts (`100` warehouses × `1,000` accounts, initial `SUM(balance) = 100,000,000`), physical NVMe storage (`--work-dir /var/tmp`), `1, 4, 8, 16` concurrent worker threads (`8.0 s` per level), `50%` `SELECT ... WHERE id = $1`, `30%` `BEGIN; UPDATE accounts SET balance = balance + $1 WHERE id = $2; INSERT INTO history ...; COMMIT` (`fsync=on`, `synchronous_commit=on`), `20%` `SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = $1` (`rapl-package` **`reported_j`**, quiet host `idle_watts = 10.68 W`).
 
-| Engine & Wire Mode (`invariant_verified = true` on all 5) | `c = 1` TPS (`p50`) | `c = 4` TPS (`p50`) | `c = 8` TPS (`p50`) | `c = 16` TPS (`p50`, `mJ/txn`) | Committed Writes |
+| Engine & Wire Mode (`invariant_verified = true`, `0` errors on all 5) | `c = 1` TPS (`p50`) | `c = 4` TPS (`p50`) | `c = 8` TPS (`p50`) | `c = 16` TPS (`p50`, `mJ/txn`) | Committed Writes |
 |---|---:|---:|---:|---:|---:|
-| **JouleDB `0.11.0` (`pgwire` Simple Query, 4-RTT + `fsync`)** | `4,094.66` (`0.134 ms`) | **`5,797.01`** (`0.658 ms`) | `5,376.65` (`0.997 ms`) | **`5,038.38`** (`1.370 ms`, `15.93 mJ`) | `48,473` (`1` SI conflict) |
-| **JouleDB `0.11.0` (`pgwire` Extended Pipeline, 1-RTT + `fsync`)** | `4,020.27` (`0.150 ms`) | **`5,205.58`** (`0.780 ms`) | `5,186.25` (`1.056 ms`) | **`4,990.75`** (`1.384 ms`, `24.55 mJ`) | `46,337` (`1` SI conflict) |
-| **PostgreSQL `16.16` (`pgwire` Simple Query, 4-RTT + `fsync`)** | `17,466.14` (`0.064 ms`) | `35,913.17` (`0.097 ms`) | `22,680.27` (`0.247 ms`) | **`14,676.40`** (`0.723 ms`, `5.18 mJ`) | `217,684` (`0` conflicts) |
-| **PostgreSQL `16.16` (`pgwire` Extended Pipeline, 1-RTT + `fsync`)** | `23,516.32` (`0.041 ms`) | `26,620.99` (`0.132 ms`) | `18,251.52` (`0.347 ms`) | **`13,029.46`** (`0.975 ms`, `5.66 mJ`) | `195,399` (`0` conflicts) |
-| **SQLite `3.53.1` (Embedded in-proc C API, `WAL`, `NORMAL`)** | `90,161.56` (`0.005 ms`) | `104,040.70` (`0.005 ms`) | `109,016.55` (`0.006 ms`) | **`127,046.29`** (`0.006 ms`, `0.44 mJ`) | `1,035,821` (in-proc) |
+| **JouleDB `0.12.0` (`pgwire` Simple Query, 4-RTT + NVMe `fdatasync`)** | **`1,950.53`** (`0.148 ms`) | `1,005.03` (`0.666 ms`) | `2,617.89` (`0.640 ms`) | **`5,154.08`** (`0.718 ms`, `10.34 mJ`) | `25,677` (`0` conflicts) |
+| **JouleDB `0.12.0` (`pgwire` Extended Pipeline, 1-RTT + NVMe `fdatasync`)** | `620.92` (`0.169 ms`) | `1,149.02` (`0.616 ms`) | `2,730.90` (`0.633 ms`) | **`5,159.73`** (`0.773 ms`, `11.71 mJ`) | `23,158` (`0` conflicts) |
+| **PostgreSQL `16.16` (`pgwire` Simple Query, 4-RTT + NVMe `fsync`)** | `1,199.69` (`0.100 ms`) | `2,813.01` (`0.142 ms`) | `5,571.65` (`0.111 ms`) | **`10,419.39`** (`0.273 ms`, `4.14 mJ`) | `47,846` (`0` conflicts) |
+| **PostgreSQL `16.16` (`pgwire` Extended Pipeline, 1-RTT + NVMe `fsync`)** | `1,171.69` (`0.071 ms`) | `2,555.25` (`0.100 ms`) | `5,046.95` (`0.167 ms`) | **`9,635.60`** (`0.231 ms`, `3.67 mJ`) | `44,020` (`0` conflicts) |
+| **SQLite `3.53.1` (Embedded in-proc C API, NVMe `WAL`, `NORMAL`)** | `42,194.70` (`0.005 ms`) | `86,523.31` (`0.006 ms`) | `97,425.32` (`0.007 ms`) | **`109,483.53`** (`0.007 ms`, `0.36 mJ`) | `830,955` (in-proc) |
 
-- **Candid OLTP Findings:**
-  1. **`4.03×`–`10.53×` Higher JouleDB Throughput (`5,797.0 TPS` at `c=4`, `0.134 ms` `c=1` `p50`):** 64-shard `MvccStore`/`MvccTableStorage`, `SchemaMetaCache`, `O(1)`/`O(k)` direct indexed `SELECT`/`COUNT`/`SUM`, adaptive `BTreeSet` `ValueIds`, and deferred-hologram binary `JWB1` `batch_ingest_fields` lift JouleDB to **`5,797.01 TPS` (`c=4`)** and **`5,038.38 TPS` Simple / `4,990.75 TPS` Pipelined (`c=16`)**.
-  2. **`PostgreSQL 16.16` Remains `2.61×`–`6.19×` Faster:** Narrowed at `c=16` from `4.18×` (`v0.10.0`) to **`2.91×` Simple (`2.61×` Pipelined)**, while PostgreSQL's shared-buffer page locks still outscale JouleDB's store-wide write lock at `c=4` (`35,913` vs `5,797 TPS`).
+- **Candid Physical-NVMe OLTP Findings:**
+  1. **JouleDB Beats `PostgreSQL 16.16` `1.63×` at `c=1` Simple (`1,950.5` vs `1,199.7 TPS`) & Scales to `5,159.7 TPS` at `c=16`:** On real NVMe `fdatasync` (`--work-dir /var/tmp`, vs `/tmp` `tmpfs` in `v0.11.0`), binary `JWU1` delta `UPDATE`s, deferred-hologram updates, and `GroupSync` narrow the `c=16` gap vs `PostgreSQL 16.16` from `2.91× / 2.61×` (`v0.11.0`) to **`2.02×` Simple / `1.87×` Pipelined**.
+  2. **Remaining Bottlenecks (`c=4..16` & `c=1` Pipelined):** `PostgreSQL 16.16` wins `1.87×–2.80×` at `c=4..16` via shared-buffer page locks vs JouleDB's store-wide apply lock, and `GroupSync`'s batch coalescing window adds `~1.5 ms` wait when only 1 pipelined client is active (`620.9 TPS`).
 
 ---
 
@@ -94,7 +95,7 @@
 
 ## 5. `.jsyn` (`JSYN-v1`) Sub-1-Bit Weights: Measured Quality vs. Compression
 
-| Checkpoint / Layer | `BPW` | Shrink vs `FP16` | Measured Fidelity vs Upstream | Status in `v0.11.0` |
+| Checkpoint / Layer | `BPW` | Shrink vs `FP16` | Measured Fidelity vs Upstream | Status in `v0.12.0` |
 |---|---:|---:|---|---|
 | **[`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit)** (`6L` Encoder) | `0.4378` | `22.23×` (`1.95 MB`) | **`0.9441` sentence-embedding cosine** vs `FP32` | **Published & Verified on Hugging Face** (`Apache-2.0`) |
 | `Gemma-4-E2B` `q_proj` (`r = 8 -> 128` rank sweep) | `0.028–0.166` | `564× -> 96.6×` | `0.271 -> 0.455` output cosine (`KL 3.87 -> 2.72`, `65.6%` Top-5) | **Retracted from HF** (not drop-in LLM fidelity) |

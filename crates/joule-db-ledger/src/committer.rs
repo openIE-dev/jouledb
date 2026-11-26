@@ -445,8 +445,9 @@ async fn commit_batch<B: LedgerBackend>(
         .map(|r| r.timestamp_end)
         .max()
         .expect("non-empty batch");
-    let aggregate_kwh: f64 = receipts.iter().map(|r| r.kwh).sum();
-    let aggregate_kg_co2e: f64 = receipts.iter().map(|r| r.kg_co2e).sum();
+    let exact_summary = crate::kulisch::summarize_receipt_batch_exact(&receipts);
+    let aggregate_kwh: f64 = exact_summary.kwh_total;
+    let aggregate_kg_co2e: f64 = exact_summary.kg_co2e_total;
 
     let batch = ReceiptBatch {
         batch_id: root_hex.clone(),

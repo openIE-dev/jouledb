@@ -1267,7 +1267,11 @@ fn prepare_preds<'a>(t: &'a TableColumns, preds: &[Pred<'a>]) -> Option<Vec<Prep
                         val: *x,
                     }),
                     (Col::Int(ints, nulls), Lit::S(s)) => {
-                        let epoch_i = coerce_iso_temporal_for_int(t, col, s)?;
+                        let epoch_i = s
+                            .trim()
+                            .parse::<i64>()
+                            .ok()
+                            .or_else(|| coerce_iso_temporal_for_int(t, col, s))?;
                         out.push(PrepPred::IntCmp {
                             col_name: col,
                             ints,
