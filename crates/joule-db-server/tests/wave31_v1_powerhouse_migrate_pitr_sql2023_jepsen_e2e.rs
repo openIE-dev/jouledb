@@ -104,7 +104,7 @@ async fn test_wave31_subsystem_smoke_http_mcp_migration_pitr_and_aqe_e2e() {
     )
     .expect("json");
     let tools = mcp_json["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 49);
+    assert_eq!(tools.len(), 50);
 
     for tool_name in [
         "migrate.shadow_cutover",

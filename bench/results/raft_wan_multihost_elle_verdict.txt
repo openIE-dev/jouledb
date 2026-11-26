@@ -1,0 +1,5 @@
+=== Official jepsen/elle 0.2.8 Verification ===
+History file : bench/results/raft_wan_multihost_elle_history.edn
+Model        : rw-register (:strict-serializable)
+Events count : 270
+{:valid? true}

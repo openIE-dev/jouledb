@@ -83,9 +83,13 @@ impl McpResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct McpToolDef {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub description: String,
     #[serde(rename = "inputSchema")]
     pub input_schema: serde_json::Value,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -95,6 +99,8 @@ pub struct McpResourceDef {
     pub description: String,
     #[serde(rename = "mimeType")]
     pub mime_type: String,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Value>,
 }
 
 // ============================================================================
@@ -207,6 +213,9 @@ fn handle_mcp_request(
     request: &McpRequest,
     tool_handler: Option<&DatabaseToolHandler>,
 ) -> McpResponse {
+    if request.method.starts_with("notifications/") {
+        return McpResponse::success(request.id.clone(), serde_json::json!({}));
+    }
     match request.method.as_str() {
         "initialize" => handle_initialize(request),
         "tools/list" => handle_tools_list(request),
@@ -223,13 +232,22 @@ fn handle_mcp_request(
 }
 
 fn handle_initialize(request: &McpRequest) -> McpResponse {
+    let client_proto = request
+        .params
+        .get("protocolVersion")
+        .and_then(|v| v.as_str())
+        .unwrap_or("2024-11-05");
+    let negotiated = match client_proto {
+        "2025-03-26" | "2025-06-18" | "2025-11-25" => client_proto,
+        _ => "2024-11-05",
+    };
     McpResponse::success(
         request.id.clone(),
         serde_json::json!({
-            "protocolVersion": "2024-11-05",
+            "protocolVersion": negotiated,
             "capabilities": {
-                "tools": {},
-                "resources": {}
+                "tools": { "listChanged": false },
+                "resources": { "listChanged": false }
             },
             "serverInfo": {
                 "name": "jouledb",
@@ -256,16 +274,27 @@ fn handle_tools_list(request: &McpRequest) -> McpResponse {
 fn handle_resources_list(request: &McpRequest) -> McpResponse {
     let resources = vec![
         McpResourceDef {
+            uri: crate::mcp_app_ui::STUDIO_APP_URI.to_string(),
+            name: "JouleDB Studio".to_string(),
+            description: "Interactive MCP App UI (SEP-1865) for SQL queries, visual charts, CoW database branches, and joule telemetry".to_string(),
+            mime_type: crate::mcp_app_ui::MCP_APP_MIME.to_string(),
+            meta: Some(serde_json::json!({
+                "ui": { "prefersBorder": false }
+            })),
+        },
+        McpResourceDef {
             uri: "jouledb://tables".to_string(),
             name: "Table Catalog".to_string(),
             description: "List of all tables in the database".to_string(),
             mime_type: "application/json".to_string(),
+            meta: None,
         },
         McpResourceDef {
             uri: "jouledb://energy".to_string(),
             name: "Energy State".to_string(),
             description: "Current energy consumption and budget state".to_string(),
             mime_type: "application/json".to_string(),
+            meta: None,
         },
         McpResourceDef {
             uri: "jouledb://timeseries".to_string(),
@@ -273,6 +302,7 @@ fn handle_resources_list(request: &McpRequest) -> McpResponse {
             description: "Metrics stored in the joule-db-features TimeSeriesStore (TSLIST)"
                 .to_string(),
             mime_type: "application/json".to_string(),
+            meta: None,
         },
     ];
     McpResponse::success(
@@ -295,6 +325,22 @@ fn handle_resources_read(
             request.id.clone(),
             -32602,
             "resources/read requires params.uri".into(),
+        );
+    }
+
+    if uri == crate::mcp_app_ui::STUDIO_APP_URI {
+        return McpResponse::success(
+            request.id.clone(),
+            serde_json::json!({
+                "contents": [{
+                    "uri": crate::mcp_app_ui::STUDIO_APP_URI,
+                    "mimeType": crate::mcp_app_ui::MCP_APP_MIME,
+                    "text": crate::mcp_app_ui::studio_app_html(),
+                    "_meta": {
+                        "ui": { "prefersBorder": false }
+                    }
+                }]
+            }),
         );
     }
 
@@ -338,6 +384,84 @@ fn handle_tools_call(
         .get("arguments")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({}));
+
+    if tool_name == "db.studio" {
+        let Some(handler) = tool_handler else {
+            return McpResponse::error(
+                request.id.clone(),
+                -32603,
+                "MCP tool handler not configured (DatabaseToolHandler missing)".to_string(),
+            );
+        };
+        let default_sql = "SELECT table_name FROM information_schema.tables";
+        let sql = arguments
+            .get("sql")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or(default_sql);
+        let tab = arguments
+            .get("tab")
+            .and_then(|v| v.as_str())
+            .unwrap_or("sql");
+
+        let mut q_args = HashMap::new();
+        q_args.insert("sql".to_string(), serde_json::json!(sql));
+        let q_resp = handler.call_tool(ToolCallRequest {
+            id: "studio-q".to_string(),
+            tool: "db.query".to_string(),
+            arguments: q_args,
+        });
+        let t_resp = handler.call_tool(ToolCallRequest {
+            id: "studio-t".to_string(),
+            tool: "db.list_tables".to_string(),
+            arguments: HashMap::new(),
+        });
+        let b_resp = handler.call_tool(ToolCallRequest {
+            id: "studio-b".to_string(),
+            tool: "db.branch_list".to_string(),
+            arguments: HashMap::new(),
+        });
+
+        let tables_val = t_resp
+            .result
+            .as_ref()
+            .and_then(|v| v.get("tables").cloned())
+            .unwrap_or_else(|| serde_json::json!([]));
+        let branches_val = b_resp
+            .result
+            .as_ref()
+            .and_then(|v| v.get("branches").cloned())
+            .unwrap_or_else(|| serde_json::json!([]));
+        let query_json = q_resp.result.unwrap_or_else(|| serde_json::json!({}));
+        let joules = q_resp.energy_joules.unwrap_or(0.000002);
+        let row_cnt = query_json
+            .get("rows")
+            .and_then(|r| r.as_array())
+            .map_or(0, Vec::len);
+        let summary = format!(
+            "Opened JouleDB Studio (`{}` tab): executed `{}` ({} rows, {:.6} J est_j).",
+            tab, sql, row_cnt, joules
+        );
+        let structured = serde_json::json!({
+            "app": "jouledb-studio",
+            "version": env!("CARGO_PKG_VERSION"),
+            "active_tab": tab,
+            "sql": sql,
+            "query_result": query_json,
+            "tables": tables_val,
+            "branches": branches_val,
+            "energy_joules": joules,
+            "energy_evidence": "est_j"
+        });
+        return McpResponse::success(
+            request.id.clone(),
+            serde_json::json!({
+                "content": [{ "type": "text", "text": summary }],
+                "structuredContent": structured,
+                "energy_joules": joules
+            }),
+        );
+    }
 
     if let Some(frontier_json) = dispatch_frontier_or_analytic_mcp_tool(tool_name, &arguments) {
         let text = frontier_json.to_string();
@@ -408,12 +532,37 @@ fn handle_tools_call(
 // Tool definitions (all 24 tools)
 // ============================================================================
 
+fn plain_tool(name: &str, description: &str, input_schema: serde_json::Value) -> McpToolDef {
+    McpToolDef {
+        name: name.to_string(),
+        title: None,
+        description: description.to_string(),
+        input_schema,
+        meta: None,
+    }
+}
+
 pub fn all_tool_definitions() -> Vec<McpToolDef> {
     vec![
+        // Interactive MCP App Studio entrypoint (`SEP-1865` + Antigravity side-pane/global)
+        McpToolDef {
+            name: "db.studio".to_string(),
+            title: Some("JouleDB Studio".to_string()),
+            description: "Open the interactive JouleDB Studio MCP App (SQL workbench, visual charts, schema explorer, O(1) CoW branches, and joule telemetry)".to_string(),
+            input_schema: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "sql": { "type": "string", "description": "Optional initial SQL query to execute in Studio" },
+                    "tab": { "type": "string", "enum": ["sql", "schema", "branches", "energy"], "description": "Optional initial tab" }
+                }
+            }),
+            meta: Some(crate::mcp_app_ui::studio_entrypoint_meta()),
+        },
         // Existing DB tools
         McpToolDef {
             name: "db.query".to_string(),
-            description: "Execute a SQL query against JouleDB".to_string(),
+            title: Some("Run SQL Query".to_string()),
+            description: "Execute a SQL query against JouleDB and render interactive results".to_string(),
             input_schema: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -422,11 +571,12 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["sql"]
             }),
+            meta: Some(crate::mcp_app_ui::inline_ui_meta()),
         },
-        McpToolDef {
-            name: "db.insert".to_string(),
-            description: "Insert a row into a table".to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.insert",
+            "Insert a row into a table",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "table": { "type": "string" },
@@ -434,44 +584,44 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["table", "row"]
             }),
-        },
-        McpToolDef {
-            name: "db.list_tables".to_string(),
-            description: "List all tables in the database".to_string(),
-            input_schema: serde_json::json!({ "type": "object", "properties": {} }),
-        },
-        McpToolDef {
-            name: "db.describe_table".to_string(),
-            description: "Get column definitions for a table".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.list_tables",
+            "List all tables in the database",
+            serde_json::json!({ "type": "object", "properties": {} }),
+        ),
+        plain_tool(
+            "db.describe_table",
+            "Get column definitions for a table",
+            serde_json::json!({
                 "type": "object",
                 "properties": { "table": { "type": "string" } },
                 "required": ["table"]
             }),
-        },
-        McpToolDef {
-            name: "db.create_table".to_string(),
-            description: "Create a new table with DDL".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.create_table",
+            "Create a new table with DDL",
+            serde_json::json!({
                 "type": "object",
                 "properties": { "sql": { "type": "string" } },
                 "required": ["sql"]
             }),
-        },
-        McpToolDef {
-            name: "db.drop_table".to_string(),
-            description: "Drop a table".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.drop_table",
+            "Drop a table",
+            serde_json::json!({
                 "type": "object",
                 "properties": { "table": { "type": "string" } },
                 "required": ["table"]
             }),
-        },
+        ),
         // Branch tools
-        McpToolDef {
-            name: "db.branch_create".to_string(),
-            description: "Create a CoW database branch with optional energy budget".to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.branch_create",
+            "Create a CoW database branch with optional energy budget",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "name": { "type": "string", "description": "Branch name" },
@@ -479,36 +629,37 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["name"]
             }),
-        },
+        ),
         McpToolDef {
             name: "db.branch_list".to_string(),
+            title: Some("CoW Database Branches".to_string()),
             description: "List all database branches".to_string(),
             input_schema: serde_json::json!({ "type": "object", "properties": {} }),
+            meta: Some(crate::mcp_app_ui::inline_ui_meta()),
         },
-        McpToolDef {
-            name: "db.branch_merge".to_string(),
-            description: "Merge a branch back to its parent".to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.branch_merge",
+            "Merge a branch back to its parent",
+            serde_json::json!({
                 "type": "object",
                 "properties": { "name": { "type": "string" } },
                 "required": ["name"]
             }),
-        },
-        McpToolDef {
-            name: "db.branch_delete".to_string(),
-            description: "Delete a database branch".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.branch_delete",
+            "Delete a database branch",
+            serde_json::json!({
                 "type": "object",
                 "properties": { "name": { "type": "string" } },
                 "required": ["name"]
             }),
-        },
+        ),
         // Vector tools
-        McpToolDef {
-            name: "db.vector_search".to_string(),
-            description: "Similarity search on vector columns. Returns results + energy cost."
-                .to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.vector_search",
+            "Similarity search on vector columns. Returns results + energy cost.",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "table": { "type": "string" },
@@ -519,11 +670,11 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["table", "column", "query"]
             }),
-        },
-        McpToolDef {
-            name: "db.vector_upsert".to_string(),
-            description: "Insert or update vectors in a table".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.vector_upsert",
+            "Insert or update vectors in a table",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "table": { "type": "string" },
@@ -532,12 +683,12 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["table", "column", "vectors"]
             }),
-        },
+        ),
         // Tenant tools
-        McpToolDef {
-            name: "db.tenant_create".to_string(),
-            description: "Create a new tenant with resource quotas".to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.tenant_create",
+            "Create a new tenant with resource quotas",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "name": { "type": "string" },
@@ -545,18 +696,17 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["name"]
             }),
-        },
-        McpToolDef {
-            name: "db.tenant_list".to_string(),
-            description: "List all tenants and their resource usage".to_string(),
-            input_schema: serde_json::json!({ "type": "object", "properties": {} }),
-        },
+        ),
+        plain_tool(
+            "db.tenant_list",
+            "List all tenants and their resource usage",
+            serde_json::json!({ "type": "object", "properties": {} }),
+        ),
         // Memory tools
-        McpToolDef {
-            name: "db.memory_store".to_string(),
-            description: "Store a memory (episodic, semantic, or working) with temporal metadata"
-                .to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.memory_store",
+            "Store a memory (episodic, semantic, or working) with temporal metadata",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "content": { "type": "string", "description": "Memory content" },
@@ -566,11 +716,11 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["content"]
             }),
-        },
-        McpToolDef {
-            name: "db.memory_recall".to_string(),
-            description: "Recall memories by similarity with temporal decay scoring".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.memory_recall",
+            "Recall memories by similarity with temporal decay scoring",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "query": { "type": "string", "description": "Query to match against" },
@@ -581,34 +731,35 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["query"]
             }),
-        },
+        ),
         // Schema/Status tools
         McpToolDef {
             name: "db.schema_inspect".to_string(),
+            title: Some("Inspect Schema".to_string()),
             description: "Full schema dump — all tables, columns, and types".to_string(),
             input_schema: serde_json::json!({ "type": "object", "properties": {} }),
+            meta: Some(crate::mcp_app_ui::inline_ui_meta()),
         },
-        McpToolDef {
-            name: "db.energy_budget".to_string(),
-            description: "Check or set the energy budget for the current session".to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.energy_budget",
+            "Check or set the energy budget for the current session",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "budget_uj": { "type": "integer", "description": "Set energy budget (microjoules)" }
                 }
             }),
-        },
-        McpToolDef {
-            name: "db.status".to_string(),
-            description: "Server lifecycle state, uptime, energy stats".to_string(),
-            input_schema: serde_json::json!({ "type": "object", "properties": {} }),
-        },
+        ),
+        plain_tool(
+            "db.status",
+            "Server lifecycle state, uptime, energy stats",
+            serde_json::json!({ "type": "object", "properties": {} }),
+        ),
         // Workflow tools
-        McpToolDef {
-            name: "db.workflow_create".to_string(),
-            description: "Create a durable workflow definition with energy-metered steps"
-                .to_string(),
-            input_schema: serde_json::json!({
+        plain_tool(
+            "db.workflow_create",
+            "Create a durable workflow definition with energy-metered steps",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "name": { "type": "string", "description": "Workflow name" },
@@ -617,34 +768,33 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["name", "steps"]
             }),
-        },
-        McpToolDef {
-            name: "db.workflow_run".to_string(),
-            description: "Execute a workflow definition by ID. Returns step results + energy cost."
-                .to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.workflow_run",
+            "Execute a workflow definition by ID. Returns step results + energy cost.",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "workflow_id": { "type": "string", "description": "Workflow definition ID" }
                 },
                 "required": ["workflow_id"]
             }),
-        },
-        McpToolDef {
-            name: "db.workflow_status".to_string(),
-            description: "Get the status of a workflow instance".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.workflow_status",
+            "Get the status of a workflow instance",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "instance_id": { "type": "string", "description": "Workflow instance ID" }
                 },
                 "required": ["instance_id"]
             }),
-        },
-        McpToolDef {
-            name: "db.queue_publish".to_string(),
-            description: "Publish a message to a durable queue topic".to_string(),
-            input_schema: serde_json::json!({
+        ),
+        plain_tool(
+            "db.queue_publish",
+            "Publish a message to a durable queue topic",
+            serde_json::json!({
                 "type": "object",
                 "properties": {
                     "topic": { "type": "string", "description": "Queue topic name" },
@@ -652,12 +802,12 @@ pub fn all_tool_definitions() -> Vec<McpToolDef> {
                 },
                 "required": ["topic", "payload"]
             }),
-        },
-        McpToolDef {
-            name: "db.edge_pop_list".to_string(),
-            description: "List all Edge Points of Presence and their sync status".to_string(),
-            input_schema: serde_json::json!({ "type": "object", "properties": {} }),
-        },
+        ),
+        plain_tool(
+            "db.edge_pop_list",
+            "List all Edge Points of Presence and their sync status",
+            serde_json::json!({ "type": "object", "properties": {} }),
+        ),
     ]
 }
 
@@ -989,21 +1139,22 @@ pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
             "Run the 6 fast in-process deterministic subsystem smoke checks (v0.6.0)",
         ),
     ] {
-        tools.push(McpToolDef {
-            name: name.to_string(),
-            description: desc.to_string(),
-            input_schema: serde_json::json!({ "type": "object", "properties": {} }),
-        });
+        tools.push(plain_tool(
+            name,
+            desc,
+            serde_json::json!({ "type": "object", "properties": {} }),
+        ));
     }
     tools
 }
 
 // ============================================================================
-// Stdio transport (for Claude Code / local agents)
+// Stdio transport (for Claude Desktop / Claude Code / Antigravity / local agents)
 // ============================================================================
 
 /// Run the MCP stdio transport — reads JSON-RPC from stdin, writes to stdout.
-/// This blocks the calling task until stdin is closed.
+/// Per JSON-RPC 2.0 & MCP spec, client notifications (`id` absent, e.g.
+/// `notifications/initialized`) MUST NOT emit a response frame on stdout.
 pub async fn run_stdio_transport(tool_handler: Option<Arc<DatabaseToolHandler>>) {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -1023,7 +1174,13 @@ pub async fn run_stdio_transport(tool_handler: Option<Arc<DatabaseToolHandler>>)
                 }
 
                 let response = match serde_json::from_str::<McpRequest>(trimmed) {
-                    Ok(request) => handle_mcp_request(&request, tool_handler.as_deref()),
+                    Ok(request) => {
+                        if request.id.is_none() {
+                            // Notification (e.g. `notifications/initialized`) — no reply frame
+                            continue;
+                        }
+                        handle_mcp_request(&request, tool_handler.as_deref())
+                    }
                     Err(e) => McpResponse::error(None, -32700, format!("Parse error: {}", e)),
                 };
 
@@ -1075,14 +1232,22 @@ mod tests {
         let resp = handle_mcp_request(&req, None);
         let result = resp.result.unwrap();
         let tools = result["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 24);
+        assert_eq!(tools.len(), 25);
 
-        // Verify all tools have required fields
+        // Verify all tools have required fields and db.studio exposes SEP-1865 UI metadata
         for tool in tools {
             assert!(tool["name"].is_string());
             assert!(tool["description"].is_string());
             assert!(tool["inputSchema"].is_object());
         }
+        let studio = tools
+            .iter()
+            .find(|t| t["name"] == "db.studio")
+            .expect("db.studio tool");
+        assert_eq!(
+            studio["_meta"]["ui"]["resourceUri"],
+            crate::mcp_app_ui::STUDIO_APP_URI
+        );
     }
 
     #[test]
@@ -1096,11 +1261,29 @@ mod tests {
         let resp = handle_mcp_request(&req, None);
         let result = resp.result.unwrap();
         let resources = result["resources"].as_array().unwrap();
-        assert_eq!(resources.len(), 3);
+        assert_eq!(resources.len(), 4);
         let uris: Vec<&str> = resources.iter().filter_map(|r| r["uri"].as_str()).collect();
+        assert!(uris.contains(&crate::mcp_app_ui::STUDIO_APP_URI));
         assert!(uris.contains(&"jouledb://tables"));
         assert!(uris.contains(&"jouledb://energy"));
         assert!(uris.contains(&"jouledb://timeseries"));
+
+        // Verify SEP-1865 UI HTML resource reads cleanly with text/html;profile=mcp-app
+        let read_ui = McpRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(31)),
+            method: "resources/read".to_string(),
+            params: serde_json::json!({ "uri": crate::mcp_app_ui::STUDIO_APP_URI }),
+        };
+        let ui_resp = handle_mcp_request(&read_ui, None);
+        let ui_res = ui_resp.result.expect("ui result");
+        assert_eq!(
+            ui_res["contents"][0]["mimeType"],
+            crate::mcp_app_ui::MCP_APP_MIME
+        );
+        let html = ui_res["contents"][0]["text"].as_str().expect("html");
+        assert!(html.contains("ui/initialize"));
+        assert!(html.contains("ui/notifications/initialized"));
     }
 
     #[test]

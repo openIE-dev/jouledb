@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "studio": {
+      "command": "jouledb",
+      "args": [
+        "mcp",
+        "--data",
+        "${PLUGIN_DATA}"
+      ]
+    }
+  }
+}

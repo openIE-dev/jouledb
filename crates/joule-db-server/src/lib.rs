@@ -59,6 +59,7 @@ pub mod nvml;
 pub mod observability;
 pub mod operations;
 pub mod pgwire;
+pub(crate) use pgwire::strip_pg_catalog as pgwire_strip_catalog_if_needed;
 pub mod pool;
 pub mod power_meter;
 #[cfg(test)]
@@ -101,6 +102,7 @@ pub mod gin_index;
 pub mod kube_control_plane;
 pub mod living_embodied_routes;
 pub mod mcp_agent_loop;
+pub mod mcp_app_ui;
 pub mod mcp_transport;
 pub mod mvcc_adapter;
 pub mod pq_verifiable;

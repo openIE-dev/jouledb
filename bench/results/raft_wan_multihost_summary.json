@@ -1,0 +1,156 @@
+{
+  "suite": "raft_multihost_wan_5node_elle_v0.9.0",
+  "mode": "multihost_tailscale_wan_2hosts_5proc",
+  "duration_s": 15.482,
+  "topology": {
+    "total_nodes": 5,
+    "quorum_size": 3,
+    "distinct_hosts": 2,
+    "nodes": [
+      {
+        "id": "n1",
+        "host_ip": "100.91.48.80",
+        "raft_port": 19401,
+        "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)"
+      },
+      {
+        "id": "n2",
+        "host_ip": "100.91.48.80",
+        "raft_port": 19402,
+        "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)"
+      },
+      {
+        "id": "n3",
+        "host_ip": "100.91.48.80",
+        "raft_port": 19403,
+        "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)"
+      },
+      {
+        "id": "n4",
+        "host_ip": "100.64.236.125",
+        "raft_port": 19404,
+        "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)"
+      },
+      {
+        "id": "n5",
+        "host_ip": "100.64.236.125",
+        "raft_port": 19405,
+        "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)"
+      }
+    ],
+    "cross_host_tcp_rtt_ms": {
+      "samples": 24,
+      "min_ms": 26.526,
+      "median_ms": 27.576,
+      "p95_ms": 28.651,
+      "max_ms": 28.871
+    }
+  },
+  "fault_injection_checks": {
+    "initial_leader": "n1",
+    "initial_term": 1,
+    "follower_direct_write_rejected": true,
+    "isolated_minority_nodes": [
+      "n1",
+      "n4"
+    ],
+    "majority_quorum_nodes": [
+      "n2",
+      "n3",
+      "n5"
+    ],
+    "majority_failover_leader": "n3",
+    "majority_failover_term": 2,
+    "isolated_old_leader_write_rejected": true,
+    "isolated_old_leader_linearizable_read_rejected": true,
+    "majority_partition_committed_ops": 24,
+    "sigkill_crashed_node": "n5",
+    "sigkill_host": "100.64.236.125",
+    "ops_committed_during_sigkill": 16,
+    "wal_rejoin_all_5_converged": true
+  },
+  "client_latency_ms": {
+    "samples": 80,
+    "p50_ms": 111.57,
+    "p95_ms": 160.018
+  },
+  "elle_history": {
+    "edn_path": "bench/results/raft_wan_multihost_elle_history.edn",
+    "total_events": 270,
+    "ok_completions": 132,
+    "definite_fails": 2,
+    "indeterminate_infos": 1
+  },
+  "final_node_states": [
+    {
+      "applied": 68,
+      "commit": 68,
+      "id": "n1",
+      "local_x": "68",
+      "local_y": "39",
+      "ok": true,
+      "role": "Follower",
+      "term": 2,
+      "host_ip": "100.91.48.80",
+      "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)",
+      "x_int": 68,
+      "y_int": 39
+    },
+    {
+      "applied": 68,
+      "commit": 68,
+      "id": "n2",
+      "local_x": "68",
+      "local_y": "39",
+      "ok": true,
+      "role": "Follower",
+      "term": 2,
+      "host_ip": "100.91.48.80",
+      "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)",
+      "x_int": 68,
+      "y_int": 39
+    },
+    {
+      "applied": 68,
+      "commit": 68,
+      "id": "n3",
+      "local_x": "68",
+      "local_y": "39",
+      "ok": true,
+      "role": "Leader",
+      "term": 2,
+      "host_ip": "100.91.48.80",
+      "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)",
+      "x_int": 68,
+      "y_int": 39
+    },
+    {
+      "applied": 68,
+      "commit": 68,
+      "id": "n4",
+      "local_x": "68",
+      "local_y": "39",
+      "ok": true,
+      "role": "Follower",
+      "term": 2,
+      "host_ip": "100.64.236.125",
+      "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)",
+      "x_int": 68,
+      "y_int": 39
+    },
+    {
+      "applied": 68,
+      "commit": 68,
+      "id": "n5",
+      "local_x": "68",
+      "local_y": "39",
+      "ok": true,
+      "role": "Follower",
+      "term": 2,
+      "host_ip": "100.64.236.125",
+      "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)",
+      "x_int": 68,
+      "y_int": 39
+    }
+  ]
+}

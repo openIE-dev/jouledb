@@ -207,14 +207,16 @@ pub fn for_each_parquet_batch_group<F>(
 where
     F: FnMut(&[RecordBatch]) -> Result<bool, String>,
 {
-    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder as B;
+    use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ParquetRecordBatchReaderBuilder as B};
     use rayon::prelude::*;
     let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
-    let groups = B::try_new(f).map_err(err)?.metadata().num_row_groups();
+    let shared_meta = ArrowReaderMetadata::load(&f, Default::default()).map_err(err)?;
+    let groups = shared_meta.metadata().num_row_groups();
     if groups == 0 {
         return Ok(());
     }
     let step = groups_per_chunk.max(1);
+    const MAX_CHUNK_ROWS: usize = 524_288;
     let mut g0 = 0usize;
     while g0 < groups {
         let g1 = (g0 + step).min(groups);
@@ -222,8 +224,7 @@ where
             .into_par_iter()
             .map(|g| {
                 let f = File::open(path).map_err(|e| format!("{path}: {e}"))?;
-                let rd = B::try_new(f)
-                    .map_err(err)?
+                let rd = B::new_with_metadata(f, shared_meta.clone())
                     .with_row_groups(vec![g])
                     .with_batch_size(65536)
                     .build()
@@ -232,8 +233,22 @@ where
             })
             .collect::<Result<_, String>>()?;
         let chunk: Vec<RecordBatch> = parts.into_iter().flatten().collect();
-        if !chunk.is_empty() && !on_chunk(&chunk)? {
-            return Ok(());
+        let mut b0 = 0usize;
+        while b0 < chunk.len() {
+            let mut sub_rows = 0usize;
+            let mut b1 = b0;
+            while b1 < chunk.len() {
+                let nr = chunk[b1].num_rows();
+                if b1 > b0 && sub_rows.saturating_add(nr) > MAX_CHUNK_ROWS {
+                    break;
+                }
+                sub_rows = sub_rows.saturating_add(nr);
+                b1 += 1;
+            }
+            if !on_chunk(&chunk[b0..b1])? {
+                return Ok(());
+            }
+            b0 = b1;
         }
         g0 = g1;
     }

@@ -5,10 +5,11 @@
 # Getting Started
 
 - [Install & Deployment Templates](./install.md)
+- [Claude Apps, MCP Apps & Studio UI](./claude-apps.md)
 - [Hello, JouleDB & .jsyn](./hello.md)
 - [Multi-Format Import & Reconciliation (`jouledb migrate`)](./migration.md)
 
-# Core Architecture (`v0.8.0` Preview)
+# Core Architecture (`v0.9.0` Preview)
 
 - [Amorphous Continuum, MorphRules & Visual Lenses](./amorphic.md)
 - [.jsyn Experimental Bitplanes & Fidelity Boundaries](./jsyn.md)
@@ -24,7 +25,7 @@
 # Guide, Reference & Benchmarks
 
 - [Guided Tour](./tutorial/index.md)
-- [API, Query & 49-Tool MCP Reference](./reference/index.md)
+- [API, Query & 50-Tool MCP Reference](./reference/index.md)
 - [Cookbook Recipes](./cookbook/index.md)
 - [Empirical Benchmarks: ClickBench, TCP Raft + Elle & Smoke Tests](./benchmarks.md)
 

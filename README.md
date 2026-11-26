@@ -1,6 +1,6 @@
-# JouleDB (`v0.8.0` — Pre-1.0 Research Preview)
+# JouleDB (`v0.9.0` — Pre-1.0 Research Preview)
 
-**An experimental energy-metered multi-model database in Rust (`Apache-2.0 OR MIT`) exploring Copy-on-Write `SSI` storage, out-of-core `.jcol` vectorized columnar analytics (`43 / 43` Official ClickBench at `100M` rows), PostgreSQL `pgwire` SQL, 5-node TCP Raft `ReadIndex` consensus, `10,240`-bit `Amorphic` VSA storage, and `.jsyn` sub-1-bit sentence embeddings.**
+**An experimental energy-metered multi-model database in Rust (`Apache-2.0 OR MIT`) exploring Copy-on-Write `SSI` storage, out-of-core `.jcol` vectorized columnar analytics (`43 / 43` Official ClickBench at `100M` rows), PostgreSQL `pgwire` SQL, multi-host WAN TCP Raft `ReadIndex` consensus, Claude/MCP Apps Studio UI (`SEP-1865`), `10,240`-bit `Amorphic` VSA storage, and `.jsyn` sub-1-bit sentence embeddings.**
 
 [![Release](https://github.com/openIE-dev/jouledb/actions/workflows/release.yml/badge.svg)](https://github.com/openIE-dev/jouledb/releases)
 [![Quality](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml/badge.svg)](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml)
@@ -9,26 +9,27 @@
 [![Hugging Face Embedder](https://img.shields.io/badge/Hugging%20Face-MiniLM%20.jsyn%20(cos%200.944)-0D9488)](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit)
 [![Website](https://img.shields.io/badge/Web-jouledb.org-2563EB)](https://jouledb.org)
 
-> **Pre-1.0 Status & `v0.8.0` Release Summary (`2026-11-25`):** Building on our `v0.6.0` external-audit remediation (`v1.0.0` GA tag retracted/yanked, unrelated `1.11M`-LOC `joule-web` crate and synthetic `frontier_exam_routes.rs` deleted, 81 unverified low-BPW causal LLM exports pruned from Hugging Face) and `v0.7.0` consensus/MVCC fixes, **`v0.8.0`** delivers full-scale out-of-core `100M`-row Official ClickBench execution, head-to-head `PostgreSQL 16.16` `pgwire` OLTP benchmarks, and expanded compiler safety gates:
-> - **Full Official `99,997,497`-Row (`14.78 GB`) ClickBench Completed in Bounded RAM (`6.20 GB` RSS, `20.74 GB` Peak `VmHWM`):** Added out-of-core `.jcol` columnar segment files (`disk_col_segments.rs`, `<= 262,144` rows/segment, CRC-32 slice + `JCL1` footer verification, `pread` column-subset I/O) and two-phase `WHERE`-first + 4-pass Radix-64 sharded `execute_segmented` (`columnar_exec.rs`) — cutting `10M`-row RSS **17.5×** (`42.0 GB -> 2.41 GB`), speeding up `10M` geomean latency **3.0×** (`9.74× -> 3.21×`), and completing **`43 / 43` official queries (`0` errors, `0` restarts, `43 / 43` SQL-valid match)** on the **full `99,997,497`-row dataset** (`4.85×` geomean latency, `4.25×` geomean `reported_j` vs DuckDB `2.0.1`, beating DuckDB on `5 / 43` queries at `100M` rows).
-> - **Head-to-Head `100`-Warehouse TCP `pgwire` OLTP vs. `PostgreSQL 16.16` (`fsync=on`) & `SQLite 3.53.1`:** Added `O(1)` secondary-index PK/UNIQUE constraint verification, multi-row PK `INSERT` batching, parameterized `SELECT` fast-path binding, and PostgreSQL v3 §55.2.3 `Sync` pipeline error recovery — raising JouleDB `pgwire` (`fsync=on`) throughput **2.54×** (`1,319 -> 3,353.5 TPS` at `c=16`; **`1,659.5 TPS` at `c=1`, `1.44×` faster than `PostgreSQL 16.16` at `c=1`**), with `invariant_verified: true` across all `5` engine/protocol modes.
-> - **True Raft §6.4 `ReadIndex` Quorum Linearizable Reads:** `RaftNode::propose_and_commit` (§5.4.2) and `RaftNode::read_linearizable` (§6.4 `ReadIndex`, zero WAL log writes on reads), verified **`{:valid? true}`** by official Clojure `elle/elle 0.2.8`.
-> - **Expanded Panic-Lint Gate (`7` Core Crates):** Enforced `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` across **7 crates** (`joule-db-core`, `joule-db-branch`, `joule-db-ledger`, `joule-db-local`, `joule-db-energy`, `joule-db-weights`, `joule-db-query`, plus `#![deny(clippy::unwrap_used)]` on `disk_col_segments.rs`). See [`CHANGELOG.md`](./CHANGELOG.md).
+> **Pre-1.0 Status & `v0.9.0` Release Summary (`2026-11-26`):** Building on our `v0.6.0` external-audit remediation (`v1.0.0` GA tag retracted/yanked, unrelated `1.11M`-LOC `joule-web` crate and synthetic `frontier_exam_routes.rs` deleted, 81 unverified low-BPW causal LLM exports pruned from Hugging Face) and `v0.7.0`–`v0.8.0` storage/analytical upgrades, **`v0.9.0`** ships native **Claude/MCP Apps (`SEP-1865`)**, **1.72× faster full-`100M` ClickBench**, **3.0× faster `pgwire` Extended Pipeline OLTP**, and **multi-host WAN Raft `elle` verification**:
+> - **Claude Apps & MCP Apps (`SEP-1865` Interactive Studio + `.mcpb` Bundles):** Built-in **JouleDB Studio (`ui://jouledb/studio.html`, `text/html;profile=mcp-app`)** served directly from the `jouledb` binary over `jouledb mcp --data <dir>` (`stdio`) and `POST /mcp` (`50` tools incl. `db.studio`), plus one-click **Claude Desktop `.mcpb` (`manifest_version: "0.3"`)** bundles and an Antigravity plugin (`deploy/antigravity-plugin/`).
+> - **Full `99,997,497`-Row (`14.78 GB`) Official ClickBench Accelerated `1.72×` (`4.85× -> 2.82×` Geomean vs DuckDB `2.0.1`, `15.48 GB` Peak `VmHWM`):** Added zero-I/O segment `global_int_sum` metadata (`Q2, Q3, Q29`), dynamic `AtomicI64` Top-K ZoneMap bound pruning (`Q19, Q23, Q24, Q26`), zero-`Arc<str>` `RawTextSlice` text distinct/grouping (`Q5, Q12, Q33, Q34`), and 256-partition `CompactI2Row` in-place sort-reduce — cutting `100M`-group `Q32` **7.24×** (`17.42 s -> 2.41 s`), lowering `100M` peak `VmHWM` **5.26 GB** (`20.74 GB -> 15.48 GB`), cutting `100M` geomean `reported_j` **1.75×** (`4.25× -> 2.43×`), and beating DuckDB `2.0.1` on **`8 / 43` queries at `100M` rows** (`13 / 43` at `1M`, `12 / 43` at `10M`, `21 / 43` at `100k`).
+> - **`pgwire` Extended Query Static `Describe` & `100`-Warehouse OLTP (`3.01×` Faster Pipelined TPS):** Added static AST/catalog `describe_sql_static` OID inference and `DROP TABLE` index metadata cleanup — raising `psycopg` Extended Pipeline throughput **3.01×** (`593.7 -> 1,790.0 TPS` at `c=8`, `1,703.3 TPS` at `c=16`; **`3,351.0 TPS`** Simple Query at `c=16`, `invariant_verified = true` across all 5 engine modes vs `PostgreSQL 16.16` & `SQLite 3.53.1`).
+> - **5-Node Multi-Host Cross-Machine WAN/Tailscale TCP Raft + Official Clojure `elle 0.2.8` (`{:valid? true}`):** Executed 5 real OS `raft_wan_node` processes across **2 distinct physical Linux hosts** (`framework-128gb-0000` bare-metal + `openie-core-1` Cloud Debian 12 VM, `27.58 ms` median WAN TCP RTT) with cross-WAN `2/5` leader isolation, real OS `SIGKILL` (`kill -9`), and `raft.wal` crash recovery -> **`{:valid? true}`** (`270` events, `:strict-serializable`).
+> - **Prebuilt Python Wheels & TypeScript Tarball on GitHub Releases:** Attached `cp39-abi3` `.whl` wheels (macOS ARM64 & Linux `manylinux_2_34_x86_64`), `openie-jouledb-0.9.0.tgz`, and `.mcpb` bundles to GitHub Release `v0.9.0` (not yet published to PyPI/npm/NuGet). See [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
-## What Is Real & Verified Today (`41` Workspace Crates · `732.5k` LOC · `12,269` Tests)
+## What Is Real & Verified Today (`41` Workspace Crates · `735.2k` LOC · `12,272` Tests)
 
 1. **Core Storage, MVCC `SSI` & Recovery (`joule-db-core`, `joule-db-local`):**
    - Copy-on-Write B-tree pages, lock-free positional `pread`/`pwrite`, Cahill Serializable Snapshot Isolation (`SSI` `rw`-antidependency detection), index-assisted `MvccTableStorage` with `O(1)` PK/UNIQUE index checks and group-committed WAL durability, `CRC-32` torn-WAL truncation, `ALP + FSST` columnar codecs, and `RaBitQ` 1-bit `POPCNT` vector quantization.
 2. **Out-of-Core `.jcol` Columnar Analytics, `pgwire` & Incremental Views (`joule-db-query`, `joule-db-server`):**
-   - PostgreSQL v3 wire listener (`psql`, `psycopg3` Simple & Extended Pipeline modes), bounded-chunk streaming Parquet `COPY` spilling `262,144`-row `.jcol` disk segments (`I8/I16/I32/I64` narrowing, bitpacked null masks, compact `u8/u16/u32` local dictionaries, CRC-32 integrity), two-phase `WHERE`-first `pread` segment execution + 64-shard Radix `GROUP BY` (`execute_segmented`), `DBSP` `ZSet<T>` incremental view algebra, and experimental multi-language query frontends (Cypher, Datalog, SPARQL, Gremlin, `SigQL`).
-3. **5-Node Real TCP Raft Consensus with `ReadIndex` (`raft.rs`, `raft_transport.rs`):**
-   - Quorum write commit via `RaftNode::propose_and_commit` (Raft §5.4.2 current-term commit safety), quorum linearizable reads via `RaftNode::read_linearizable` (Raft §6.4 `ReadIndex` heartbeat quorum without WAL log growth), durable `CRC-32` `raft.wal` restart recovery, and a 5-node TCP socket-severing fault-injection test verified **`{:valid? true}`** (`:strict-serializable` `rw-register`) by Kyle Kingsbury's official Clojure `elle/elle 0.2.8`.
-4. **Energy Telemetry (`joule-db-energy`, `joule-db-ledger`):**
-   - Hardware counter readers on bare metal (**`reported_j`** via Linux `/sys/class/powercap/intel-rapl` and macOS `IOKit SMC` / `powermetrics`) segregated explicitly from analytical cost-model estimates (**`est_j`**) for sub-millisecond operations, anchored in Merkle receipts.
-5. **`.jsyn` (`JSYN-v1`) Sub-1-Bit Sentence Embeddings & `Amorphic` Storage (`joule-db-weights`, `joule-db-amorphic`):**
-   - Pure-Rust `LittleBit-2 ⊕ Sakana SVF` weight factorization (`0` PyTorch / ONNX Runtime): verified **`0.9441` sentence-embedding cosine similarity** vs upstream `FP32` on [`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) (`1.95 MB`, `0.4378 BPW`, `22.23×` smaller than `FP16`), plus experimental `10,240`-bit Kanerva VSA `Amorphic` storage (`1.35 GB` streamed in `57.64 MB` Peak RSS).
+   - PostgreSQL v3 wire listener (`psql`, `psycopg3` Simple & static-`Describe` Extended Pipeline modes), row-budgeted streaming Parquet `COPY` spilling `262,144`-row `.jcol` disk segments (`I8/I16/I32/I64` narrowing, `global_int_sum` + ZoneMap headers, compact `u8/u16/u32` local dictionaries, CRC-32 integrity), two-phase `WHERE`-first `pread` segment execution + 256-partition `CompactI2Row` / Radix-64 `GROUP BY`, and `DBSP` `ZSet<T>` incremental view algebra.
+3. **Claude Apps / MCP Apps Host (`mcp_app_ui.rs`, `mcp_transport.rs`):**
+   - Native `SEP-1865` MCP Apps server over `jouledb mcp --data <dir>` (`stdio` JSON-RPC `2025-06-18`) and `POST /mcp` (Streamable HTTP), exposing `50` tools (`db.studio`, `db.query`, `db.schema`, `db.amorphic.*`, `db.synapse.*`, `db.branch.*`, `db.ledger.*`) and a zero-CDN interactive **JouleDB Studio** (`ui://jouledb/studio.html`, `text/html;profile=mcp-app`) for Claude Desktop, Claude Web, VS Code, Goose, and Antigravity.
+4. **5-Node Multi-Host WAN & Local TCP Raft Consensus (`raft.rs`, `raft_transport.rs`, `examples/raft_wan_node.rs`):**
+   - Quorum write commit via `RaftNode::propose_and_commit` (§5.4.2), quorum linearizable reads via `RaftNode::read_linearizable` (§6.4 `ReadIndex` heartbeat quorum, zero WAL growth), `CRC-32` `raft.wal` crash recovery, and both multi-host Tailscale WAN (`27.58 ms` RTT + `SIGKILL`) and local 20-link fault-injection suites verified **`{:valid? true}`** by official Clojure `elle/elle 0.2.8`.
+5. **Energy Telemetry & `.jsyn` Sub-1-Bit Sentence Embeddings (`joule-db-energy`, `joule-db-weights`):**
+   - Bare-metal hardware counter readers (**`reported_j`** via Linux `intel-rapl` and macOS `IOKit SMC`) segregated from analytical cost models (**`est_j`**), plus pure-Rust [`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) (`1.95 MB`, `0.4378 BPW`, **`0.9441` cosine** vs `FP32`).
 
 ---
 
@@ -40,33 +41,33 @@ Executed via [`bench/clickbench_official.py`](./bench/clickbench_official.py) ov
 
 | Official `hits.parquet` Scale | Parquet Load (`DuckDB` vs `JouleDB`) | JouleDB Load RSS (`VmHWM` Peak) | Queries Succeeded | SQL-Valid Match (`Exact`) | Faster (`JouleDB` / `DuckDB`) | Geomean Latency (`JouleDB / DuckDB`) | Geomean Energy (`reported_j`) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **`100,000` rows** ([JSON](./bench/results/clickbench_official_100k.json)) | `0.197 s` vs `0.355 s` | `934 MB` | **`43 / 43`** (`0` err) | **`43 / 43`** (`35` exact) | **`25`** / `18` | **`1.30×` slower** (**`median 0.80×`**) | **`1.53×` more J** |
-| **`1,000,000` rows** ([JSON](./bench/results/clickbench_official_1m.json)) | `0.147 s` vs `0.965 s` | `1,237 MB` (`2,197 MB`) | **`43 / 43`** (`0` err) | **`43 / 43`** (`28` exact) | **`8`** / `35` | **`3.01×` slower** (`median 3.14×`) | **`3.07×` more J** |
-| **`10,000,000` rows** ([JSON](./bench/results/clickbench_official_10m.json)) | `1.402 s` vs `10.755 s` | `2,406 MB` (`9,006 MB`) | **`43 / 43`** (`0` err) | **`43 / 43`** (`29` exact) | **`10`** / `33` | **`3.21×` slower** (`median 4.73×`) | **`3.21×` more J** |
-| **`99,997,497` rows — FULL `14.78 GB`** ([JSON](./bench/results/clickbench_official_100m.json)) | `15.546 s` vs `91.621 s` | **`6,199 MB` (`20,740 MB`)** | **`43 / 43`** (`0` err) | **`43 / 43`** (`31` exact) | **`5`** / `38` | **`4.85×` slower** (`median 4.57×`) | **`4.25×` more J** |
+| **`100,000` rows** ([JSON](./bench/results/clickbench_official_100k.json)) | `0.326 s` vs `0.409 s` | `927 MB` (`2,719 MB`) | **`43 / 43`** (`0` err) | **`43 / 43`** (`35` exact) | **`21`** / `22` | **`1.31×` slower** (`median 1.04×`) | **`1.65×` more J** |
+| **`1,000,000` rows** ([JSON](./bench/results/clickbench_official_1m.json)) | `0.257 s` vs `1.363 s` | `1,246 MB` (`1,959 MB`) | **`43 / 43`** (`0` err) | **`43 / 43`** (`29` exact) | **`13`** / `30` | **`2.42×` slower** (`median 3.22×`) | **`2.34×` more J** |
+| **`10,000,000` rows** ([JSON](./bench/results/clickbench_official_10m.json)) | `1.459 s` vs `12.568 s` | `2,163 MB` (`9,060 MB`) | **`43 / 43`** (`0` err) | **`43 / 43`** (`29` exact) | **`12`** / `31` | **`2.52×` slower** (`median 3.88×`) | **`2.47×` more J** |
+| **`99,997,497` rows — FULL `14.78 GB`** ([JSON](./bench/results/clickbench_official_100m.json)) | `16.497 s` vs `86.068 s` | **`6,204 MB` (`15,483 MB`)** | **`43 / 43`** (`0` err) | **`43 / 43`** (`31` exact) | **`8`** / `35` | **`2.82×` slower** (`median 3.42×`) | **`2.43×` more J** |
 
-- **Candid Full-`100M` Scale & Performance Summary:** Out-of-core `.jcol` segment spilling (`<= 262,144` rows/segment) + `pread` column-subset loading reduced post-load memory from `~4.2 KB/row` (`~410 GB` projected in `v0.7.0`) to **`62 B/row` (`6.20 GB` RSS after loading all `99,997,497` 105-column rows; `20.74 GB` kernel `VmHWM` peak across all 43 queries)**. At full `100M` scale, JouleDB `0.8.0` completes **`43 / 43` queries (`0` errors, `0` restarts)** and beats DuckDB `2.0.1` on **`5 / 43` queries** (`Q0` `0.88 ms` vs `2.07 ms`, `Q6` `1.59 ms` vs `6.65 ms`, `Q7` `8.79 ms` vs `27.79 ms`, `Q28` `REGEXP_REPLACE` `2,524 ms` vs `2,769 ms`, `Q42` `11.61 ms` vs `14.90 ms`). DuckDB `2.0.1` wins **`38 / 43` queries (`4.85×` geomean latency, `5.89×` faster Parquet load)**, with JouleDB's widest gap on `100M`-group high-cardinality `Q32` (`17.42 s` vs `0.98 s`, `17.75×`). *(All 12 non-byte-identical results among the `43 / 43` SQL-valid matches at `100M` rows are verified `ORDER BY` ties on equal aggregate counts and integer epoch-day/second formatting.)*
+- **Candid Full-`100M` Summary:** In `v0.9.0`, out-of-core `.jcol` segment execution (`6.20 GB` post-load RSS, **`15.48 GB` kernel `VmHWM` peak** — down `5.26 GB` from `v0.8.0`) narrows the full `100M`-row geomean latency gap vs DuckDB `2.0.1` from **`4.85×` to `2.82×`** (`2.43×` `reported_j`), cuts `100M`-group `Q32` **7.24×** (`17.42 s -> 2.41 s` vs DuckDB `1.06 s`), and beats DuckDB `2.0.1` on **`8 / 43` queries at `100M` rows** (`Q0` `1.51 ms` vs `9.36 ms`, `Q2` `1.60 ms` vs `8.93 ms`, `Q3` `1.84 ms` vs `12.77 ms`, `Q6` `1.24 ms` vs `7.33 ms`, `Q19` `31.32 ms` vs `42.46 ms`, `Q28` `2,912 ms` vs `3,443 ms`, `Q29` `2.27 ms` vs `13.68 ms`, `Q42` `12.00 ms` vs `23.70 ms`). DuckDB `2.0.1` wins **`35 / 43` queries (`2.82×` geomean, `5.22×` faster Parquet load)**, with JouleDB's widest ratio on `CASE WHEN`-grouped `Q39` (`519.3 ms` vs `23.2 ms`, `22.4×`).
 
 ### 2. Head-to-Head `100`-Warehouse TCP `pgwire` OLTP vs. `PostgreSQL 16.16` & `SQLite 3.53.1`
 
-Executed via [`bench/oltp_pgwire.py`](./bench/oltp_pgwire.py) ([`oltp_pgwire_100wh.json`](./bench/results/oltp_pgwire_100wh.json)) on `framework-128gb-0000` (`rapl-package` **`reported_j`**): `100,000` accounts (`100` warehouses), `50%` indexed point read, `30%` durable `BEGIN; UPDATE accounts ...; INSERT INTO history ...; COMMIT` (`fsync=on`, `synchronous_commit=on`), and `20%` warehouse `COUNT`/`SUM` scan across `1, 4, 8, 16` concurrent workers:
+Executed via [`bench/oltp_pgwire.py`](./bench/oltp_pgwire.py) ([`oltp_pgwire_100wh.json`](./bench/results/oltp_pgwire_100wh.json), `rapl-package` **`reported_j`**): `100,000` accounts (`100` warehouses), `50%` indexed point read, `30%` durable `BEGIN; UPDATE accounts ...; INSERT INTO history ...; COMMIT` (`fsync=on`, `synchronous_commit=on`), `20%` warehouse `COUNT`/`SUM` across `1, 4, 8, 16` concurrent TCP clients:
 
 | Engine & Wire Protocol (`invariant_verified = true` on all 5) | `c = 1` TPS (`p50`) | `c = 4` TPS (`p50`) | `c = 8` TPS (`p50`) | `c = 16` TPS (`p50`, `mJ/txn`) | Committed Writes |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **JouleDB `0.8.0` (`pgwire` Simple Query, 4-RTT + `fsync`)** | **`1,659.5`** (`0.30 ms`) | `1,086.4` (`0.97 ms`) | `2,397.5` (`0.96 ms`) | **`3,353.5`** (`1.08 ms`, `17.2 mJ`) | `20,366` (`2` SI conflicts) |
-| **PostgreSQL `16.16` (`pgwire` Simple Query, 4-RTT + `fsync`)** | `1,149.1` (`0.08 ms`) | **`3,020.2`** (`0.09 ms`) | **`5,826.9`** (`0.15 ms`) | **`11,452.5`** (`0.25 ms`, `3.79 mJ`) | `51,319` (`0` conflicts) |
-| **PostgreSQL `16.16` (`pgwire` Extended Pipeline, 1-RTT + `fsync`)** | `1,255.4` (`0.07 ms`) | `2,984.2` (`0.09 ms`) | `6,045.0` (`0.14 ms`) | **`10,441.8`** (`0.25 ms`, `3.71 mJ`) | `49,555` (`0` conflicts) |
-| **JouleDB `0.8.0` (`pgwire` Extended Pipeline, 1-RTT + `fsync`)** | `256.9` (`0.40 ms`) | `490.2` (`1.06 ms`) | `514.4` (`1.07 ms`) | `593.7` (`1.11 ms`, `71.4 mJ`) | `4,394` (`1` SI conflict) |
-| **SQLite `3.53.1` (Embedded in-proc C API, `WAL`, `NORMAL`)** | `43,264.1` (`0.005 ms`) | `87,546.8` (`0.006 ms`) | `99,632.0` (`0.007 ms`) | **`111,119.3`** (`0.007 ms`, `0.36 mJ`) | `845,266` (no TCP / `fsync`) |
+| **JouleDB `0.9.0` (`pgwire` Simple Query, 4-RTT + `fsync`)** | `522.2` (`0.34 ms`) | `954.5` (`0.97 ms`) | `2,125.1` (`1.04 ms`) | **`3,351.0`** (`1.07 ms`, `24.3 mJ`) | `16,647` (`0` errors) |
+| **JouleDB `0.9.0` (`pgwire` Extended Pipeline, 1-RTT + `fsync`)** | `260.0` (`0.57 ms`) | `871.9` (`1.58 ms`) | **`1,790.0`** (`2.07 ms`) | **`1,703.3`** (`2.09 ms`, `75.7 mJ`) | `10,973` (`1` SI conflict) |
+| **PostgreSQL `16.16` (`pgwire` Simple Query, 4-RTT + `fsync`)** | `3,505.0` (`0.17 ms`) | `2,957.2` (`0.21 ms`) | `6,100.7` (`0.12 ms`) | **`10,815.9`** (`0.38 ms`, `9.13 mJ`) | `55,902` (`0` conflicts) |
+| **PostgreSQL `16.16` (`pgwire` Extended Pipeline, 1-RTT + `fsync`)** | `1,291.4` (`0.08 ms`) | `2,666.5` (`0.20 ms`) | `5,607.2` (`0.30 ms`) | **`8,634.4`** (`0.68 ms`, `14.7 mJ`) | `43,602` (`0` conflicts) |
+| **SQLite `3.53.1` (Embedded in-proc C API, `WAL`, `NORMAL`)** | `33,431.1` (`0.006 ms`) | `56,406.6` (`0.008 ms`) | `55,520.2` (`0.011 ms`) | **`60,263.4`** (`0.012 ms`, `2.18 mJ`) | `506,957` (no TCP / `fsync`) |
 
-- **Candid OLTP Summary:** `O(1)` secondary-index PK/UNIQUE checks raised JouleDB Simple Query throughput **2.54×** over `v0.7.0` (`1,318.6 -> 3,353.5 TPS` at `c=16`, and **`1,659.5 TPS` vs `PostgreSQL 16.16`'s `1,149.1 TPS` at `c=1`**). At `c=16`, `PostgreSQL 16.16`'s mature C buffer/lock manager is **`3.42×` faster** (`11,452.5 TPS`, `4.5×` lower `mJ/txn`), and in `psycopg` Extended Query `pipeline()` mode JouleDB's `Describe` (`'D'`) statement probe currently executes a dry-run schema query before `Execute`, limiting pipelined mode to `593.7 TPS` (`invariant_verified = true`).
+- **Candid OLTP Summary:** Static AST/catalog `describe_sql_static` OID inference + `DROP TABLE` index metadata cleanup raised JouleDB Extended Query `pipeline()` throughput **3.01×** (`593.7 -> 1,790.0 TPS` at `c=8`, `1,703.3 TPS` at `c=16`, `2.50×` more committed writes), while Simple Query reaches **`3,351.0 TPS`** at `c=16` (`0` errors, `invariant_verified = true`). `PostgreSQL 16.16` remains **`3.23×` faster** at `c=16` (`10,815.9 TPS`) due to shared-buffer page-level locking vs JouleDB's table-wide `commit_lock`.
 
-### 3. 5-Node Real TCP Raft (`ReadIndex`) Fault-Injection + Official Clojure `elle 0.2.8`
+### 3. 5-Node Multi-Host Cross-Machine WAN/Tailscale TCP Raft (`ReadIndex`) + Official Clojure `elle 0.2.8`
 
-Executed via [`crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs`](./crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs) and [`bench/elle_check.clj`](./bench/elle_check.clj):
-- **Setup:** 5 real `RaftNode<KvStateMachine, TcpRaftTransport>` servers with durable `raft.wal` across a 20-link socket-severing `TcpPartitionMatrix`, using `propose_and_commit` for writes and Raft §6.4 **`read_linearizable` (`ReadIndex` heartbeat quorum, zero log growth)** for reads.
-- **Nemeses:** Asymmetric `2/5` vs `3/5` TCP partition isolating initial leader -> minority write & `ReadIndex` rejection -> `3/5` higher-term election -> node stop + disk `raft.wal` restart -> link heal & 5-node convergence (`lost_committed_writes = 0`).
-- **Official `elle/elle 0.2.8` Verdict ([`raft_tcp_elle_official_verdict.txt`](./bench/results/raft_tcp_elle_official_verdict.txt)):** **`{:valid? true}`** (`rw-register`, `:strict-serializable`, `76` events).
+Executed via [`bench/raft_multihost_wan.py`](./bench/raft_multihost_wan.py), [`examples/raft_wan_node.rs`](./crates/joule-db-server/examples/raft_wan_node.rs), and [`bench/elle_check.clj`](./bench/elle_check.clj):
+- **Cross-Machine WAN Topology:** 5 real OS `raft_wan_node` processes with durable `raft.wal` across **2 distinct physical Linux hosts** (`framework-128gb-0000` bare-metal `n1..n3` + `openie-core-1` Cloud Debian 12 VM `n4..n5`) over encrypted Tailscale WAN (**`27.58 ms` median TCP RTT**, `p95 28.65 ms`).
+- **Nemeses:** Cross-WAN `2/5` minority split (`["n1", "n4"]` vs `["n2", "n3", "n5"]`) isolating initial leader `n1` -> stale write & `ReadIndex` read rejected -> `3/5` majority elects `n3` (term `2`, `24` committed ops) -> real OS **`SIGKILL` (`kill -9`)** on cloud node `n5` (`16` ops committed during crash) -> `raft.wal` restart & 5-node convergence (`commit=68, applied=68, x=68, y=39` across all 5 nodes).
+- **Official `elle/elle 0.2.8` Verdict ([`raft_wan_multihost_elle_verdict.txt`](./bench/results/raft_wan_multihost_elle_verdict.txt)):** **`{:valid? true}`** (`rw-register`, `:strict-serializable`, `270` WAN events; local 20-link `tests/raft_tcp_elle_fault_injection.rs` also `{:valid? true}`).
 
 ### 4. `.jsyn` (`JSYN-v1`) Fidelity vs. Compression Curve
 
@@ -78,51 +79,40 @@ Executed via [`crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs`](.
 
 ---
 
-## Quickstart (`v0.8.0`)
+## Quickstart (`v0.9.0`)
 
 ```bash
-# 1. Install prebuilt v0.8.0 binary (macOS ARM64/x86_64; Linux x86_64 GLIBC <= 2.35, Ubuntu 22.04/24.04 & Debian 12 ready)
+# 1. Install prebuilt v0.9.0 binary (macOS ARM64/x86_64; Linux x86_64 GLIBC <= 2.35, Ubuntu 22.04/24.04 & Debian 12 ready)
 cargo binstall jouledb
 
-# 2. Launch JouleDB server (HTTP :8080, TCP :8081, PgWire :8082, JWP :8083, FlightSQL :8084)
+# 2. Launch JouleDB server (HTTP :8080, TCP :8081, PgWire :8082, JWP :8083, FlightSQL :8084, MCP HTTP /mcp)
 jouledb --port 8080 --data ./joule-data
 
-# 3. Connect with psql or run one-shot SQL
+# 3. Or run as a Claude Desktop / MCP Apps stdio server (50 tools + interactive ui://jouledb/studio.html)
+jouledb mcp --data ./joule-data
+
+# 4. Connect with psql, install GitHub Release Python/TS SDK artifacts, or run smoke/security self-tests
 psql -h 127.0.0.1 -p 8082 -U postgres -c "SELECT version();"
-jouledb query "CREATE TABLE items (id INT PRIMARY KEY, name TEXT)"
-
-# 4. Run fast in-process subsystem smoke checks & technical security-control self-tests
-jouledb self-check
-jouledb trust
-```
-
-### Build & Test from Source
-
-```bash
-cargo build --release --locked -p joule-db-server --bin jouledb
-cargo clippy -p joule-db-core -p joule-db-branch -p joule-db-ledger -p joule-db-local -p joule-db-energy -p joule-db-weights -p joule-db-query --lib
-cargo test  -p joule-db-server --lib columnar_exec::tests
-cargo test  -p joule-db-server --lib mvcc_adapter::tests
-cargo test  -p joule-db-server --test raft_tcp_elle_fault_injection
+jouledb self-check && jouledb trust
 ```
 
 ---
 
 ## Honest Engineering Boundaries (Read Before Adopting)
 
-- **Pre-1.0 research preview (`v0.8.0`), not a battle-tested production RDBMS:** While JouleDB `0.8.0` now executes all `43 / 43` Official ClickBench queries on the full `99,997,497`-row dataset in bounded RAM (`6.2 GB` load RSS) and `3,353.5 TPS` durable TCP `pgwire` OLTP, mature single-purpose engines (`PostgreSQL 16` at `11.5k TPS` `c=16`, `DuckDB 2.0` at `4.85×` faster `100M` geomean, `SQLite` embedded WAL) remain faster for conventional single-model production workloads.
-- **No external compliance certifications:** `jouledb trust` exercises technical security primitives in code (`SHA-256` audit hash-chains, WORM retention timestamps, per-subject DEK zeroization, Luhn redaction, `CycloneDX v1.6` SBOM, Bell-LaPadula lattice checks). **No third-party SOC 2, ISO 27001, HIPAA, PCI-DSS, NIST CMVP, or FedRAMP audit has been conducted.**
-- **Exact compiler safety lint scope:** `#![deny(unsafe_code)]` is set in `joule-db-core` with **1** `#![allow(unsafe_code)]` module (`crates/joule-db-core/src/storage/mmap_extent.rs`). `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` is enforced in **7** core crates (`joule-db-core`, `joule-db-branch`, `joule-db-ledger`, `joule-db-local`, `joule-db-energy`, `joule-db-weights`, `joule-db-query`, plus `#![deny(clippy::unwrap_used)]` on `crates/joule-db-server/src/disk_col_segments.rs`); the workspace-wide lint level is `warn`.
-- **Client SDKs are in-tree (`sdks/*`, `python/`):** Client libraries for Python (`PyO3`/`maturin`), TypeScript, Go, .NET, Swift, Java, and C99 ship in source form inside this repository and are **not yet published** to PyPI, npm, NuGet, or Maven Central.
+- **Pre-1.0 research preview (`v0.9.0`), not a battle-tested production RDBMS:** While JouleDB `0.9.0` executes all `43 / 43` Official ClickBench queries on `99,997,497` rows (`2.82×` geomean vs DuckDB `2.0.1`, `15.48 GB` peak `VmHWM`), `3,351 TPS` Simple / `1,790 TPS` Pipelined `pgwire` OLTP, and 5-node cross-machine WAN Raft (`elle` `{:valid? true}`), mature specialized engines (`PostgreSQL 16` at `10.8k TPS` `c=16`, `DuckDB 2.0` at `2.82×` faster `100M` geomean, `SQLite` embedded WAL) remain faster for conventional single-model production workloads.
+- **No external compliance certifications:** `jouledb trust` exercises technical security primitives in code (`external_audit_performed = false`). **No third-party SOC 2, ISO 27001, HIPAA, PCI-DSS, NIST CMVP, or FedRAMP audit has been conducted.**
+- **Exact compiler safety lint scope:** `#![deny(unsafe_code)]` is set in `joule-db-core` with **1** `#![allow(unsafe_code)]` module (`crates/joule-db-core/src/storage/mmap_extent.rs`). `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` is enforced in **7** core crates (`joule-db-core`, `joule-db-branch`, `joule-db-ledger`, `joule-db-local`, `joule-db-energy`, `joule-db-weights`, `joule-db-query`, plus `#![deny(clippy::unwrap_used)]` on `disk_col_segments.rs` and `mcp_app_ui.rs`); the workspace-wide lint level is `warn`.
+- **SDK registry status:** Prebuilt `cp39-abi3` Python `.whl` wheels, TypeScript `openie-jouledb-0.9.0.tgz`, and Claude `.mcpb` bundles are published on [GitHub Releases (`v0.9.0`)](https://github.com/openIE-dev/jouledb/releases/tag/v0.9.0); packages are **not yet published** to PyPI, npm, NuGet, or Maven Central.
 
 ---
 
 ## Documentation & Links
 
-- **Website:** [https://jouledb.org](https://jouledb.org) ([Benchmarks](https://jouledb.org/benchmarks) · [Honest Boundaries](https://jouledb.org/honest) · [Security Controls & Bridges](https://jouledb.org/trust) · [`.jsyn` Fidelity](https://jouledb.org/jsyn))
-- **Online Book (`mdBook`):** [https://openie-dev.github.io/jouledb](https://openie-dev.github.io/jouledb)
+- **Website:** [https://jouledb.org](https://jouledb.org) ([Claude & MCP Apps](https://jouledb.org/claude) · [Benchmarks](https://jouledb.org/benchmarks) · [Honest Boundaries](https://jouledb.org/honest) · [Security Controls & Bridges](https://jouledb.org/trust) · [`.jsyn` Fidelity](https://jouledb.org/jsyn))
+- **Online Book (`mdBook`):** [https://openie-dev.github.io/jouledb](https://openie-dev.github.io/jouledb) ([Claude & MCP Apps Guide](https://openie-dev.github.io/jouledb/claude-apps.html))
 - **Verified `.jsyn` Sentence Embedder & Benchmark Dataset:** [https://huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)
-- **Architecture Whitepaper (`v0.8.0`):** [`docs/WHITEPAPER-JOULEDB-2026-11.md`](./docs/WHITEPAPER-JOULEDB-2026-11.md)
+- **Architecture Whitepaper (`v0.9.0`):** [`docs/WHITEPAPER-JOULEDB-2026-11.md`](./docs/WHITEPAPER-JOULEDB-2026-11.md)
 - **`.jsyn` Binary Specification:** [`docs/JSYN-LIVING-WEIGHTS-SPEC.md`](./docs/JSYN-LIVING-WEIGHTS-SPEC.md)
 - **Benchmark Scripts & Raw JSON/EDN Outputs:** [`bench/`](./bench/)
 

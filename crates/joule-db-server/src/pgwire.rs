@@ -509,18 +509,38 @@ where
                         body[o + 3],
                     ]));
                 }
-                let oid_key = stmt_name.clone();
-                conn_state.param_oids.insert(oid_key, oids);
-
-                // Store in prepared statement cache
+                let ( in_p_oids, in_sel_cols ) = executor
+                    .describe_query(&sql)
+                    .unwrap_or_else(|| (Vec::new(), None));
+                let total_params = param_count
+                    .max(oids.len())
+                    .max(in_p_oids.len())
+                    .max(count_placeholders(&sql));
+                if oids.len() < total_params {
+                    oids.resize(total_params, 0);
+                }
+                for k in 0..total_params {
+                    if oids[k] == 0
+                        && let Some(&inferred) = in_p_oids.get(k)
+                        && inferred != 0
+                    {
+                        oids[k] = inferred;
+                    }
+                }
                 let cache_name = if stmt_name.is_empty() {
                     "".to_string()
                 } else {
                     stmt_name
                 };
+                conn_state.param_oids.insert(cache_name.clone(), oids);
+                conn_state
+                    .select_cols
+                    .insert(cache_name.clone(), in_sel_cols);
+
+                // Store in prepared statement cache
                 conn_state
                     .prepared_statements
-                    .insert(cache_name, sql, param_count);
+                    .insert(cache_name, sql, total_params);
 
                 // Send ParseComplete
                 write_message(&mut writer, b'1', &[]).await?;
@@ -693,45 +713,86 @@ where
                             pd.extend_from_slice(&oid.to_be_bytes());
                         }
                         write_message(&mut writer, b't', &pd).await?;
-                        // Try to extract column names from SQL
-                        let cols = conn_state
-                            .prepared_statements
-                            .get(&name)
-                            .and_then(|s| extract_select_columns(&s.sql));
-                        if let Some(columns) = cols {
-                            write_row_description(&mut writer, &columns).await?;
-                        } else {
+                        // Prefer static catalog schema OIDs if inferred during Parse
+                        if let Some(Some(typed_cols)) = conn_state.select_cols.get(&name) {
+                            let cnames: Vec<String> =
+                                typed_cols.iter().map(|(c, _)| c.clone()).collect();
+                            let coids: Vec<i32> = typed_cols.iter().map(|(_, o)| *o).collect();
+                            write_row_description_fmt(&mut writer, &cnames, &coids, &[]).await?;
+                        } else if matches!(conn_state.select_cols.get(&name), Some(None))
+                            && conn_state
+                                .prepared_statements
+                                .get(&name)
+                                .is_some_and(|s| !returns_rows(&s.sql))
+                        {
                             write_message(&mut writer, b'n', &[]).await?;
+                        } else {
+                            // Fallback: extract column names syntactically from SQL
+                            let cols = conn_state
+                                .prepared_statements
+                                .get(&name)
+                                .and_then(|s| extract_select_columns(&s.sql));
+                            if let Some(columns) = cols {
+                                write_row_description(&mut writer, &columns).await?;
+                            } else {
+                                write_message(&mut writer, b'n', &[]).await?;
+                            }
                         }
                     } else {
-                        // Describe Portal: a row-returning statement is executed here and
-                        // its result cached, so the RowDescription carries the real columns
-                        // and types and Execute sends only DataRows (the protocol forbids a
-                        // second RowDescription there).
-                        let target = conn_state
-                            .portals
-                            .get(&name)
-                            .map(|p| (bound_sql(p), p.result_formats.clone()));
-                        match target {
-                            Some((sql, formats)) if returns_rows(&sql) => {
-                                let timeout = (config.query_timeout_ms > 0)
-                                    .then_some(config.query_timeout_ms);
-                                let res = run_statement(&sql, &executor, &mut conn_state, timeout);
-                                match &res {
-                                    Ok(r) => {
-                                        let oids = column_oids(&r.rows, r.columns.len(), &formats);
-                                        write_row_description_fmt(
-                                            &mut writer,
-                                            &r.columns,
-                                            &oids,
-                                            &formats,
-                                        )
-                                        .await?;
+                        // Describe Portal: use O(1) static catalog column OIDs whenever
+                        // available so pipelined `Parse+Bind+Describe+Execute` never runs
+                        // a dry-run query probe before `Execute`!
+                        let portal_info = conn_state.portals.get(&name).map(|p| {
+                            (
+                                p.statement_name.clone(),
+                                p.sql.clone(),
+                                bound_sql(p),
+                                p.result_formats.clone(),
+                            )
+                        });
+                        match portal_info {
+                            Some((stmt_key, raw_sql, sql, formats)) if returns_rows(&sql) => {
+                                let static_cols = conn_state
+                                    .select_cols
+                                    .get(&stmt_key)
+                                    .and_then(|opt| opt.clone())
+                                    .or_else(|| {
+                                        executor.describe_query(&raw_sql).and_then(|(_, sc)| sc)
+                                    });
+                                if let Some(typed_cols) = static_cols {
+                                    let cnames: Vec<String> =
+                                        typed_cols.iter().map(|(c, _)| c.clone()).collect();
+                                    let coids: Vec<i32> =
+                                        typed_cols.iter().map(|(_, o)| *o).collect();
+                                    write_row_description_fmt(
+                                        &mut writer,
+                                        &cnames,
+                                        &coids,
+                                        &formats,
+                                    )
+                                    .await?;
+                                } else {
+                                    let timeout = (config.query_timeout_ms > 0)
+                                        .then_some(config.query_timeout_ms);
+                                    let res =
+                                        run_statement(&sql, &executor, &mut conn_state, timeout);
+                                    match &res {
+                                        Ok(r) => {
+                                            let oids =
+                                                column_oids(&r.rows, r.columns.len(), &formats);
+                                            write_row_description_fmt(
+                                                &mut writer,
+                                                &r.columns,
+                                                &oids,
+                                                &formats,
+                                            )
+                                            .await?;
+                                        }
+                                        Err(_) => write_message(&mut writer, b'n', &[]).await?,
                                     }
-                                    Err(_) => write_message(&mut writer, b'n', &[]).await?,
-                                }
-                                if let Some(p) = conn_state.portals.get_mut(&name) {
-                                    p.described = Some(res);
+                                    if let Some(p) = conn_state.portals.get_mut(&name) {
+                                        p.described = Some(res);
+                                    }
                                 }
                             }
                             _ => write_message(&mut writer, b'n', &[]).await?,
@@ -1404,9 +1465,11 @@ fn run_statement_inner(
             if u == "DISCARD ALL" || name.eq_ignore_ascii_case("ALL") {
                 conn_state.prepared_statements = PreparedStatementCache::new(256);
                 conn_state.param_oids.clear();
+                conn_state.select_cols.clear();
             } else {
                 conn_state.prepared_statements.remove(&name);
                 conn_state.param_oids.remove(&name);
+                conn_state.select_cols.remove(&name);
             }
             return Ok(empty_response());
         }
@@ -1569,7 +1632,7 @@ fn type_info_lookup(sql: &str) -> Option<QueryResponse> {
 
 /// `pg_catalog.pg_class` -> `pg_class` (the catalog tables live unqualified),
 /// skipping string literals.
-fn strip_pg_catalog(sql: &str) -> String {
+pub(crate) fn strip_pg_catalog(sql: &str) -> String {
     const P: &str = "pg_catalog.";
     let mut out = String::with_capacity(sql.len());
     let mut in_str = false;
@@ -3138,6 +3201,8 @@ struct ConnectionState {
     session_id: Option<String>,
     /// Parameter type OIDs declared in Parse, by statement name
     param_oids: HashMap<String, Vec<i32>>,
+    /// Statically inferred result `(col_name, oid)` metadata cached at Parse time
+    select_cols: HashMap<String, Option<Vec<(String, i32)>>>,
 }
 
 /// A prepared statement parsed from a Parse message
@@ -3192,7 +3257,14 @@ fn substitute_params(sql: &str, params: &[serde_json::Value]) -> String {
                             result.push_str(if *b { "TRUE" } else { "FALSE" });
                         }
                         serde_json::Value::Number(n) => {
-                            result.push_str(&n.to_string());
+                            let s = n.to_string();
+                            if s.starts_with('-') {
+                                result.push('(');
+                                result.push_str(&s);
+                                result.push(')');
+                            } else {
+                                result.push_str(&s);
+                            }
                         }
                         serde_json::Value::String(s) => {
                             // SQL-escape: single-quote with doubled internal quotes
@@ -3294,6 +3366,7 @@ impl ConnectionState {
             in_explicit_transaction: false,
             session_id: None,
             param_oids: HashMap::new(),
+            select_cols: HashMap::new(),
             user_id: "anonymous".to_string(),
             roles: vec!["superuser".to_string()],
         }
@@ -3307,6 +3380,7 @@ impl ConnectionState {
             in_explicit_transaction: false,
             session_id: None,
             param_oids: HashMap::new(),
+            select_cols: HashMap::new(),
             user_id,
             // When auth is enabled, default to readonly; when disabled, grant superuser
             roles: if auth_enabled {

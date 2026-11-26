@@ -1,9 +1,9 @@
 [package]
 name = "jouledb"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 rust-version = "1.74"
-description = "Energy-metered multi-model Rust database (0.8.0 pre-1.0 preview) — out-of-core .jcol columnar analytics (full 100M ClickBench), SSI MVCC, pipelined PostgreSQL pgwire, TCP Raft ReadIndex, and hardware RAPL/powermetrics receipts. `cargo binstall jouledb` fetches the binary."
+description = "Energy-metered multi-model Rust database (0.9.0 pre-1.0 preview) — Claude/MCP Apps Studio UI, out-of-core .jcol columnar analytics (100M ClickBench), SSI MVCC, pipelined PostgreSQL pgwire, multi-host TCP Raft ReadIndex, and hardware RAPL/powermetrics receipts. `cargo binstall jouledb` fetches the binary."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/openIE-dev/jouledb"
 homepage = "https://jouledb.org"

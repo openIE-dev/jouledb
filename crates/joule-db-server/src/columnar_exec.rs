@@ -5093,34 +5093,50 @@ fn execute_scan_segmented(
         .collect();
 
     let winners: Vec<(usize, u32)> = if order_exprs.is_empty() {
-        let mut collected: Vec<(usize, u32)> = Vec::new();
-        for &si in &active_segs {
-            let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
-            let sel = eval_segment_where(&seg_tc, raw_preds)?;
-            match sel {
-                None => {
-                    let need = take.map_or(seg_tc.len, |k| k.saturating_sub(collected.len()));
-                    let lim = seg_tc.len.min(need);
-                    for r in 0..lim {
-                        collected.push((si, r as u32));
+        if take.is_none() && active_segs.len() > 1 {
+            let seg_matches: Vec<Vec<(usize, u32)>> = active_segs
+                .par_iter()
+                .map(|&si| -> Option<Vec<(usize, u32)>> {
+                    let seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                    let sel = eval_segment_where(&seg_tc, raw_preds)?;
+                    let out = match sel {
+                        None => (0..seg_tc.len as u32).map(|r| (si, r)).collect(),
+                        Some(v) => v.into_iter().map(|r| (si, r)).collect(),
+                    };
+                    Some(out)
+                })
+                .collect::<Option<_>>()?;
+            seg_matches.into_iter().flatten().collect()
+        } else {
+            let mut collected: Vec<(usize, u32)> = Vec::new();
+            for &si in &active_segs {
+                let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                let sel = eval_segment_where(&seg_tc, raw_preds)?;
+                match sel {
+                    None => {
+                        let need = take.map_or(seg_tc.len, |k| k.saturating_sub(collected.len()));
+                        let lim = seg_tc.len.min(need);
+                        for r in 0..lim {
+                            collected.push((si, r as u32));
+                        }
+                    }
+                    Some(v) => {
+                        let need = take.map_or(v.len(), |k| k.saturating_sub(collected.len()));
+                        for &r in v.iter().take(need) {
+                            collected.push((si, r));
+                        }
                     }
                 }
-                Some(v) => {
-                    let need = take.map_or(v.len(), |k| k.saturating_sub(collected.len()));
-                    for &r in v.iter().take(need) {
-                        collected.push((si, r));
-                    }
+                seg_tc.cols.clear();
+                if let Some(k) = take
+                    && collected.len() >= k
+                {
+                    collected.truncate(k);
+                    break;
                 }
             }
-            seg_tc.cols.clear();
-            if let Some(k) = take
-                && collected.len() >= k
-            {
-                collected.truncate(k);
-                break;
-            }
+            collected
         }
-        collected
     } else {
         let nv = order_exprs.len();
         let order_spec: Vec<(usize, bool, Option<bool>)> = order_exprs
@@ -5129,92 +5145,201 @@ fn execute_scan_segmented(
             .map(|(j, (_, d, nf))| (j, *d, *nf))
             .collect();
 
-        let seg_cands: Vec<Vec<(Vec<Sv>, usize, u32)>> = active_segs
-            .par_iter()
-            .map(|&si| -> Option<Vec<(Vec<Sv>, usize, u32)>> {
-                let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
-                let sel = eval_segment_where(&seg_tc, raw_preds)?;
-                if let Some(ref v) = sel
-                    && v.is_empty()
-                {
-                    return Some(Vec::new());
-                }
-                if !order_only_cols.is_empty() {
-                    dt.load_columns_into(si, &order_only_cols, &mut seg_tc).ok()?;
-                }
-                let o_vcols: Vec<(VCol, bool, Option<bool>)> = order_exprs
-                    .iter()
-                    .map(|(e, d, nf)| Some((build_vcol(&seg_tc, e)?, *d, *nf)))
-                    .collect::<Option<_>>()?;
+        // Dynamic Top-K ZoneMap bound pruning on leading physical integer ORDER BY column (`Q23, Q24, Q26`):
+        // When `ORDER BY int_col ASC [NULLS LAST] LIMIT k`, seed the k-th threshold from the
+        // minimum-ZoneMap segments first so segments with `seg_min_int > kth_bound` skip reading
+        // heavyweight `WHERE` text slices (`URL`, `SearchPhrase`) entirely!
+        let asc_int_ord_ci: Option<usize> = if let Some(k) = take
+            && k > 0
+            && !order_exprs[0].1
+            && !order_exprs[0].2.unwrap_or(false)
+            && let Some(cn) = column(order_exprs[0].0)
+            && let Some(&ci) = dt.col_index.get(cn)
+            && matches!(
+                dt.inferred_col_kind(ci),
+                crate::disk_col_segments::DiskColKind::I8
+                    | crate::disk_col_segments::DiskColKind::I16
+                    | crate::disk_col_segments::DiskColKind::I32
+                    | crate::disk_col_segments::DiskColKind::I64
+            )
+        {
+            Some(ci)
+        } else {
+            None
+        };
 
-                let cmp_seg = |&ra: &u32, &rb: &u32| -> Ordering {
-                    let (ia, ib) = (ra as usize, rb as usize);
-                    for (vc, desc, nulls_first) in &o_vcols {
-                        let (na, nb) = (vc.is_null_at(ia), vc.is_null_at(ib));
-                        let nf = nulls_first.unwrap_or(*desc);
-                        let o = match (na, nb) {
-                            (true, true) => Ordering::Equal,
-                            (true, false) => {
-                                if nf {
-                                    Ordering::Less
-                                } else {
-                                    Ordering::Greater
-                                }
+        let mut ordered_segs = active_segs.clone();
+        if let Some(ci) = asc_int_ord_ci {
+            ordered_segs.sort_by_key(|&si| {
+                let seg = &dt.segments[si];
+                seg.cols[ci].min_int(seg.len).unwrap_or(i64::MAX)
+            });
+        }
+
+        let kth_bound = std::sync::atomic::AtomicI64::new(i64::MAX);
+        let eval_one_top_seg = |si: usize| -> Option<Vec<(Vec<Sv>, usize, u32)>> {
+            if let Some(ci) = asc_int_ord_ci {
+                let cur_b = kth_bound.load(std::sync::atomic::Ordering::Relaxed);
+                if cur_b < i64::MAX {
+                    let seg = &dt.segments[si];
+                    if seg.cols[ci].null_count == 0
+                        && let Some(seg_lo) = seg.cols[ci].min_int(seg.len)
+                        && seg_lo > cur_b
+                    {
+                        return Some(Vec::new());
+                    }
+                }
+            }
+            let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+            let sel = eval_segment_where(&seg_tc, raw_preds)?;
+            if let Some(ref v) = sel
+                && v.is_empty()
+            {
+                return Some(Vec::new());
+            }
+            if !order_only_cols.is_empty() {
+                dt.load_columns_into(si, &order_only_cols, &mut seg_tc).ok()?;
+            }
+            let o_vcols: Vec<(VCol, bool, Option<bool>)> = order_exprs
+                .iter()
+                .map(|(e, d, nf)| Some((build_vcol(&seg_tc, e)?, *d, *nf)))
+                .collect::<Option<_>>()?;
+
+            let cmp_seg = |&ra: &u32, &rb: &u32| -> Ordering {
+                let (ia, ib) = (ra as usize, rb as usize);
+                for (vc, desc, nulls_first) in &o_vcols {
+                    let (na, nb) = (vc.is_null_at(ia), vc.is_null_at(ib));
+                    let nf = nulls_first.unwrap_or(*desc);
+                    let o = match (na, nb) {
+                        (true, true) => Ordering::Equal,
+                        (true, false) => {
+                            if nf {
+                                Ordering::Less
+                            } else {
+                                Ordering::Greater
                             }
-                            (false, true) => {
-                                if nf {
-                                    Ordering::Greater
-                                } else {
-                                    Ordering::Less
-                                }
+                        }
+                        (false, true) => {
+                            if nf {
+                                Ordering::Greater
+                            } else {
+                                Ordering::Less
                             }
-                            (false, false) => {
-                                let ord = if let (Some(xa), Some(xb)) = (vc.int_at(ia), vc.int_at(ib))
-                                {
-                                    xa.cmp(&xb)
-                                } else if let (Some(sa), Some(sb)) =
-                                    (vc.str_ref_at(ia), vc.str_ref_at(ib))
-                                {
-                                    sa.cmp(sb)
-                                } else if let (Some(fa), Some(fb)) =
-                                    (vc.float_at(ia), vc.float_at(ib))
-                                {
-                                    fa.partial_cmp(&fb).unwrap_or(Ordering::Equal)
-                                } else {
-                                    Ordering::Equal
-                                };
-                                if *desc { ord.reverse() } else { ord }
-                            }
-                        };
-                        if o != Ordering::Equal {
-                            return o;
+                        }
+                        (false, false) => {
+                            let ord = if let (Some(xa), Some(xb)) = (vc.int_at(ia), vc.int_at(ib))
+                            {
+                                xa.cmp(&xb)
+                            } else if let (Some(sa), Some(sb)) =
+                                (vc.str_ref_at(ia), vc.str_ref_at(ib))
+                            {
+                                sa.cmp(sb)
+                            } else if let (Some(fa), Some(fb)) =
+                                (vc.float_at(ia), vc.float_at(ib))
+                            {
+                                fa.partial_cmp(&fb).unwrap_or(Ordering::Equal)
+                            } else {
+                                Ordering::Equal
+                            };
+                            if *desc { ord.reverse() } else { ord }
+                        }
+                    };
+                    if o != Ordering::Equal {
+                        return o;
+                    }
+                }
+                ra.cmp(&rb)
+            };
+
+            let mut v: Vec<u32> = match sel {
+                Some(v) => v,
+                None => (0..seg_tc.len as u32).collect(),
+            };
+            if let Some(k) = take
+                && k > 0
+                && k < v.len()
+            {
+                v.select_nth_unstable_by(k - 1, &cmp_seg);
+                v.truncate(k);
+            }
+            if asc_int_ord_ci.is_some()
+                && let Some(k) = take
+                && v.len() >= k
+                && k > 0
+            {
+                let mut max_in_k = i64::MIN;
+                let mut all_non_null = true;
+                for &ri in &v[..k] {
+                    match o_vcols[0].0.int_at(ri as usize) {
+                        Some(val) => max_in_k = max_in_k.max(val),
+                        None => {
+                            all_non_null = false;
+                            break;
                         }
                     }
-                    ra.cmp(&rb)
-                };
-
-                let mut v: Vec<u32> = match sel {
-                    Some(v) => v,
-                    None => (0..seg_tc.len as u32).collect(),
-                };
-                if let Some(k) = take
-                    && k > 0
-                    && k < v.len()
-                {
-                    v.select_nth_unstable_by(k - 1, &cmp_seg);
-                    v.truncate(k);
                 }
-                let out = v
-                    .into_iter()
-                    .map(|ri| {
-                        let keys: Vec<Sv> =
-                            o_vcols.iter().map(|(vc, _, _)| vc.sv_at(ri as usize)).collect();
-                        (keys, si, ri)
+                if all_non_null {
+                    kth_bound.fetch_min(max_in_k, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            let out = v
+                .into_iter()
+                .map(|ri| {
+                    let keys: Vec<Sv> =
+                        o_vcols.iter().map(|(vc, _, _)| vc.sv_at(ri as usize)).collect();
+                    (keys, si, ri)
+                })
+                .collect();
+            Some(out)
+        };
+
+        let seed_n = if asc_int_ord_ci.is_some() && ordered_segs.len() > 2 {
+            2usize
+        } else {
+            0usize
+        };
+        let mut seg_cands: Vec<Vec<(Vec<Sv>, usize, u32)>> = Vec::with_capacity(ordered_segs.len());
+        if seed_n > 0 {
+            let mut seeded_rows = 0usize;
+            let mut idx = 0usize;
+            while idx < ordered_segs.len() && (idx < seed_n || seeded_rows < take.unwrap_or(0)) {
+                let c = eval_one_top_seg(ordered_segs[idx])?;
+                seeded_rows += c.len();
+                seg_cands.push(c);
+                idx += 1;
+                if seeded_rows >= take.unwrap_or(0) && idx >= seed_n {
+                    break;
+                }
+            }
+            // Tighten bound across combined seed candidates before parallel fan-out
+            if let Some(k) = take
+                && seeded_rows >= k
+                && k > 0
+            {
+                let mut vals: Vec<i64> = seg_cands
+                    .iter()
+                    .flatten()
+                    .filter_map(|(ks, _, _)| match ks.first()? {
+                        Sv::I(x) => Some(*x),
+                        _ => None,
                     })
                     .collect();
-                Some(out)
-            })
-            .collect::<Option<_>>()?;
+                if vals.len() >= k {
+                    vals.select_nth_unstable(k - 1);
+                    kth_bound.fetch_min(vals[k - 1], std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            let rest_cands: Vec<Vec<(Vec<Sv>, usize, u32)>> = ordered_segs[idx..]
+                .par_iter()
+                .map(|&si| eval_one_top_seg(si))
+                .collect::<Option<_>>()?;
+            seg_cands.extend(rest_cands);
+        } else {
+            seg_cands = ordered_segs
+                .par_iter()
+                .map(|&si| eval_one_top_seg(si))
+                .collect::<Option<_>>()?;
+        }
 
         let mut flat: Vec<(Vec<Sv>, usize, u32)> = seg_cands.into_iter().flatten().collect();
         let cmp_global = |a: &(Vec<Sv>, usize, u32), b: &(Vec<Sv>, usize, u32)| -> Ordering {
@@ -5453,24 +5578,33 @@ pub fn execute_segmented(
     let take = query.limit.map(|l| off.saturating_add(l));
 
     // ------------------------------------------------------------------------
-    // Fast Path 1: Zero-I/O Metadata Aggregates (`Q0: COUNT(*)`, `Q6: MIN/MAX`)
+    // Fast Path 1: Zero-I/O Metadata Aggregates (`Q0: COUNT(*)`, `Q2/Q3/Q29: SUM/AVG`, `Q6: MIN/MAX`)
     // ------------------------------------------------------------------------
-    if raw_preds.is_empty()
-        && group_exprs.is_empty()
-        && agg_defs.iter().all(|(_, _, ca, _, _)| *ca == 0)
-    {
+    if raw_preds.is_empty() && group_exprs.is_empty() {
+        fn agg_base_col(ae: &Expression) -> Option<&str> {
+            let Expression::Function { args, .. } = ae else {
+                return None;
+            };
+            let arg = args.first()?;
+            if let Some(cn) = column(arg) {
+                return Some(cn);
+            }
+            if let Expression::Binary { left, op, right } = arg
+                && matches!(op, Operator::Add | Operator::Sub)
+                && literal(right).is_some()
+            {
+                return column(left);
+            }
+            None
+        }
         let mut meta_accs = Vec::with_capacity(nagg);
         let mut all_meta_ok = true;
-        for &(ae, kind, _, _, _) in &agg_defs {
+        for &(ae, kind, ca, _, _) in &agg_defs {
             let mut a = Acc::default();
             match kind {
-                AggKind::CountStar => a.count = dt.total_rows as u64,
+                AggKind::CountStar if ca == 0 => a.count = dt.total_rows as u64,
                 AggKind::Count | AggKind::Min | AggKind::Max => {
-                    let Expression::Function { args, .. } = ae else {
-                        all_meta_ok = false;
-                        break;
-                    };
-                    let Some(cn) = args.first().and_then(column) else {
+                    let Some(cn) = agg_base_col(ae) else {
                         all_meta_ok = false;
                         break;
                     };
@@ -5500,6 +5634,18 @@ pub fn execute_segmented(
                         all_meta_ok = false;
                         break;
                     }
+                }
+                AggKind::Sum | AggKind::Avg => {
+                    let Some(cn) = agg_base_col(ae) else {
+                        all_meta_ok = false;
+                        break;
+                    };
+                    let Some((non_null, sum_i128)) = dt.global_int_sum(cn) else {
+                        all_meta_ok = false;
+                        break;
+                    };
+                    a.count = non_null;
+                    a.isum = sum_i128;
                 }
                 _ => {
                     all_meta_ok = false;
@@ -5595,6 +5741,68 @@ pub fn execute_segmented(
     // Case A: Ungrouped Aggregations (`Q2, Q3, Q4, Q5, Q29`)
     // ------------------------------------------------------------------------
     if group_exprs.is_empty() {
+        // Zero-`Arc<str>` Raw `.jcol` Text `COUNT(DISTINCT col)` Fast Path (`Q05`)
+        if raw_preds.is_empty()
+            && having_pred.is_none()
+            && nagg == 1
+            && agg_defs[0].1 == AggKind::CountDistinct
+            && agg_defs[0].4
+            && let Expression::Function { args, .. } = agg_defs[0].0
+            && let Some(text_cn) = args.first().and_then(column)
+            && matches!(proto_tc.cols.get(text_cn), Some(Col::Text(..)))
+        {
+            const RAW_D_SHARDS: usize = 256;
+            let shards: Vec<std::sync::Mutex<rustc_hash::FxHashSet<Box<[u8]>>>> = (0..RAW_D_SHARDS)
+                .map(|_| std::sync::Mutex::new(rustc_hash::FxHashSet::default()))
+                .collect();
+            let raw_ok = active_segs
+                .par_iter()
+                .map(|&si| -> Option<()> {
+                    let ts = dt.read_raw_text_slice(si, text_cn).ok()??;
+                    if ts.dict_len == 0 {
+                        return Some(());
+                    }
+                    let mut buckets: Vec<Vec<usize>> =
+                        (0..RAW_D_SHARDS).map(|_| Vec::new()).collect();
+                    for ci in 0..ts.dict_len {
+                        let b = (hash_bytes64(ts.dict_bytes(ci)) as usize) & (RAW_D_SHARDS - 1);
+                        buckets[b].push(ci);
+                    }
+                    for (b, cis) in buckets.into_iter().enumerate() {
+                        if !cis.is_empty()
+                            && let Ok(mut g) = shards[b].lock()
+                        {
+                            for ci in cis {
+                                let s_bytes = ts.dict_bytes(ci);
+                                if !g.contains(s_bytes) {
+                                    g.insert(Box::from(s_bytes));
+                                }
+                            }
+                        }
+                    }
+                    Some(())
+                })
+                .collect::<Option<Vec<()>>>();
+            if raw_ok.is_some() {
+                let cnt: u64 = shards
+                    .into_iter()
+                    .map(|m| m.into_inner().map_or(0, |s| s.len() as u64))
+                    .sum();
+                let row: Vec<serde_json::Value> = (0..visible_no)
+                    .map(|oi| match &outs[oi] {
+                        OutCol::Group(_) => serde_json::Value::Null,
+                        OutCol::Agg(_) => serde_json::json!(cnt),
+                    })
+                    .collect();
+                let all_rows = vec![row];
+                let end = take.unwrap_or(usize::MAX).min(all_rows.len());
+                return Some(VecResult {
+                    columns: names,
+                    rows: all_rows[off.min(end)..end].to_vec(),
+                });
+            }
+        }
+
         const D_SHARDS: usize = 64;
         let has_distinct = agg_defs
             .iter()
@@ -6150,6 +6358,247 @@ pub fn execute_segmented(
         a.1.cmp(&b.1)
     };
 
+    // ------------------------------------------------------------------------
+    // Special Fast Path S1-Raw: 1-Pass Zero-`Arc<str>` `.jcol` Text `GROUP BY` (`Q12, Q33, Q34`)
+    // Eliminates 4-pass re-reading and ~200M `Arc<str>` heap allocations on `GROUP BY URL`!
+    // ------------------------------------------------------------------------
+    let non_empty_pred_only = raw_preds.len() == 1
+        && matches!(
+            &raw_preds[0],
+            Pred::Cmp {
+                col,
+                op: Operator::Ne,
+                lit: Lit::S(s),
+            } if column(key_exprs[0]) == Some(*col) && s.is_empty()
+        );
+    if matches!(gkey_shape, GKeyShape::S1)
+        && count_star_only
+        && having_pred.is_none()
+        && key_exprs.len() == 1
+        && (raw_preds.is_empty() || non_empty_pred_only)
+        && let Some(text_cn) = column(key_exprs[0])
+        && matches!(proto_tc.cols.get(text_cn), Some(Col::Text(..)))
+    {
+        const TXT_SHARDS: usize = 256;
+        let shards: Vec<std::sync::Mutex<rustc_hash::FxHashMap<Box<[u8]>, (u64, u64)>>> = (0
+            ..TXT_SHARDS)
+            .map(|_| std::sync::Mutex::new(rustc_hash::FxHashMap::default()))
+            .collect();
+        let null_grp = std::sync::Mutex::new((u64::MAX, 0u64));
+
+        let raw_s1_ok = active_segs
+            .par_iter()
+            .map(|&si| -> Option<()> {
+                let ts = dt.read_raw_text_slice(si, text_cn).ok()??;
+                let seg_base_ord = (si as u64) << 32;
+                let empty_code: Option<u32> = if non_empty_pred_only {
+                    (0..ts.dict_len)
+                        .find(|&ci| ts.dict_bytes(ci).is_empty())
+                        .map(|ci| ci as u32)
+                } else {
+                    None
+                };
+                let mut freq = vec![0u32; ts.dict_len];
+                let mut first_ri = vec![u32::MAX; ts.dict_len];
+                let mut local_null_cnt = 0u64;
+                let mut local_null_ord = u64::MAX;
+
+                let codes_bytes = &ts.raw[ts.codes_off..];
+                match ts.code_width {
+                    0 => {
+                        if !non_empty_pred_only && ts.seg_len > 0 {
+                            local_null_cnt = ts.seg_len as u64;
+                            local_null_ord = seg_base_ord;
+                        }
+                    }
+                    1 => {
+                        for (ri, &b) in codes_bytes[..ts.seg_len].iter().enumerate() {
+                            if b == 0xFF {
+                                if !non_empty_pred_only {
+                                    local_null_cnt += 1;
+                                    local_null_ord = local_null_ord.min(seg_base_ord | ri as u64);
+                                }
+                            } else {
+                                let c = b as usize;
+                                freq[c] += 1;
+                                if first_ri[c] == u32::MAX {
+                                    first_ri[c] = ri as u32;
+                                }
+                            }
+                        }
+                    }
+                    2 => {
+                        for (ri, ch) in codes_bytes[..ts.seg_len * 2].chunks_exact(2).enumerate() {
+                            let u = u16::from_le_bytes([ch[0], ch[1]]);
+                            if u == 0xFFFF {
+                                if !non_empty_pred_only {
+                                    local_null_cnt += 1;
+                                    local_null_ord = local_null_ord.min(seg_base_ord | ri as u64);
+                                }
+                            } else {
+                                let c = u as usize;
+                                freq[c] += 1;
+                                if first_ri[c] == u32::MAX {
+                                    first_ri[c] = ri as u32;
+                                }
+                            }
+                        }
+                    }
+                    _ => {
+                        for (ri, ch) in codes_bytes[..ts.seg_len * 4].chunks_exact(4).enumerate() {
+                            let u = u32::from_le_bytes([ch[0], ch[1], ch[2], ch[3]]);
+                            if u == u32::MAX {
+                                if !non_empty_pred_only {
+                                    local_null_cnt += 1;
+                                    local_null_ord = local_null_ord.min(seg_base_ord | ri as u64);
+                                }
+                            } else {
+                                let c = u as usize;
+                                freq[c] += 1;
+                                if first_ri[c] == u32::MAX {
+                                    first_ri[c] = ri as u32;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if local_null_cnt > 0
+                    && let Ok(mut ng) = null_grp.lock()
+                {
+                    ng.0 = ng.0.min(local_null_ord);
+                    ng.1 += local_null_cnt;
+                }
+
+                let mut buckets: Vec<Vec<(u32, u64, u64)>> =
+                    (0..TXT_SHARDS).map(|_| Vec::new()).collect();
+                for ci in 0..ts.dict_len {
+                    let cnt = freq[ci];
+                    if cnt == 0 || empty_code == Some(ci as u32) {
+                        continue;
+                    }
+                    let ord = seg_base_ord | (first_ri[ci] as u64);
+                    let b = (hash_bytes64(ts.dict_bytes(ci)) as usize) & (TXT_SHARDS - 1);
+                    buckets[b].push((ci as u32, ord, cnt as u64));
+                }
+                for (b, b_items) in buckets.into_iter().enumerate() {
+                    if !b_items.is_empty()
+                        && let Ok(mut g) = shards[b].lock()
+                    {
+                        for (ci, ord, cnt) in b_items {
+                            let s_bytes = ts.dict_bytes(ci as usize);
+                            if let Some((e_ord, e_cnt)) = g.get_mut(s_bytes) {
+                                *e_ord = (*e_ord).min(ord);
+                                *e_cnt += cnt;
+                            } else {
+                                g.insert(Box::from(s_bytes), (ord, cnt));
+                            }
+                        }
+                    }
+                }
+                Some(())
+            })
+            .collect::<Option<Vec<()>>>();
+
+        if raw_s1_ok.is_some() {
+            let agg_only_order: Option<bool> = if order.len() == 1
+                && matches!(outs[order[0].0], OutCol::Agg(0))
+            {
+                Some(order[0].1)
+            } else {
+                None
+            };
+
+            let shard_cands: Vec<Vec<(Vec<Sv>, u64)>> = shards
+                .into_par_iter()
+                .map(|mtx| {
+                    let Ok(map) = mtx.into_inner() else {
+                        return Vec::new();
+                    };
+                    if let (Some(desc), Some(k)) = (agg_only_order, take)
+                        && k > 0
+                        && map.len() > k
+                    {
+                        let mut raw_v: Vec<(Box<[u8]>, u64, u64)> =
+                            map.into_iter().map(|(b, (o, c))| (b, o, c)).collect();
+                        let cmp_cnt = |a: &(Box<[u8]>, u64, u64), b: &(Box<[u8]>, u64, u64)| {
+                            let o = if desc { b.2.cmp(&a.2) } else { a.2.cmp(&b.2) };
+                            if o != Ordering::Equal { o } else { a.1.cmp(&b.1) }
+                        };
+                        raw_v.select_nth_unstable_by(k - 1, cmp_cnt);
+                        raw_v.truncate(k);
+                        return raw_v
+                            .into_iter()
+                            .filter_map(|(bytes, ord, cnt)| {
+                                let s = std::str::from_utf8(&bytes).ok()?;
+                                let arc: Arc<str> = if s.is_empty() {
+                                    empty_arc_str()
+                                } else {
+                                    Arc::from(s)
+                                };
+                                let gk = GKey::S1(Some(arc));
+                                Some((eval_and_render_group(&gk, cnt, &[])?, ord))
+                            })
+                            .collect();
+                    }
+
+                    let mut v: Vec<(Vec<Sv>, u64)> = map
+                        .into_iter()
+                        .filter_map(|(bytes, (ord, cnt))| {
+                            let s = std::str::from_utf8(&bytes).ok()?;
+                            let arc: Arc<str> = if s.is_empty() {
+                                empty_arc_str()
+                            } else {
+                                Arc::from(s)
+                            };
+                            let gk = GKey::S1(Some(arc));
+                            Some((eval_and_render_group(&gk, cnt, &[])?, ord))
+                        })
+                        .collect();
+                    if !order.is_empty()
+                        && let Some(k) = take
+                        && k > 0
+                        && k < v.len()
+                    {
+                        v.select_nth_unstable_by(k - 1, &cmp_rendered);
+                        v.truncate(k);
+                    }
+                    v
+                })
+                .collect();
+
+            let mut global_cands: Vec<(Vec<Sv>, u64)> = shard_cands.into_iter().flatten().collect();
+            if let Ok((null_ord, null_cnt)) = null_grp.into_inner()
+                && null_cnt > 0
+                && let Some(svs) = eval_and_render_group(&GKey::S1(None), null_cnt, &[])
+            {
+                global_cands.push((svs, null_ord));
+            }
+            if !order.is_empty() {
+                if let Some(k) = take {
+                    if k == 0 {
+                        global_cands.clear();
+                    } else if k < global_cands.len() {
+                        global_cands.select_nth_unstable_by(k - 1, &cmp_rendered);
+                        global_cands.truncate(k);
+                    }
+                }
+                global_cands.sort_unstable_by(&cmp_rendered);
+            } else {
+                global_cands.sort_unstable_by_key(|(_, ord)| *ord);
+            }
+            let end = take.unwrap_or(usize::MAX).min(global_cands.len());
+            let rows: Vec<Vec<serde_json::Value>> = global_cands[off.min(end)..end]
+                .iter()
+                .map(|(svs, _)| svs[..visible_no].iter().map(Sv::json).collect())
+                .collect();
+            return Some(VecResult {
+                columns: names,
+                rows,
+            });
+        }
+    }
+
     // Probe first non-empty segment to gauge cardinality
     let mut probe_seg_idx = 0usize;
     let mut seg0_groups = 0usize;
@@ -6244,7 +6693,313 @@ pub fn execute_segmented(
         }
     }
 
-    // Multi-pass Radix-64 sharding when `active_rows > 20M` and high cardinality (`Q15, Q16, Q18, Q32, Q33, Q34, Q35`)
+    // Single-Pass 256-Partition `Copy` Tuple Scatter-Sort-Reduce for High-Cardinality `I1`/`I2`
+    // Integer `GROUP BY` (`Q15, Q31, Q32, Q35`): scans `.jcol` segments ONCE instead of 4 passes,
+    // eliminates 100M heap `Vec<Acc>` allocations, and reduces each partition via in-place sort +
+    // zero-allocation Top-K pruning!
+    let all_compact_int_aggs = nagg <= 3
+        && agg_defs.iter().all(|(_, k, _, is_int, is_txt)| {
+            !*is_txt
+                && match k {
+                    AggKind::CountStar => true,
+                    AggKind::Count | AggKind::Sum | AggKind::Avg | AggKind::Min | AggKind::Max => {
+                        *is_int
+                    }
+                    AggKind::CountDistinct => false,
+                }
+        });
+    let use_compact_i2 = matches!(gkey_shape, GKeyShape::I1 | GKeyShape::I2)
+        && all_compact_int_aggs
+        && ((active_rows > 20_000_000 && seg0_groups > 32_768)
+            || (cfg!(test) && dt.segments.len() >= 2));
+
+    if use_compact_i2 {
+        #[derive(Clone, Copy)]
+        struct CompactI2Row {
+            k0: i64,
+            k1: i64,
+            ord: u64,
+            v: [i64; 3],
+            cnt_star: u32,
+            val_null_mask: u8,
+            key_null_mask: u8,
+        }
+
+        const P_SHARDS: usize = 256;
+        let parts: Vec<std::sync::Mutex<Vec<CompactI2Row>>> = (0..P_SHARDS)
+            .map(|_| std::sync::Mutex::new(Vec::new()))
+            .collect();
+        drop(seg0_items);
+
+        let is_i2 = matches!(gkey_shape, GKeyShape::I2);
+        let scatter_ok = active_segs[probe_seg_idx..]
+            .par_iter()
+            .map(|&si| -> Option<()> {
+                let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                let sel = eval_segment_where(&seg_tc, &raw_preds)?;
+                if let Some(ref v) = sel
+                    && v.is_empty()
+                {
+                    return Some(());
+                }
+                if !rest_cols.is_empty() {
+                    dt.load_columns_into(si, &rest_cols, &mut seg_tc).ok()?;
+                }
+                let key_vcols: Vec<VCol> = key_exprs
+                    .iter()
+                    .map(|&ke| build_vcol(&seg_tc, ke))
+                    .collect::<Option<_>>()?;
+                let seg_aggs: Vec<(AggKind, Option<VCol>)> = agg_defs
+                    .iter()
+                    .map(|(ae, _, _, _, _)| {
+                        let (k, vc, _, _) = parse_agg_expr(&seg_tc, ae)?;
+                        Some((k, vc))
+                    })
+                    .collect::<Option<_>>()?;
+
+                let seg_base_ord = (si as u64) << 32;
+                let mut local_bins: Vec<Vec<CompactI2Row>> =
+                    (0..P_SHARDS).map(|_| Vec::with_capacity(1024)).collect();
+
+                let mut emit = |ri: usize| {
+                    let (k0, na) = match key_vcols[0].int_at(ri) {
+                        Some(x) => (x, 0u8),
+                        None => (0, 1u8),
+                    };
+                    let (k1, nb) = if is_i2 {
+                        match key_vcols[1].int_at(ri) {
+                            Some(x) => (x, 0u8),
+                            None => (0, 2u8),
+                        }
+                    } else {
+                        (0, 0u8)
+                    };
+                    let key_null_mask = na | nb;
+                    let mut v = [0i64; 3];
+                    let mut val_null_mask = 0u8;
+                    for (j, (kind, vc_opt)) in seg_aggs.iter().enumerate() {
+                        if *kind == AggKind::CountStar {
+                            v[j] = 1;
+                        } else {
+                            match vc_opt.as_ref().and_then(|vc| vc.int_at(ri)) {
+                                Some(x) => v[j] = x,
+                                None => val_null_mask |= 1u8 << j,
+                            }
+                        }
+                    }
+                    let h = mix64(
+                        (k0 as u64)
+                            .wrapping_mul(0x9e3779b97f4a7c15)
+                            .wrapping_add((k1 as u64).wrapping_mul(0x517cc1b727220a95))
+                            ^ (key_null_mask as u64),
+                    );
+                    let b = (h as usize) & (P_SHARDS - 1);
+                    local_bins[b].push(CompactI2Row {
+                        k0,
+                        k1,
+                        ord: seg_base_ord | (ri as u64),
+                        v,
+                        cnt_star: 1,
+                        val_null_mask,
+                        key_null_mask,
+                    });
+                };
+
+                match &sel {
+                    None => {
+                        for ri in 0..seg_tc.len {
+                            emit(ri);
+                        }
+                    }
+                    Some(rows) => {
+                        for &r in rows {
+                            emit(r as usize);
+                        }
+                    }
+                }
+
+                for (b, mut bin) in local_bins.into_iter().enumerate() {
+                    if !bin.is_empty()
+                        && let Ok(mut g) = parts[b].lock()
+                    {
+                        g.append(&mut bin);
+                    }
+                }
+                Some(())
+            })
+            .collect::<Option<Vec<()>>>();
+        scatter_ok?;
+
+        let cmp_sv_ord = |a_sv: &[Sv], a_ord: u64, b_sv: &[Sv], b_ord: u64| -> Ordering {
+            for &(i, desc, nulls_first) in &order {
+                let (x, y) = (&a_sv[i], &b_sv[i]);
+                let nf = nulls_first.unwrap_or(desc);
+                let o = match (x.is_null(), y.is_null()) {
+                    (true, true) => Ordering::Equal,
+                    (true, false) => {
+                        if nf {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        }
+                    }
+                    (false, true) => {
+                        if nf {
+                            Ordering::Greater
+                        } else {
+                            Ordering::Less
+                        }
+                    }
+                    (false, false) => {
+                        let ord = x.cmp_val(y);
+                        if desc { ord.reverse() } else { ord }
+                    }
+                };
+                if o != Ordering::Equal {
+                    return o;
+                }
+            }
+            a_ord.cmp(&b_ord)
+        };
+
+        let part_cands: Vec<Vec<(Vec<Sv>, u64)>> = parts
+            .into_par_iter()
+            .map(|mtx| {
+                let Ok(mut rows) = mtx.into_inner() else {
+                    return Vec::new();
+                };
+                if rows.is_empty() {
+                    return Vec::new();
+                }
+                rows.sort_unstable_by(|a, b| {
+                    (a.key_null_mask, a.k0, a.k1, a.ord)
+                        .cmp(&(b.key_null_mask, b.k0, b.k1, b.ord))
+                });
+
+                let ordered_topk = if !order.is_empty() { take } else { None };
+                let mut v: Vec<(Vec<Sv>, u64)> = Vec::new();
+                let mut scratch_sv: Vec<Sv> = vec![Sv::Null; total_no];
+
+                let n = rows.len();
+                let mut idx = 0usize;
+                while idx < n {
+                    let r0 = rows[idx];
+                    let run_ord = r0.ord;
+                    let mut accs = [Acc::default(), Acc::default(), Acc::default()];
+                    let mut end = idx;
+                    while end < n
+                        && rows[end].key_null_mask == r0.key_null_mask
+                        && rows[end].k0 == r0.k0
+                        && rows[end].k1 == r0.k1
+                    {
+                        let r = rows[end];
+                        for j in 0..nagg {
+                            let kind = agg_defs[j].1;
+                            if kind == AggKind::CountStar {
+                                accs[j].count += r.cnt_star as u64;
+                            } else if (r.val_null_mask & (1u8 << j)) == 0 {
+                                let x = r.v[j];
+                                accs[j].count += 1;
+                                accs[j].isum += x as i128;
+                                if matches!(kind, AggKind::Min) {
+                                    accs[j].min = Some(match accs[j].min {
+                                        Some(Num::I(m)) if m <= x => Num::I(m),
+                                        _ => Num::I(x),
+                                    });
+                                }
+                                if matches!(kind, AggKind::Max) {
+                                    accs[j].max = Some(match accs[j].max {
+                                        Some(Num::I(m)) if m >= x => Num::I(m),
+                                        _ => Num::I(x),
+                                    });
+                                }
+                            }
+                        }
+                        end += 1;
+                    }
+                    idx = end;
+
+                    let gk = if is_i2 {
+                        GKey::I2(r0.k0, r0.k1, r0.key_null_mask)
+                    } else {
+                        GKey::I1(r0.k0, r0.key_null_mask != 0)
+                    };
+                    for oi in 0..total_no {
+                        scratch_sv[oi] = match &outs[oi] {
+                            OutCol::Group(gpos) => render_group_cell(&gk, *gpos),
+                            OutCol::Agg(ai) => {
+                                let (_, kind, ca, is_int, is_txt) = agg_defs[*ai];
+                                render_acc_cell(&accs[*ai], kind, ca, is_int, is_txt)
+                            }
+                        };
+                    }
+                    if let Some(ref hp) = having_pred
+                        && !eval_having(hp, &|oi| scratch_sv[oi].clone())
+                    {
+                        continue;
+                    }
+
+                    if let Some(k) = ordered_topk {
+                        if k == 0 {
+                            continue;
+                        }
+                        if v.len() < k {
+                            v.push((scratch_sv.clone(), run_ord));
+                            if v.len() == k {
+                                v.sort_unstable_by(&cmp_rendered);
+                            }
+                        } else if cmp_sv_ord(&scratch_sv, run_ord, &v[k - 1].0, v[k - 1].1)
+                            == Ordering::Less
+                        {
+                            v[k - 1] = (scratch_sv.clone(), run_ord);
+                            // Bubble new candidate into sorted position in `v[..k]` (`k` typically 10..100)
+                            if k <= 64 {
+                                let mut p = k - 1;
+                                while p > 0
+                                    && cmp_rendered(&v[p], &v[p - 1]) == Ordering::Less
+                                {
+                                    v.swap(p, p - 1);
+                                    p -= 1;
+                                }
+                            } else {
+                                v.sort_unstable_by(&cmp_rendered);
+                            }
+                        }
+                    } else {
+                        v.push((scratch_sv.clone(), run_ord));
+                    }
+                }
+                drop(rows);
+                v
+            })
+            .collect();
+
+        let mut global_cands: Vec<(Vec<Sv>, u64)> = part_cands.into_iter().flatten().collect();
+        if !order.is_empty() {
+            if let Some(k) = take {
+                if k == 0 {
+                    global_cands.clear();
+                } else if k < global_cands.len() {
+                    global_cands.select_nth_unstable_by(k - 1, &cmp_rendered);
+                    global_cands.truncate(k);
+                }
+            }
+            global_cands.sort_unstable_by(&cmp_rendered);
+        } else {
+            global_cands.sort_unstable_by_key(|(_, ord)| *ord);
+        }
+        let end = take.unwrap_or(usize::MAX).min(global_cands.len());
+        let rows: Vec<Vec<serde_json::Value>> = global_cands[off.min(end)..end]
+            .iter()
+            .map(|(svs, _)| svs[..visible_no].iter().map(Sv::json).collect())
+            .collect();
+        return Some(VecResult {
+            columns: names,
+            rows,
+        });
+    }
+
+    // Multi-pass Radix-64 sharding when `active_rows > 20M` and high cardinality (`Q16, Q18`)
     let n_passes: usize = if active_rows > 20_000_000 && seg0_groups > 32_768 {
         4
     } else {
@@ -6718,12 +7473,16 @@ mod tests {
             "SELECT COUNT(*) FROM hits WHERE CounterID = 10",
             "SELECT COUNT(*) FROM hits WHERE CounterID = 99999",
             "SELECT COUNT(DISTINCT CounterID), COUNT(DISTINCT SearchPhrase), COUNT(DISTINCT URL) FROM hits",
+            "SELECT COUNT(DISTINCT SearchPhrase) FROM hits",
             "SELECT SearchPhrase, MIN(URL), MAX(Title), COUNT(*) AS c, COUNT(DISTINCT CounterID) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC, SearchPhrase ASC",
             "SELECT REGEXP_REPLACE(URL, '^https?://(?:www\\.)?([^/]+)/.*$', '\\1') AS k, AVG(STRLEN(URL)) AS l, COUNT(*) AS c, MIN(URL) FROM hits WHERE URL <> '' GROUP BY k HAVING COUNT(*) > 1 ORDER BY l DESC, k ASC LIMIT 10",
             "SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), SUM(ResolutionWidth + 10) FROM hits",
             "SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC, URL ASC LIMIT 10",
             "SELECT CounterID, CounterID - 1, CounterID - 2, COUNT(*) AS c FROM hits GROUP BY CounterID, CounterID - 1, CounterID - 2 ORDER BY c DESC",
+            "SELECT CounterID, TraficSourceID, COUNT(*) AS c, SUM(SearchEngineID), AVG(ResolutionWidth) FROM hits GROUP BY CounterID, TraficSourceID ORDER BY c DESC, CounterID ASC, TraficSourceID ASC LIMIT 5",
+            "SELECT SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC, SearchPhrase ASC LIMIT 5",
             "SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 5",
+            "SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime, SearchPhrase LIMIT 3",
             "SELECT TraficSourceID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN URL ELSE '' END AS Src, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND TraficSourceID IN (-1, 6) GROUP BY TraficSourceID, Src ORDER BY PageViews DESC, TraficSourceID ASC, Src ASC",
         ];
 

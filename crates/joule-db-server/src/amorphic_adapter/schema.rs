@@ -437,6 +437,19 @@ impl AmorphicTableStorage {
             .delete_batch(&schema_records)
             .map_err(|e| QueryError::ExecutionError(e.to_string()))?;
 
+        // Delete any secondary index metadata records belonging to this table
+        let idx_result =
+            store.query_equals(INDEX_TABLE_REF, &AmorphicValue::String(name.to_string()));
+        let idx_ids: Vec<RecordId> = idx_result
+            .records()
+            .iter()
+            .filter(|r| r.get(TABLE_FIELD) == Some(&AmorphicValue::String(INDEX_TABLE.to_string())))
+            .map(|r| r.id)
+            .collect();
+        if !idx_ids.is_empty() {
+            let _ = store.delete_batch(&idx_ids);
+        }
+
         // Delete all data records belonging to this table
         let t0 = std::time::Instant::now();
         let data_result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(name.to_string()));

@@ -9,6 +9,24 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-26
+
+### Added
+- **Claude Apps & MCP Apps (`SEP-1865` Interactive Studio UI, `jouledb mcp`, `.mcpb` Bundles & Antigravity Plugin)**:
+  - Added `crates/joule-db-server/src/mcp_app_ui.rs` (`#![deny(clippy::unwrap_used)]`, `ui://jouledb/studio.html`, MIME `text/html;profile=mcp-app`, `30,179` bytes, strict zero-CDN `Content-Security-Policy`) implementing the MCP Apps `SEP-1865` (`2026-01-26`) bidirectional `postMessage` JSON-RPC bridge (`ui/initialize`, `ui/notifications/tool-result`, `tools/call`, `ui/update-model-context`, `ui/message`) with 5 interactive tabs (SQL Workbench, `reported_j`/`est_j` Energy Telemetry, Schema & `.jcol` Segments, `10,240`-Bit Amorphic Lens, CoW Branches & `.jsyn` Weights).
+  - Added `jouledb mcp --data <dir>` `stdio` JSON-RPC `2025-06-18` subcommand and upgraded `POST /mcp` (`crates/joule-db-server/src/mcp_transport.rs`) to `50` MCP tools (`25` core `db.*` incl. `db.studio` + `25` extended) attaching `_meta.ui.resourceUri` + legacy `_meta["ui/resourceUri"]` and `structuredContent`.
+  - Added Claude Desktop Desktop Extension manifest & packaging script (`deploy/claude-app/{manifest.json, build_mcpb.sh}`, `manifest_version: "0.3"`), Antigravity plugin (`deploy/antigravity-plugin/`), `docs/src/claude-apps.md`, and `https://jouledb.org/claude`.
+- **5-Node Multi-Host Cross-Machine WAN/Tailscale TCP Raft Fault-Injection + Official Clojure `elle 0.2.8` (`bench/raft_multihost_wan.py`, `examples/raft_wan_node.rs`)**:
+  - Executed 5 independent OS `raft_wan_node` processes across **2 distinct physical Linux machines** (`framework-128gb-0000` bare-metal + `openie-core-1` Cloud Debian 12 VM) over encrypted Tailscale WAN (`27.576 ms` median TCP RTT), injecting cross-WAN `2/5` minority leader isolation (`["n1", "n4"]` vs `["n2", "n3", "n5"]`), stale write & `ReadIndex` read rejection, majority leader failover (`n3` term `2`, `24` ops), real OS `SIGKILL` (`kill -9`) on `n5` (`16` ops during crash), and `raft.wal` crash recovery (`commit=68, applied=68, x=68, y=39` across all 5 nodes) -> verified **`{:valid? true}`** (`270` events, `:strict-serializable` `rw-register`) by official Clojure `elle/elle 0.2.8`.
+- **Distributable SDK Release Artifacts (`v0.9.0` GitHub Release)**:
+  - Built prebuilt `cp39-abi3` Python `.whl` wheels (`macosx_11_0_arm64` & `manylinux_2_34_x86_64`), TypeScript `openie-jouledb-0.9.0.tgz` (`node --test` verified), C99 `smoke_test.c`, and platform `.mcpb` bundles alongside server `.tar.gz` archives and `SHA256SUMS.txt`.
+
+### Fixed
+- **`1.72×` Faster Full `99,997,497`-Row (`100M`) Official ClickBench (`4.85× -> 2.816×` Geomean vs DuckDB `2.0.1`, `Q32` `7.24×` Faster, `VmHWM` `-5.26 GB`)**:
+  - Added per-column `global_int_sum: i128` in `.jcol` segment metadata (`disk_col_segments.rs`) for zero-I/O unfiltered `SUM`/`AVG` (`Q2` `1.60 ms`, `Q3` `1.84 ms`, `Q29` `2.27 ms` on `100M` rows — `5.6×–6.9×` faster than DuckDB `2.0.1`), dynamic `AtomicI64` Top-K ZoneMap bound pruning (`Q19` `31.32 ms` vs `42.46 ms`), zero-`Arc<str>` `RawTextSlice` text distinct/grouping (`Q5, Q12, Q33, Q34`), 256-partition `CompactI2Row` in-place sort-reduce cutting `100M`-group `Q32` from **`17,419.5 ms -> 2,405.5 ms` (`7.24×` faster)** and lowering `100M` peak `VmHWM` from `20,740.5 MB -> 15,483.2 MB`, and single-metadata row-budgeted (`MAX_CHUNK_ROWS = 524,288`) Parquet `COPY` (`file_formats.rs`).
+- **Static `pgwire` Extended Query `Describe` Type Inference & `DROP TABLE` Index Cleanup (`3.01×` Faster Pipelined OLTP)**:
+  - Added `describe_sql_static` (`query.rs`) to infer parameter & result column PostgreSQL OIDs (`INT8`, `FLOAT8`, `BOOL`, `TEXT`) without executing a dry-run query during `Parse`/`Describe`, eliminated per-query thread spawning for normal query timeouts (`pgwire.rs`), and cleaned up `__indexes__` metadata records in `AmorphicTableStorage::drop_table` (`schema.rs`) — lifting `psycopg` Extended Pipeline throughput from `593.7 TPS` (`v0.8.0`) to **`1,790.0 TPS` (`c=8`) / `1,703.3 TPS` (`c=16`)** (`10,973` committed writes, `invariant_verified = true`).
+
 ## [0.8.0] - 2026-11-25
 
 ### Added

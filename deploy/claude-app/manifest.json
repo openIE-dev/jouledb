@@ -1,0 +1,71 @@
+{
+  "manifest_version": "0.3",
+  "name": "jouledb",
+  "display_name": "JouleDB Studio & Energy-Metered SQL",
+  "version": "0.9.0",
+  "description": "Local energy-metered SQL, Copy-on-Write database branching, Amorphic VSA search, and interactive MCP App Studio (ui://jouledb/studio.html) powered by JouleDB.",
+  "long_description": "Connects Claude Desktop and Claude Cowork directly to a local JouleDB instance over stdio MCP, including the built-in interactive JouleDB Studio MCP App (sortable SQL workbench, inline SVG distributions, O(1) Copy-on-Write database branch sandboxes, and hardware/analytical joule telemetry).",
+  "author": {
+    "name": "Open Interface Engineering, Inc.",
+    "email": "contact@openie.dev",
+    "url": "https://jouledb.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openIE-dev/jouledb.git"
+  },
+  "homepage": "https://jouledb.org/claude",
+  "documentation": "https://openie-dev.github.io/jouledb/claude-apps.html",
+  "license": "Apache-2.0 OR MIT",
+  "icon": "icon.svg",
+  "server": {
+    "type": "binary",
+    "entry_point": "bin/jouledb",
+    "mcp_config": {
+      "command": "${__dirname}/bin/jouledb",
+      "args": [
+        "mcp",
+        "--data",
+        "${user_config.data_dir}"
+      ],
+      "env": {
+        "RUST_LOG": "error"
+      }
+    }
+  },
+  "user_config": {
+    "data_dir": {
+      "type": "directory",
+      "title": "Database Directory",
+      "description": "Local directory where JouleDB persists tables, WAL, .jcol columnar segments, and CoW branches.",
+      "required": false,
+      "default": "${HOME}/.jouledb/claude-studio"
+    }
+  },
+  "tools": [
+    {
+      "name": "db.studio",
+      "description": "Open the interactive JouleDB Studio MCP App (SQL workbench, visual charts, schema explorer, CoW branches, and joule telemetry)"
+    },
+    {
+      "name": "db.query",
+      "description": "Execute SQL against JouleDB and render results in the interactive Studio table & chart view"
+    },
+    {
+      "name": "db.branch_create",
+      "description": "Fork an O(1) Copy-on-Write database branch for safe agentic experimentation"
+    },
+    {
+      "name": "db.schema_inspect",
+      "description": "Inspect all tables, columns, and types"
+    }
+  ],
+  "keywords": [
+    "database",
+    "sql",
+    "mcp-app",
+    "branching",
+    "energy",
+    "rust"
+  ]
+}

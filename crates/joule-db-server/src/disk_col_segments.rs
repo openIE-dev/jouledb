@@ -57,7 +57,7 @@ pub enum DiskColKind {
     Other = 7,
 }
 
-/// Per-column metadata kept in RAM for a single `.jcol` segment (`40` bytes).
+/// Per-column metadata kept in RAM for a single `.jcol` segment.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ColSliceMeta {
     pub kind: DiskColKind,
@@ -69,6 +69,9 @@ pub struct ColSliceMeta {
     pub offset: u64,
     pub byte_len: u32,
     pub crc32: u32,
+    /// Exact sum of non-null integer values in this segment (`None` for legacy `.jcol` or non-int columns).
+    #[serde(default)]
+    pub sum_i128: Option<i128>,
 }
 
 impl ColSliceMeta {
@@ -235,6 +238,7 @@ fn encode_int_values(vals: &[i64], nulls: &[bool]) -> EncodedCol {
     let mut null_count = 0u32;
     let mut lo = i64::MAX;
     let mut hi = i64::MIN;
+    let mut isum: i128 = 0;
     let mut any = false;
     for (i, &x) in vals.iter().enumerate() {
         if has_nulls && nulls[i] {
@@ -242,6 +246,7 @@ fn encode_int_values(vals: &[i64], nulls: &[bool]) -> EncodedCol {
         } else {
             lo = lo.min(x);
             hi = hi.max(x);
+            isum += x as i128;
             any = true;
         }
     }
@@ -256,6 +261,7 @@ fn encode_int_values(vals: &[i64], nulls: &[bool]) -> EncodedCol {
                 offset: 0,
                 byte_len: 0,
                 crc32: 0,
+                sum_i128: Some(0),
             },
             payload: Vec::new(),
         };
@@ -318,6 +324,7 @@ fn encode_int_values(vals: &[i64], nulls: &[bool]) -> EncodedCol {
             offset: 0,
             byte_len: payload.len() as u32,
             crc32,
+            sum_i128: Some(isum),
         },
         payload,
     }
@@ -355,6 +362,7 @@ fn encode_float_values(vals: &[f64], nulls: &[bool]) -> EncodedCol {
                 offset: 0,
                 byte_len: 0,
                 crc32: 0,
+                sum_i128: None,
             },
             payload: Vec::new(),
         };
@@ -386,6 +394,7 @@ fn encode_float_values(vals: &[f64], nulls: &[bool]) -> EncodedCol {
             offset: 0,
             byte_len: payload.len() as u32,
             crc32,
+            sum_i128: None,
         },
         payload,
     }
@@ -429,6 +438,7 @@ fn encode_text_iter<'a>(len: usize, mut get: impl FnMut(usize) -> Option<&'a str
                 offset: 0,
                 byte_len: 0,
                 crc32: 0,
+                sum_i128: None,
             },
             payload: Vec::new(),
         };
@@ -489,6 +499,7 @@ fn encode_text_iter<'a>(len: usize, mut get: impl FnMut(usize) -> Option<&'a str
             offset: 0,
             byte_len: payload.len() as u32,
             crc32,
+            sum_i128: None,
         },
         payload,
     }
@@ -507,6 +518,7 @@ fn encode_batch_col(batch: &ColumnBatch, col_name: &str, s: usize, e: usize) -> 
                 offset: 0,
                 byte_len: 0,
                 crc32: 0,
+                sum_i128: None,
             },
             payload: Vec::new(),
         };
@@ -561,6 +573,7 @@ fn encode_batch_col(batch: &ColumnBatch, col_name: &str, s: usize, e: usize) -> 
                 offset: 0,
                 byte_len: 0,
                 crc32: 0,
+                sum_i128: None,
             },
             payload: Vec::new(),
         },
@@ -590,6 +603,7 @@ fn encode_records_col(records: &[&AmorphicRecord], col_name: &str) -> EncodedCol
                 offset: 0,
                 byte_len: 0,
                 crc32: 0,
+                sum_i128: None,
             },
             payload: Vec::new(),
         };
@@ -1031,6 +1045,7 @@ impl DiskColumnTable {
                             offset: 0,
                             byte_len: 0,
                             crc32: 0,
+                            sum_i128: Some(0),
                         });
                     }
                 }
@@ -1097,7 +1112,8 @@ impl DiskColumnTable {
     }
 
     /// Append rows `[row_offset .. batch.len]` of `batch` as one or more
-    /// `<= MAX_SEGMENT_ROWS` `.jcol` segments.
+    /// `<= MAX_SEGMENT_ROWS` `.jcol` segments (encoding & writing multiple
+    /// segments in parallel when a multi-row-group Parquet chunk arrives).
     pub fn append_column_batch_from(
         &mut self,
         batch: &ColumnBatch,
@@ -1109,38 +1125,107 @@ impl DiskColumnTable {
         if row_offset >= batch.len {
             return Ok(0);
         }
+        let mut ranges: Vec<(u64, usize, usize)> = Vec::new();
         let mut cur = row_offset;
-        let mut written = 0usize;
+        let mut seq = self.next_seq;
         while cur < batch.len {
             let end = (cur + MAX_SEGMENT_ROWS).min(batch.len);
-            let seg_len = (end - cur) as u32;
-            let seg_first_id = first_id_base + (cur - row_offset) as u64;
-            let col_order = &self.col_order;
-            let encoded: Vec<EncodedCol> = col_order
-                .par_iter()
-                .map(|cn| encode_batch_col(batch, cn, cur, end))
-                .collect();
-            let seq = self.next_seq;
-            self.next_seq += 1;
-            let (_fname, meta) = write_segment_file(
-                &self.dir,
-                seq,
-                seg_first_id,
-                seg_len,
-                col_order,
-                encoded,
-                sync_data,
-            )?;
-            self.total_rows += seg_len as usize;
-            self.max_record_id = self
-                .max_record_id
-                .max(seg_first_id.saturating_add(seg_len as u64));
-            self.segments.push(meta);
-            written += seg_len as usize;
+            ranges.push((seq, cur, end));
+            seq += 1;
             cur = end;
         }
+        let dir = &self.dir;
+        let col_order = &self.col_order;
+        let built: Vec<io::Result<SegmentMeta>> = ranges
+            .par_iter()
+            .map(|&(seg_seq, s, e)| {
+                let seg_len = (e - s) as u32;
+                let seg_first_id = first_id_base + (s - row_offset) as u64;
+                let encoded: Vec<EncodedCol> = col_order
+                    .par_iter()
+                    .map(|cn| encode_batch_col(batch, cn, s, e))
+                    .collect();
+                let (_fname, meta) = write_segment_file(
+                    dir,
+                    seg_seq,
+                    seg_first_id,
+                    seg_len,
+                    col_order,
+                    encoded,
+                    sync_data,
+                )?;
+                Ok(meta)
+            })
+            .collect();
+
+        let mut written = 0usize;
+        for res in built {
+            let meta = res?;
+            written += meta.len as usize;
+            self.total_rows += meta.len as usize;
+            self.max_record_id = self
+                .max_record_id
+                .max(meta.first_id.saturating_add(meta.len as u64));
+            self.segments.push(meta);
+        }
+        self.next_seq = seq;
         self.save_manifest(sync_data)?;
         Ok(written)
+    }
+
+    /// Exact global integer sum if every non-empty segment carries `sum_i128`.
+    pub fn global_int_sum(&self, col_name: &str) -> Option<(u64, i128)> {
+        let &ci = self.col_index.get(col_name)?;
+        let kind = self.inferred_col_kind(ci);
+        if !matches!(
+            kind,
+            DiskColKind::I8 | DiskColKind::I16 | DiskColKind::I32 | DiskColKind::I64
+        ) {
+            return None;
+        }
+        let mut non_null = 0u64;
+        let mut total_sum: i128 = 0;
+        for seg in &self.segments {
+            let m = &seg.cols[ci];
+            let seg_non_null = (seg.len as u64).saturating_sub(m.null_count as u64);
+            non_null += seg_non_null;
+            if seg_non_null > 0 {
+                total_sum = total_sum.checked_add(m.sum_i128?)?;
+            }
+        }
+        Some((non_null, total_sum))
+    }
+
+    /// Read a `.jcol` `Text` column slice in zero-`Arc<str>` raw byte-arena form
+    /// so `COUNT(DISTINCT text)` and `GROUP BY text` never heap-allocate `dict_len` `Arc<str>`s.
+    pub fn read_raw_text_slice(
+        &self,
+        seg_idx: usize,
+        col_name: &str,
+    ) -> io::Result<Option<RawTextSlice>> {
+        let seg = self
+            .segments
+            .get(seg_idx)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "segment index OOB"))?;
+        let seg_len = seg.len as usize;
+        let Some(&ci) = self.col_index.get(col_name) else {
+            return Ok(None);
+        };
+        let meta = &seg.cols[ci];
+        match meta.kind {
+            DiskColKind::AllNull => return Ok(Some(RawTextSlice::all_null(seg_len))),
+            DiskColKind::Text => {}
+            _ => return Ok(None),
+        }
+        let file = File::open(&seg.path)?;
+        let raw = read_slice_at(&file, meta.offset, meta.byte_len as usize)?;
+        if crc32_bytes(&raw) != meta.crc32 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "corrupt .jcol text slice (CRC32 mismatch)",
+            ));
+        }
+        RawTextSlice::from_raw(raw, seg_len).map(Some)
     }
 
     /// Spill already-materialized `AmorphicRecord`s into `.jcol` segments.
@@ -1389,9 +1474,108 @@ impl DiskColumnTable {
                     };
                     vals.push(v);
                 }
-                rows.push(RowData::new(columns.to_vec(), vals));
+            rows.push(RowData::new(columns.to_vec(), vals));
             }
         }
         Ok(rows)
+    }
+}
+
+/// Zero-`Arc<str>` view over a single `.jcol` `Text` column slice (`dict` offsets + UTF-8 arena + packed codes).
+pub struct RawTextSlice {
+    pub seg_len: usize,
+    pub dict_len: usize,
+    pub code_width: u8,
+    pub offs: Vec<u32>,
+    pub raw: Vec<u8>,
+    pub arena_off: usize,
+    pub codes_off: usize,
+}
+
+impl RawTextSlice {
+    pub fn all_null(seg_len: usize) -> Self {
+        Self {
+            seg_len,
+            dict_len: 0,
+            code_width: 0,
+            offs: vec![0],
+            raw: Vec::new(),
+            arena_off: 0,
+            codes_off: 0,
+        }
+    }
+
+    pub fn from_raw(raw: Vec<u8>, seg_len: usize) -> io::Result<Self> {
+        if raw.len() < 9 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "short text header",
+            ));
+        }
+        let dict_len = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]) as usize;
+        let code_width = raw[4];
+        let offs_start = 5usize;
+        let offs_end = offs_start + (dict_len + 1) * 4;
+        if raw.len() < offs_end {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "short text offsets",
+            ));
+        }
+        let mut offs = Vec::with_capacity(dict_len + 1);
+        for ch in raw[offs_start..offs_end].chunks_exact(4) {
+            offs.push(u32::from_le_bytes([ch[0], ch[1], ch[2], ch[3]]));
+        }
+        let arena_len = *offs.last().unwrap_or(&0) as usize;
+        let arena_end = offs_end + arena_len;
+        let need_codes = seg_len * (code_width as usize);
+        if raw.len() < arena_end + need_codes {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "short text arena or codes",
+            ));
+        }
+        Ok(Self {
+            seg_len,
+            dict_len,
+            code_width,
+            offs,
+            raw,
+            arena_off: offs_end,
+            codes_off: arena_end,
+        })
+    }
+
+    #[inline]
+    pub fn dict_bytes(&self, ci: usize) -> &[u8] {
+        let a = self.arena_off + self.offs[ci] as usize;
+        let b = self.arena_off + self.offs[ci + 1] as usize;
+        &self.raw[a..b]
+    }
+
+    #[inline]
+    pub fn code_at(&self, ri: usize) -> Option<u32> {
+        match self.code_width {
+            0 => None,
+            1 => {
+                let b = self.raw[self.codes_off + ri];
+                (b != 0xFF).then_some(b as u32)
+            }
+            2 => {
+                let o = self.codes_off + ri * 2;
+                let u = u16::from_le_bytes([self.raw[o], self.raw[o + 1]]);
+                (u != 0xFFFF).then_some(u as u32)
+            }
+            _ => {
+                let o = self.codes_off + ri * 4;
+                let u = u32::from_le_bytes([
+                    self.raw[o],
+                    self.raw[o + 1],
+                    self.raw[o + 2],
+                    self.raw[o + 3],
+                ]);
+                (u != NULL_CODE_U32).then_some(u)
+            }
+        }
     }
 }

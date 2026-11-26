@@ -3,7 +3,7 @@ terraform {
 }
 
 variable "cluster_name" {
-  description = "Logical name of the JouleDB v0.8.0 deployment"
+  description = "Logical name of the JouleDB v0.9.0 deployment"
   type        = string
   default     = "jouledb-prod-v1"
 }
@@ -30,7 +30,7 @@ locals {
   pqc_mls       = var.trust_tier == "sovereign-mls"
 
   compliance_manifest = {
-    version                 = "0.8.0"
+    version                 = "0.9.0"
     cluster_name            = var.cluster_name
     trust_tier              = var.trust_tier
     regions                 = var.regions
@@ -38,7 +38,7 @@ locals {
     sec_17a4_worm_storage   = local.worm_enabled
     fips_203_204_pqc_active = local.pqc_mls
     bell_lapadula_mls       = local.pqc_mls
-    image                   = "ghcr.io/openie-dev/jouledb:0.8.0"
+    image                   = "ghcr.io/openie-dev/jouledb:0.9.0"
   }
 }
 
@@ -47,6 +47,6 @@ resource "terraform_data" "jouledb_compliance_posture" {
 }
 
 output "jouledb_cluster_posture" {
-  description = "Rendered JouleDB v0.8.0 Geo-Raft & Compliance posture"
+  description = "Rendered JouleDB v0.9.0 Geo-Raft & Compliance posture"
   value       = terraform_data.jouledb_compliance_posture.output
 }

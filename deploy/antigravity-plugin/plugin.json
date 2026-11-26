@@ -1,0 +1,11 @@
+{
+  "name": "jouledb",
+  "version": "0.9.0",
+  "description": "JouleDB Studio MCP App & energy-metered SQL/CoW-branching database server (ui://jouledb/studio.html).",
+  "icon": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Open JouleDB Studio and inspect the current database tables and energy telemetry",
+    "Create a demo sensors table in JouleDB, insert sample readings, and visualize them in Studio",
+    "Fork an O(1) Copy-on-Write database branch for a safe migration test"
+  ]
+}

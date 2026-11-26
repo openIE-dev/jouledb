@@ -517,52 +517,44 @@ def main():
     }
 
     try:
-        # 1. JouleDB over TCP pgwire (both standard 4-RTT and pipelined 1-RTT prepared!)
-        jdb_dir = os.path.join(root_tmp, "jouledb_data")
-        os.makedirs(jdb_dir, exist_ok=True)
-        http_port = args.pg_port - 2
-        jdb_log = open(os.path.join(root_tmp, "jouledb.log"), "wb")
-        jdb_proc = subprocess.Popen(
-            [args.jouledb_bin, "-p", str(http_port), "-d", jdb_dir],
-            stdout=jdb_log,
-            stderr=subprocess.STDOUT,
-        )
-        try:
-            if not wait_tcp("127.0.0.1", args.pg_port, 20.0):
-                raise RuntimeError("JouleDB pgwire failed to bind")
-            report["engines"]["jouledb_pgwire"] = run_pgwire_suite(
-                "jouledb_pgwire",
-                "127.0.0.1",
-                args.pg_port,
-                "postgres",
-                "postgres",
-                args.warehouses,
-                args.accounts_per_warehouse,
-                concs,
-                args.duration_s,
-                meter,
-                pipelined=False,
+        # 1. JouleDB over TCP pgwire (clean isolated data dir per protocol mode!)
+        for mode_label, is_pipe, port_off in [
+            ("jouledb_pgwire", False, 0),
+            ("jouledb_pgwire_pipelined", True, 10),
+        ]:
+            jdb_dir = os.path.join(root_tmp, f"{mode_label}_data")
+            os.makedirs(jdb_dir, exist_ok=True)
+            p_port = args.pg_port + port_off
+            http_port = p_port - 2
+            jdb_log = open(os.path.join(root_tmp, f"{mode_label}.log"), "wb")
+            jdb_proc = subprocess.Popen(
+                [args.jouledb_bin, "-p", str(http_port), "-d", jdb_dir],
+                stdout=jdb_log,
+                stderr=subprocess.STDOUT,
             )
-            report["engines"]["jouledb_pgwire_pipelined"] = run_pgwire_suite(
-                "jouledb_pgwire_pipelined",
-                "127.0.0.1",
-                args.pg_port,
-                "postgres",
-                "postgres",
-                args.warehouses,
-                args.accounts_per_warehouse,
-                concs,
-                args.duration_s,
-                meter,
-                pipelined=True,
-            )
-        finally:
-            jdb_proc.terminate()
             try:
-                jdb_proc.wait(timeout=5)
-            except Exception:
-                jdb_proc.kill()
-            jdb_log.close()
+                if not wait_tcp("127.0.0.1", p_port, 20.0):
+                    raise RuntimeError(f"JouleDB pgwire ({mode_label}) failed to bind")
+                report["engines"][mode_label] = run_pgwire_suite(
+                    mode_label,
+                    "127.0.0.1",
+                    p_port,
+                    "postgres",
+                    "postgres",
+                    args.warehouses,
+                    args.accounts_per_warehouse,
+                    concs,
+                    args.duration_s,
+                    meter,
+                    pipelined=is_pipe,
+                )
+            finally:
+                jdb_proc.terminate()
+                try:
+                    jdb_proc.wait(timeout=5)
+                except Exception:
+                    jdb_proc.kill()
+                jdb_log.close()
 
         # 2. PostgreSQL 16/17 over TCP pgwire (native host binary OR Docker container on NVMe!)
         pg_bin = find_pg_bindir()

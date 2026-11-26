@@ -231,6 +231,13 @@ pub trait QueryExecutor: Send + Sync {
     ) -> Option<Result<usize, QueryErrorResponse>> {
         None
     }
+
+    /// Statically infer PostgreSQL parameter OIDs (`$1..$N`) and result
+    /// `(column_name, pg_oid)` metadata from catalog schemas without executing
+    /// the query. Returns `None` when dynamic execution is required.
+    fn describe_query(&self, _sql: &str) -> Option<(Vec<i32>, Option<Vec<(String, i32)>>)> {
+        None
+    }
 }
 
 /// Rows per validated insert batch in bulk COPY / file import (one store
@@ -843,23 +850,28 @@ impl QueryExecutor for SimpleQueryExecutor {
         Some(r)
     }
 
+    fn describe_query(&self, sql: &str) -> Option<(Vec<i32>, Option<Vec<(String, i32)>>)> {
+        self.describe_sql_static(sql)
+    }
+
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let start = Instant::now();
 
-        // Determine effective timeout: per-request override > server default > no timeout
-        let timeout_ms = request.query_timeout_ms.or(if self.default_timeout_ms > 0 {
+        // Only spawn a dedicated watchdog OS thread when the caller explicitly
+        // sets a tight per-request timeout (`< 5_000 ms`). For normal server
+        // queries (`None` or default `30_000 ms` ceiling), execute inline on
+        // the worker thread to avoid `pthread_create` + channel round-trips on
+        // sub-millisecond OLTP statements.
+        let inline_ceiling_ms = request.query_timeout_ms.or(if self.default_timeout_ms > 0 {
             Some(self.default_timeout_ms)
         } else {
             None
         });
+        let spawn_watchdog_ms = request.query_timeout_ms.filter(|&ms| ms > 0 && ms < 5_000);
 
-        // Execute with optional timeout
-        let result = if let Some(timeout) = timeout_ms {
+        let result = if let Some(timeout) = spawn_watchdog_ms {
             let timeout_dur = std::time::Duration::from_millis(timeout);
             let (tx, rx) = std::sync::mpsc::channel();
-            // Clone executor + request so the worker thread is detachable.
-            // If timeout fires, the caller returns immediately; the worker
-            // thread continues to completion but its result is dropped.
             let executor = self.clone();
             let request_owned = request.clone();
             let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -885,7 +897,18 @@ impl QueryExecutor for SimpleQueryExecutor {
                 }
             }
         } else {
-            self.execute_inner(request, start)
+            let r = self.execute_inner(request, start);
+            if let Some(limit_ms) = inline_ceiling_ms
+                && r.is_ok()
+                && start.elapsed().as_millis() as u64 > limit_ms
+            {
+                tracing::warn!(
+                    sql = %request.sql.chars().take(200).collect::<String>(),
+                    timeout_ms = limit_ms,
+                    "Query exceeded configured timeout ceiling"
+                );
+            }
+            r
         };
 
         // Enforce max result rows to prevent OOM from unbounded result sets
@@ -1159,6 +1182,251 @@ fn collect_aggregates(
 }
 
 impl SimpleQueryExecutor {
+    /// Statically infer PostgreSQL parameter OIDs (`$1..$N`) and result column
+    /// `(name, oid)` pairs from the parsed AST and `AmorphicTableStorage` catalog
+    /// without executing any data scan or mutation.
+    fn describe_sql_static(&self, raw_sql: &str) -> Option<(Vec<i32>, Option<Vec<(String, i32)>>)> {
+        use joule_db_query::ast::{Expression, Value as AstV};
+        use joule_db_query::sql::{InsertSource, SqlParser, SqlStatement};
+
+        fn dtype_str_to_oid(dt: &str) -> i32 {
+            let u = dt.trim().to_ascii_uppercase();
+            if u.contains("INT") || u == "SERIAL" || u == "BIGSERIAL" {
+                20 // INT8
+            } else if u.contains("FLOAT") || u.contains("DOUBLE") || u == "REAL" {
+                701 // FLOAT8
+            } else if u.starts_with("BOOL") {
+                16 // BOOL
+            } else {
+                25 // TEXT
+            }
+        }
+
+        fn set_param_oid(oids: &mut Vec<i32>, idx: usize, oid: i32) {
+            if oid == 0 || idx < 1 || idx > 256 {
+                return;
+            }
+            if oids.len() < idx {
+                oids.resize(idx, 0);
+            }
+            if oids[idx - 1] == 0 {
+                oids[idx - 1] = oid;
+            }
+        }
+
+        fn infer_expr_oid(e: &Expression, col_oids: &HashMap<String, i32>) -> i32 {
+            match e {
+                Expression::Column(c) => col_oids
+                    .get(&c.to_ascii_lowercase())
+                    .copied()
+                    .unwrap_or(0),
+                Expression::QualifiedColumn { column, .. } => col_oids
+                    .get(&column.to_ascii_lowercase())
+                    .copied()
+                    .unwrap_or(0),
+                Expression::Literal(AstV::Int(_)) => 20,
+                Expression::Literal(AstV::Float(_)) => 701,
+                Expression::Literal(AstV::Bool(_)) => 16,
+                Expression::Literal(AstV::String(_)) => 25,
+                Expression::Unary { expr, .. } => infer_expr_oid(expr, col_oids),
+                Expression::Binary { left, right, .. } => {
+                    let l = infer_expr_oid(left, col_oids);
+                    if l != 0 {
+                        l
+                    } else {
+                        infer_expr_oid(right, col_oids)
+                    }
+                }
+                Expression::Function { name, args } => {
+                    let u = name.to_ascii_uppercase();
+                    match u.as_str() {
+                        "COUNT" | "COUNT_DISTINCT" => 20,
+                        "AVG" => 701,
+                        "SUM" => {
+                            let inner = args
+                                .first()
+                                .map(|a| infer_expr_oid(a, col_oids))
+                                .unwrap_or(20);
+                            if inner == 701 { 701 } else { 20 }
+                        }
+                        "MIN" | "MAX" => args
+                            .first()
+                            .map(|a| infer_expr_oid(a, col_oids))
+                            .filter(|&o| o != 0)
+                            .unwrap_or(25),
+                        _ => 25,
+                    }
+                }
+                _ => 0,
+            }
+        }
+
+        fn walk_params(
+            e: &Expression,
+            col_oids: &HashMap<String, i32>,
+            hint_oid: i32,
+            oids: &mut Vec<i32>,
+        ) {
+            match e {
+                Expression::Parameter(p) => set_param_oid(oids, *p, hint_oid),
+                Expression::Unary { expr, .. } => walk_params(expr, col_oids, hint_oid, oids),
+                Expression::Binary { left, right, .. } => {
+                    let l_oid = infer_expr_oid(left, col_oids);
+                    let r_oid = infer_expr_oid(right, col_oids);
+                    let eff_r = if l_oid != 0 { l_oid } else { hint_oid };
+                    let eff_l = if r_oid != 0 { r_oid } else { hint_oid };
+                    walk_params(left, col_oids, eff_l, oids);
+                    walk_params(right, col_oids, eff_r, oids);
+                }
+                Expression::In { expr, list, .. } => {
+                    let h = infer_expr_oid(expr, col_oids);
+                    walk_params(expr, col_oids, hint_oid, oids);
+                    for item in list {
+                        walk_params(item, col_oids, h, oids);
+                    }
+                }
+                Expression::Between {
+                    expr, low, high, ..
+                } => {
+                    let h = infer_expr_oid(expr, col_oids);
+                    walk_params(expr, col_oids, hint_oid, oids);
+                    walk_params(low, col_oids, h, oids);
+                    walk_params(high, col_oids, h, oids);
+                }
+                Expression::Function { args, .. } => {
+                    for a in args {
+                        walk_params(a, col_oids, 0, oids);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let trimmed = raw_sql.trim().trim_end_matches(';').trim();
+        let u = trimmed.to_ascii_uppercase();
+        if matches!(
+            u.as_str(),
+            "BEGIN" | "START TRANSACTION" | "COMMIT" | "END" | "ROLLBACK" | "ABORT"
+        ) {
+            return Some((Vec::new(), None));
+        }
+
+        let sql = crate::pgwire_strip_catalog_if_needed(trimmed);
+        let mut parser = SqlParser::new();
+        let stmt = parser.parse(&sql).ok()?;
+
+        let load_col_map = |table: &str| -> Option<(Vec<(String, i32)>, HashMap<String, i32>)> {
+            let col_defs = self.amorphic.get_column_defs(table).ok()?;
+            if col_defs.is_empty() {
+                return None;
+            }
+            let mut ordered = Vec::with_capacity(col_defs.len());
+            let mut map = HashMap::with_capacity(col_defs.len());
+            for c in &col_defs {
+                let oid = dtype_str_to_oid(&c.data_type);
+                ordered.push((c.name.clone(), oid));
+                map.insert(c.name.to_ascii_lowercase(), oid);
+            }
+            Some((ordered, map))
+        };
+
+        let mut param_oids: Vec<i32> = Vec::new();
+
+        match stmt {
+            SqlStatement::Select(q) => {
+                if !q.joins.is_empty() || !q.ctes.is_empty() || q.set_op.is_some() {
+                    return None;
+                }
+                let table_name = q.from.as_ref().and_then(|f| f.table_name());
+                let (ordered_cols, col_map) = match table_name {
+                    Some(t) => load_col_map(t)?,
+                    None => (Vec::new(), HashMap::new()),
+                };
+                if let Some(w) = &q.where_clause {
+                    walk_params(w, &col_map, 0, &mut param_oids);
+                }
+                let mut out_cols = Vec::with_capacity(q.columns.len());
+                for sc in &q.columns {
+                    match &sc.expr {
+                        Expression::Wildcard | Expression::QualifiedWildcard(_) => {
+                            if ordered_cols.is_empty() {
+                                return None;
+                            }
+                            out_cols.extend(ordered_cols.iter().cloned());
+                        }
+                        e => {
+                            walk_params(e, &col_map, 0, &mut param_oids);
+                            let oid = {
+                                let o = infer_expr_oid(e, &col_map);
+                                if o == 0 { 25 } else { o }
+                            };
+                            let default_name = match e {
+                                Expression::Column(n) => n.clone(),
+                                Expression::QualifiedColumn { column, .. } => column.clone(),
+                                Expression::Function { name, .. } => name.to_ascii_lowercase(),
+                                _ => "?column?".to_string(),
+                            };
+                            out_cols.push((sc.alias.clone().unwrap_or(default_name), oid));
+                        }
+                    }
+                }
+                Some((param_oids, Some(out_cols)))
+            }
+            SqlStatement::Update(upd) => {
+                let (_, col_map) = load_col_map(&upd.table)?;
+                for (col_name, expr) in &upd.assignments {
+                    let h = col_map
+                        .get(&col_name.to_ascii_lowercase())
+                        .copied()
+                        .unwrap_or(0);
+                    walk_params(expr, &col_map, h, &mut param_oids);
+                }
+                if let Some(w) = &upd.where_clause {
+                    walk_params(w, &col_map, 0, &mut param_oids);
+                }
+                if !upd.returning.is_empty() {
+                    return None;
+                }
+                Some((param_oids, None))
+            }
+            SqlStatement::Insert(ins) => {
+                let (ordered_cols, col_map) = load_col_map(&ins.table)?;
+                if !ins.returning.is_empty() {
+                    return None;
+                }
+                let target_oids: Vec<i32> = if ins.columns.is_empty() {
+                    ordered_cols.iter().map(|(_, o)| *o).collect()
+                } else {
+                    ins.columns
+                        .iter()
+                        .map(|c| col_map.get(&c.to_ascii_lowercase()).copied().unwrap_or(0))
+                        .collect()
+                };
+                let InsertSource::Values(rows) = &ins.source else {
+                    return None;
+                };
+                for row in rows {
+                    for (ci, expr) in row.iter().enumerate() {
+                        let h = target_oids.get(ci).copied().unwrap_or(0);
+                        walk_params(expr, &col_map, h, &mut param_oids);
+                    }
+                }
+                Some((param_oids, None))
+            }
+            SqlStatement::Delete(del) => {
+                let (_, col_map) = load_col_map(&del.table)?;
+                if !del.returning.is_empty() {
+                    return None;
+                }
+                if let Some(w) = &del.where_clause {
+                    walk_params(w, &col_map, 0, &mut param_oids);
+                }
+                Some((param_oids, None))
+            }
+            _ => None,
+        }
+    }
+
     /// Inner execution logic (separated for timeout wrapping)
     fn execute_inner(
         &self,
