@@ -1,0 +1,1025 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>JouleDB v1.0.0</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="JouleDB v1.0.0 — Global Thermodynamic Database, Amorphous Semantic Continuum, .jsyn Living Model Weights, 10-DB/7-AI Bridges, and Maker-to-Defense Sovereign Trust.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-23f6ef4b.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-bf21e907.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">JouleDB v1.0.0</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/openIE-dev/jouledb" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
+<p><strong>JouleDB (<code>v0.12.0</code> Pre-1.0 Research Preview)</strong> is an open-source (<code>Apache-2.0 OR MIT</code>) multi-model database, hyperdimensional semantic store, MCP Apps (<code>SEP-1865</code>) host, and experimental low-bitwidth tensor runtime written in Rust.</p>
+<blockquote>
+<p><strong>Audit Remediation (<code>v0.6.0</code>) &amp; Engine Upgrades (<code>v0.7.0</code>–<code>v0.12.0</code>, 2026-11-26):</strong> Following an external source-level audit in November 2026, <strong><code>v1.0.0</code> was retracted/yanked</strong>, synthetic frontier AI exam routes (<code>frontier_exam_routes.rs</code>) and the unrelated <code>1.11M</code>-line <code>joule-web</code> crate were deleted, 81 unverified low-BPW <code>.jsyn</code> causal LLM checkpoints were removed from Hugging Face, and Linux release binaries were rebuilt against <code>GLIBC &lt;= 2.35</code> (verified on Ubuntu 24.04 LTS). <strong><code>v0.12.0</code></strong> enforces <strong><code>deny(clippy::unwrap_used)</code> across all <code>41 / 41</code> workspace crates (<code>100%</code>, <code>0</code> bypasses)</strong>, narrows the <strong>entire official <code>99,997,497</code>-row (<code>14.78 GB</code>) ClickBench <code>hits.parquet</code> suite to <code>2.11×</code> geomean latency (<code>2.03×</code> <code>reported_j</code>) vs DuckDB <code>2.0.1</code> (<code>43 / 43</code> queries, <code>5.90 GB</code> post-load RSS, <code>7 / 43</code> wins)</strong>, completes <strong><code>22 / 22</code> (<code>100%</code>) Official <code>TPC-H</code> queries exact across <code>SF = 0.1</code> (<code>1.99×</code> geomean, <code>5</code> wins), <code>SF = 1.0</code> (<code>8.66M</code> rows in <code>1.78 s</code>, <code>4.33×</code> geomean, <code>201.4 MB</code> post-load RSS), AND <code>SF = 10.0</code> (<code>86.6M</code> rows / <code>60M</code> <code>lineitem</code> out-of-core in <code>755.3 MB</code> post-load RSS [<code>46.1×</code> down from <code>34.81 GB</code>], <code>15.46 s</code> total [<code>2.20×</code> faster], <code>8.49×</code> geomean)</strong>, scales <strong>physical-NVMe <code>100</code>-warehouse <code>pgwire</code> OLTP with binary <code>JWU1</code> delta <code>UPDATE</code>s to <code>5,159.7 TPS</code> (<code>c=16</code>, beating <code>PostgreSQL 16.16</code> <code>1.63×</code> at <code>c=1</code> Simple, <code>invariant_verified = true</code>)</strong>, ships built-in <strong>Claude/MCP Apps (<code>SEP-1865</code>) Studio UI (<code>ui://jouledb/studio.html</code>, <code>50</code> tools, <code>.mcpb</code> bundles)</strong>, and verifies <strong>5-node Multi-Host Cross-Machine WAN/Tailscale TCP Raft (<code>ReadIndex</code> + <code>SIGKILL</code> + <code>raft.wal</code>)</strong> with official Clojure <code>elle 0.2.8</code> (<strong><code>{:valid? true}</code></strong>). All benchmark scripts, raw JSON/EDN outputs, wins, and losses are published in <a href="https://github.com/openIE-dev/jouledb/tree/main/bench"><code>bench/</code></a>.</p>
+</blockquote>
+<hr>
+<h2 id="verified-repository-facts-v0120"><a class="header" href="#verified-repository-facts-v0120">Verified Repository Facts (<code>v0.12.0</code>)</a></h2>
+<ul>
+<li><strong>License:</strong> Dual-licensed under <strong><code>Apache-2.0 OR MIT</code></strong> (<a href="https://github.com/openIE-dev/jouledb/blob/main/LICENSE-APACHE"><code>LICENSE-APACHE</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/LICENSE-MIT"><code>LICENSE-MIT</code></a>).</li>
+<li><strong>Workspace Scope:</strong> <strong><code>41</code> Cargo workspace member crates</strong> (<code>747,620</code> lines of Rust across <code>988</code> <code>.rs</code> files; <code>12,272</code> <code>#[test]</code> / <code>#[tokio::test]</code> attributes).</li>
+<li><strong>Static Safety Lints:</strong>
+<ul>
+<li><code>joule-db-core</code> enforces <code>#![deny(unsafe_code)]</code>, with <code>1</code> targeted <code>#![allow(unsafe_code)]</code> module (<code>storage/mmap_extent.rs</code> for memory-mapped I/O).</li>
+<li><code>#![cfg_attr(not(test), deny(clippy::unwrap_used))]</code> is enforced across <strong>all <code>41 / 41</code> workspace crates (<code>100%</code>, <code>0</code> <code>#[allow(clippy::unwrap_used)]</code> bypasses)</strong> with a blocking <code>cargo clippy --workspace --lib --bins --locked</code> CI gate.</li>
+</ul>
+</li>
+<li><strong>Energy Evidence Discipline (<code>measured_j ⊥ reported_j ⊥ est_j ⊥ unmetered</code>):</strong> Matching <a href="https://research.openie.dev">research.openie.dev</a>, JouleDB separates inline hardware shunt meters (<code>measured_j</code> — never emitted by software alone), OS/PMU counters (<code>reported_j</code> via Linux RAPL / macOS <code>powermetrics</code> or <code>IOReport</code> on multi-millisecond/second workloads), analytical byte/instruction cost models (<code>est_j</code> for sub-millisecond in-process paths), and <code>unmetered</code> (<code>null</code> joules).</li>
+</ul>
+<hr>
+<h2 id="core-subsystems"><a class="header" href="#core-subsystems">Core Subsystems</a></h2>
+<ol>
+<li><strong><a href="#claude-apps-mcp-apps-sep-1865--antigravity-studio-ui-v0120">Claude Apps, MCP Apps (<code>SEP-1865</code>) &amp; <code>.mcpb</code> Bundles</a>:</strong> Built-in interactive <strong>JouleDB Studio</strong> (<code>ui://jouledb/studio.html</code>, <code>text/html;profile=mcp-app</code>), <code>jouledb mcp --data &lt;dir&gt;</code> (<code>stdio</code>), <code>POST /mcp</code> (<code>50</code> tools), Claude Desktop <code>.mcpb</code> bundles, and Antigravity plugin.</li>
+<li><strong><a href="#binary-tlv-envelope-framing-wal-archiving--pitr-v1_stability_and_pitrrs">Storage, 64-Shard Binary <code>JMVR</code>/<code>JWB1</code>/<code>JWU1</code> MVCC SSI &amp; PITR</a>:</strong> B-Tree storage, Write-Ahead Logging (<code>WAL</code>), Serializable Snapshot Isolation (<code>SSI</code>), 64-shard <code>MvccStore</code> + <code>MvccTableStorage</code> (<code>table_id_shards</code>) with binary <code>JMVR\x01</code>, <code>JWB1</code>, &amp; <code>JWU1</code> delta serialization, <code>O(1)</code> PK/UNIQUE index checks and group-committed WAL batches, Copy-on-Write (<code>CoW</code>) branching (<code>joule-db-branch</code>), binary <code>TLV</code> + <code>CRC-32</code> envelope framing, and WAL <code>LSN</code>/timestamp recovery (<code>v1_stability_and_pitr.rs</code>).</li>
+<li><strong><a href="#sql-vectorized-execution-out-of-core-jcol-segments-columnar-tpc-h-join-engine--multi-host-wan-tcp-raft-v0120">SQL, Out-of-Core <code>.jcol</code> Columnar Engine, <code>TPC-H</code> Joins &amp; Multi-Host WAN TCP Raft</a>:</strong> SQL execution over HTTP and PostgreSQL v3 wire (<code>pgwire</code> with <code>SchemaMetaCache</code>, <code>GSSENCRequest</code> negotiation, cached <code>Describe</code>, direct <code>portal.params</code>, and thread-local AST cache), owned-batch streaming Parquet <code>COPY</code> spilling <code>262,144</code>-row <code>.jcol</code> disk segments in <code>JCOL_ID_TAG</code> namespace, vectorized <code>execute_segmented</code> (<code>43 / 43</code> Official ClickBench on all <code>99,997,497</code> rows) + <code>columnar_join</code> (<code>22 / 22</code> Official <code>TPC-H</code> at <code>SF=0.1</code>, <code>SF=1.0</code>, &amp; <code>SF=10.0</code>), window functions, <code>CUBE</code>, recursive CTEs, <code>ALP</code>/<code>FSST</code> codecs, and networked TCP Raft (<code>raft.rs</code>, <code>raft_transport.rs</code>, <code>examples/raft_wan_node.rs</code>) with <code>propose_and_commit</code>, Raft §6.4 <code>read_linearizable</code> (<code>ReadIndex</code>), TLA+ specifications, and multi-host WAN Clojure <code>elle</code> (<code>0.2.8</code>) verification.</li>
+<li><strong><a href="#amorphous-continuum-morphrule-dsl--8-fluid-lenses">Amorphous Hyperdimensional Store</a>:</strong> Extracts typed semantic atoms (<code>JSON</code>, <code>CSV</code>, <code>XML</code>, <code>k=v</code>, prose, triples) into <code>10,240</code>-bit Vector Symbolic Architecture (<code>VSA</code>) bitvectors with SI unit normalization and bounded-memory streaming.</li>
+<li><strong><a href="#jsyn-jsyn-v1-experimental-low-rank-bitplanes--fidelity-boundaries">Experimental <code>.jsyn</code> Low-Rank Bitplanes</a>:</strong> Compresses 2D projection tensors into packed binary sign bitplanes (<code>LittleBit-2 + SVF</code>). Preserves <code>0.9441</code> cosine similarity on compact sentence encoders (<code>all-MiniLM-L6-v2-LittleBit</code> at <code>0.44 BPW</code>), while ultra-low <code>0.02–0.17 BPW</code> settings degrade autoregressive LLMs (<code>cos = 0.27–0.45</code>) and are <strong>not</strong> drop-in LLM replacements.</li>
+<li><strong><a href="#implemented-security-controls-trust_compliancers--unaudited">Wire Adapters &amp; Unaudited Security Controls</a>:</strong> PostgreSQL <code>pgwire</code> (tested against <code>psql</code>, <code>psycopg3</code>, <code>node-pg</code>, <code>JDBC</code>, <code>SQLAlchemy</code>), REST compatibility adapters, and technical security primitives — <strong>explicitly unaudited by any external SOC 2, HIPAA, PCI-DSS, CMVP, or FedRAMP assessor</strong>.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="install--deployment-templates-v0120-preview"><a class="header" href="#install--deployment-templates-v0120-preview">Install &amp; Deployment Templates (<code>v0.12.0</code> Preview)</a></h1>
+<p>All installation channels deliver the <code>jouledb</code> <code>v0.12.0</code> server and CLI binary (<code>crates/joule-db-server</code>), exposing HTTP REST &amp; Streamable HTTP MCP (<code>/mcp</code>, including the built-in <code>ui://jouledb/studio.html</code> MCP App) on <code>--port</code> (default <code>8080</code>), local <code>stdio</code> MCP via <code>jouledb mcp</code>, native TCP on <code>+1</code> (<code>8081</code>), PostgreSQL <code>pgwire</code> on <code>+2</code> (<code>8082</code>), and binary <code>JWP</code> on <code>+3</code> (<code>8083</code>).</p>
+<h2 id="1-prebuilt-binary-via-cargo-binstall-claude-mcpb-bundle-or-github-releases"><a class="header" href="#1-prebuilt-binary-via-cargo-binstall-claude-mcpb-bundle-or-github-releases">1. Prebuilt Binary via <code>cargo-binstall</code>, Claude <code>.mcpb</code> Bundle, or GitHub Releases</a></h2>
+<blockquote>
+<p><strong>Packaging &amp; Linux <code>glibc</code> Portability Note:</strong></p>
+<ul>
+<li>The <a href="https://crates.io/crates/jouledb"><code>jouledb</code> crate on <code>crates.io</code></a> (<code>stubs/jouledb</code>, <code>v0.12.0</code>; <code>1.0.0</code> is yanked) is a small <strong><code>cargo-binstall</code> binary-fetcher stub</strong> (<code>15 KB</code>). Running <code>cargo binstall jouledb</code> downloads the prebuilt release archive from GitHub Releases; plain <code>cargo install jouledb</code> prints source-build instructions and exits with status <code>2</code>.</li>
+<li><code>v0.12.0</code> <code>x86_64-unknown-linux-gnu</code> release binaries are built against <strong><code>GLIBC &lt;= 2.35</code></strong> (<code>Debian 12</code> / <code>Ubuntu 22.04</code> baseline) and verified on <strong>Ubuntu 24.04 LTS (<code>glibc 2.39</code>)</strong>.</li>
+<li>One-click <strong>Claude Desktop <code>.mcpb</code> (<code>manifest_version: "0.3"</code>)</strong> bundles (<code>jouledb-0.12.0-{aarch64-apple-darwin,x86_64-apple-darwin,x86_64-unknown-linux-gnu}.mcpb</code>), prebuilt Python <code>cp39-abi3</code> wheels (<code>.whl</code>), and the TypeScript <code>openie-jouledb-0.12.0.tgz</code> tarball are attached to <a href="https://github.com/openIE-dev/jouledb/releases/tag/v0.12.0">GitHub Release <code>v0.12.0</code></a>. See <a href="#claude-apps-mcp-apps-sep-1865--antigravity-studio-ui-v0120">Claude Apps &amp; MCP Studio</a>.</li>
+</ul>
+</blockquote>
+<pre><code class="language-bash">cargo binstall jouledb
+jouledb --version   # jouledb 0.12.0
+</code></pre>
+<p>Or download the <code>v0.12.0</code> release tarball directly for macOS (<code>aarch64</code> / <code>x86_64</code>) or Linux (<code>x86_64</code>):</p>
+<pre><code class="language-bash">curl -fsSL https://github.com/openIE-dev/jouledb/releases/download/v0.12.0/jouledb-0.12.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+./jouledb-0.12.0-x86_64-unknown-linux-gnu/jouledb --version
+</code></pre>
+<h2 id="2-build-from-source-apache-20-or-mit"><a class="header" href="#2-build-from-source-apache-20-or-mit">2. Build from Source (<code>Apache-2.0 OR MIT</code>)</a></h2>
+<p>All <code>41</code> Rust workspace crates (<strong><code>41 / 41</code> [<code>100%</code>] enforced with <code>#![cfg_attr(not(test), deny(clippy::unwrap_used))]</code></strong>, zero bypasses) ship in this repository:</p>
+<pre><code class="language-bash">git clone https://github.com/openIE-dev/jouledb.git
+cd jouledb
+cargo build --release --locked -p joule-db-server --bin jouledb
+./target/release/jouledb --port 8080 --data ./joule-data
+</code></pre>
+<h2 id="3-connect-standard-postgresql-clients-claudemcp-hosts--run-self-checks"><a class="header" href="#3-connect-standard-postgresql-clients-claudemcp-hosts--run-self-checks">3. Connect Standard PostgreSQL Clients, Claude/MCP Hosts &amp; Run Self-Checks</a></h2>
+<pre><code class="language-bash"># Connect psql, psycopg3, SQLAlchemy, node-pg, or JDBC over pgwire (:8082)
+psql "host=127.0.0.1 port=8082 user=postgres dbname=postgres sslmode=disable"
+
+# Register durable local MCP server + Studio UI in Claude Code
+claude mcp add jouledb -- jouledb mcp --data ~/.jouledb/claude
+
+# Run the 6 fast in-process subsystem smoke checks (not an external benchmark)
+jouledb self-check
+</code></pre>
+<h2 id="4-starter-helm--terraform-templates-deploy"><a class="header" href="#4-starter-helm--terraform-templates-deploy">4. Starter <code>Helm</code> &amp; <code>Terraform</code> Templates (<code>deploy/</code>)</a></h2>
+<p><code>deploy/helm/jouledb</code> (<code>5</code> files, <code>~198</code> lines) and <code>deploy/terraform/jouledb</code> (<code>main.tf</code>, <code>52</code> lines) provide minimal starter templates for Kubernetes <code>StatefulSet</code> deployment and configuration flags. They are <strong>starter infrastructure templates</strong>, not externally audited compliance modules.</p>
+<h2 id="5-package-registry-status-disclosure-v0120"><a class="header" href="#5-package-registry-status-disclosure-v0120">5. Package Registry Status Disclosure (<code>v0.12.0</code>)</a></h2>
+<ul>
+<li><strong><code>crates.io</code> (<code>jouledb</code> <code>0.12.0</code>):</strong> Published (<code>cargo-binstall</code> binary fetcher stub).</li>
+<li><strong>GitHub Releases (<code>v0.12.0</code>):</strong> Published — server tarballs (macOS <code>aarch64</code>/<code>x86_64</code>, Linux <code>x86_64</code>), <strong>Claude Desktop <code>.mcpb</code> bundles</strong>, <strong>Python <code>cp39-abi3</code> <code>.whl</code> wheels</strong> (macOS ARM64/x86_64 &amp; <code>manylinux_2_34_x86_64</code>), <strong>TypeScript <code>openie-jouledb-0.12.0.tgz</code></strong>, and <code>SHA256SUMS.txt</code>.</li>
+<li><strong>PyPI (<code>jouledb</code>), npm (<code>@openie/jouledb</code>), NuGet (<code>OpenIE.JouleDB</code>), Maven Central:</strong> <strong>Not yet published</strong> on public package registries as of <code>v0.12.0</code> (OIDC/token publish jobs are wired in <code>.github/workflows/release.yml</code> pending registry setup); install the prebuilt <code>.whl</code> / <code>.tgz</code> directly from GitHub Release <code>v0.12.0</code> or build from <code>python/</code> and <code>sdks/*</code> in-repo.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="claude-apps-mcp-apps-sep-1865--antigravity-studio-ui-v0120"><a class="header" href="#claude-apps-mcp-apps-sep-1865--antigravity-studio-ui-v0120">Claude Apps, MCP Apps (<code>SEP-1865</code>) &amp; Antigravity Studio UI (<code>v0.12.0</code>)</a></h1>
+<p>JouleDB <code>v0.12.0</code> ships a built-in, zero-CDN interactive <strong>MCP App (<code>SEP-1865</code> / <code>@modelcontextprotocol/ext-apps</code>)</strong> directly inside the single <code>jouledb</code> binary (<code>ui://jouledb/studio.html</code>, MIME <code>text/html;profile=mcp-app</code>).</p>
+<p>When connected to <strong>Claude</strong> (Claude Desktop, Claude on the web / mobile via remote MCP connectors, Claude Cowork, or Claude Code), <strong>Google Antigravity</strong> (inline chat cards, <code>aux_pane</code> side panel, and <code>global</code> sidebar view), <strong>ChatGPT</strong>, <strong>VS Code</strong>, <strong>Cursor</strong>, or <strong>Goose</strong>, calling <code>db.studio</code>, <code>db.query</code>, <code>db.branch_list</code>, or <code>db.schema_inspect</code> renders a live sandboxed <strong>JouleDB Studio</strong> workbench directly inside the conversation — while simultaneously returning compact token-efficient text + <code>structuredContent</code> for hosts without UI rendering.</p>
+<hr>
+<h2 id="1-architecture--sep-1865-compliance"><a class="header" href="#1-architecture--sep-1865-compliance">1. Architecture &amp; <code>SEP-1865</code> Compliance</a></h2>
+<p>The built-in Studio UI (<code>crates/joule-db-server/src/mcp_app_ui.rs</code>) is served over <strong>both</strong> MCP transports from the same <code>jouledb</code> binary:</p>
+<ol>
+<li><strong>Local <code>stdio</code> MCP (<code>jouledb mcp --data &lt;dir&gt;</code>):</strong> Opens a durable local <code>DurableAmorphicStore</code> + <code>SimpleQueryExecutor</code> + <code>DatabaseToolHandler</code> over JSON-RPC 2.0 <code>stdin</code>/<code>stdout</code> (<code>notifications/initialized</code> silent handling compliant with Claude Desktop &amp; Claude Code).</li>
+<li><strong>Remote Streamable HTTP MCP (<code>POST /mcp</code> on <code>jouledb --port 8080</code>):</strong> Serves remote Claude Connector / multi-agent HTTP clients with session headers (<code>Mcp-Session-Id</code>) and SSE streaming.</li>
+</ol>
+<h3 id="security--sandbox-posture"><a class="header" href="#security--sandbox-posture">Security &amp; Sandbox Posture</a></h3>
+<ul>
+<li><strong>Strict Content Security Policy:</strong> <code>&lt;meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:;"&gt;</code> — zero external CDN requests, zero third-party scripts, zero telemetry beacons.</li>
+<li><strong>Standard <code>SEP-1865</code> Lifecycle Handshake:</strong> Sends <code>ui/initialize</code> (<code>protocolVersion: "2026-01-26"</code>) over <code>window.parent.postMessage</code>, emits <code>ui/notifications/initialized</code>, tracks <code>ui/notifications/tool-input</code>, <code>ui/notifications/tool-result</code>, and <code>ui/notifications/host-context-changed</code> (<code>data-theme</code> + <code>--color-*</code> host CSS custom properties), and reports iframe height via <code>ResizeObserver</code> (<code>ui/notifications/size-changed</code>).</li>
+<li><strong>Interactive Capabilities Inside the Sandboxed Iframe:</strong>
+<ul>
+<li><strong>SQL &amp; Vector/Graph Workbench:</strong> Run arbitrary SQL queries (<code>Cmd/Ctrl+Enter</code>) via <code>tools/call</code> -&gt; <code>db.query</code>, sort any result column client-side, and switch between tabular grid and automatic inline distribution bar charts.</li>
+<li><strong>Live Schema &amp; Sample Inspector:</strong> Browse tables via <code>db.schema_inspect</code> and one-click sample (<code>SELECT * FROM &lt;tbl&gt; LIMIT 25</code>).</li>
+<li><strong>Copy-on-Write (<code>O(1)</code>) Branch Manager:</strong> List, fork (<code>db.branch_create</code>), switch, and merge (<code>db.branch_merge</code>) isolated database branches for safe agentic sandboxing before mutating <code>main</code>.</li>
+<li><strong>Thermodynamic Receipt Telemetry &amp; Model Context Sync:</strong> Displays latency (<code>ms</code>), row counts, active branch, and joule telemetry (<code>reported_j</code> hardware RAPL / <code>powermetrics</code> when metered, or <code>est_j</code> analytical fallback), plus one-click <strong>“Pin to Claude Context”</strong> (<code>ui/update-model-context</code>) and <strong>“Ask Claude to Analyze”</strong> (<code>ui/message</code>).</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2 id="2-four-ways-to-connect-jouledb-to-claude--antigravity"><a class="header" href="#2-four-ways-to-connect-jouledb-to-claude--antigravity">2. Four Ways to Connect JouleDB to Claude &amp; Antigravity</a></h2>
+<h3 id="option-a-one-click-claude-desktop-bundle-mcpb-manifest_version-03"><a class="header" href="#option-a-one-click-claude-desktop-bundle-mcpb-manifest_version-03">Option A: One-Click Claude Desktop Bundle (<code>.mcpb</code>, <code>manifest_version: "0.3"</code>)</a></h3>
+<p>Each GitHub Release (<code>v0.12.0+</code>) attaches platform-native <code>.mcpb</code> bundles (<code>jouledb-0.12.0-aarch64-apple-darwin.mcpb</code>, <code>jouledb-0.12.0-x86_64-apple-darwin.mcpb</code>, <code>jouledb-0.12.0-x86_64-unknown-linux-gnu.mcpb</code>):</p>
+<ol>
+<li>Download the <code>.mcpb</code> file for your OS/architecture from <a href="https://github.com/openIE-dev/jouledb/releases/tag/v0.12.0">GitHub Releases (<code>v0.12.0</code>)</a>.</li>
+<li>Double-click the <code>.mcpb</code> file (or drag it into <strong>Claude Desktop -&gt; Settings -&gt; Extensions</strong>).</li>
+<li>Choose an optional local data directory (defaults to <code>~/.jouledb/claude-studio</code>).</li>
+<li>Ask Claude: <em>“Open JouleDB Studio, create a <code>sensors</code> table with 5 rows, fork branch <code>exp-threshold</code>, and compare aggregates.”</em></li>
+</ol>
+<p><em>(Source manifest: <a href="https://github.com/openIE-dev/jouledb/blob/main/deploy/claude-app/manifest.json"><code>deploy/claude-app/manifest.json</code></a>)</em></p>
+<h3 id="option-b-claude-code-cli-claude-mcp-add"><a class="header" href="#option-b-claude-code-cli-claude-mcp-add">Option B: Claude Code CLI (<code>claude mcp add</code>)</a></h3>
+<pre><code class="language-bash"># Install jouledb v0.12.0 via cargo-binstall (or GitHub Release tarball)
+cargo binstall -y jouledb
+
+# Register local durable JouleDB MCP server + Studio App in Claude Code
+claude mcp add jouledb -- jouledb mcp --data ~/.jouledb/claude-code
+</code></pre>
+<h3 id="option-c-claude-desktop-manual-claude_desktop_configjson"><a class="header" href="#option-c-claude-desktop-manual-claude_desktop_configjson">Option C: Claude Desktop Manual <code>claude_desktop_config.json</code></a></h3>
+<pre><code class="language-json">{
+  "mcpServers": {
+    "jouledb": {
+      "command": "jouledb",
+      "args": ["mcp", "--data", "/Users/you/.jouledb/studio"]
+    }
+  }
+}
+</code></pre>
+<h3 id="option-d-remote-streamable-http-connector-claude-web--cowork--mobile--google-antigravity-plugin"><a class="header" href="#option-d-remote-streamable-http-connector-claude-web--cowork--mobile--google-antigravity-plugin">Option D: Remote Streamable HTTP Connector (Claude Web / Cowork / Mobile) &amp; Google Antigravity Plugin</a></h3>
+<p>For remote Claude Connectors (<code>Settings -&gt; Connectors -&gt; Add Custom Connector</code>) or multi-user deployments, expose <code>https://&lt;your-host&gt;/mcp</code> in front of <code>jouledb --port 8080 --data ./data</code>.</p>
+<p>For <strong>Google Antigravity</strong>, copy or symlink <a href="https://github.com/openIE-dev/jouledb/tree/main/deploy/antigravity-plugin"><code>deploy/antigravity-plugin/</code></a> — <code>db.studio</code> declares <code>com.google.antigravity/ui.entrypoints: ["aux_pane", "global"]</code> so JouleDB Studio opens both inline in chat and as a docked side-pane or full-screen sidebar panel.</p>
+<hr>
+<h2 id="3-ui-linked-mcp-tools-50-total-tools"><a class="header" href="#3-ui-linked-mcp-tools-50-total-tools">3. UI-Linked MCP Tools (<code>50</code> Total Tools)</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th style="text-align: left">Tool</th><th style="text-align: left">UI Resource URI</th><th style="text-align: left">Visibility</th><th style="text-align: left">Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align: left"><code>db.studio</code></td><td style="text-align: left"><code>ui://jouledb/studio.html</code></td><td style="text-align: left"><code>["model", "app"]</code> (<code>aux_pane</code>, <code>global</code>)</td><td style="text-align: left">Opens the interactive JouleDB Studio workbench (optionally pre-running <code>sql</code> on <code>branch</code>)</td></tr>
+<tr><td style="text-align: left"><code>db.query</code></td><td style="text-align: left"><code>ui://jouledb/studio.html</code></td><td style="text-align: left"><code>["model", "app"]</code></td><td style="text-align: left">Executes SQL and renders sortable table + distribution chart + joule receipt</td></tr>
+<tr><td style="text-align: left"><code>db.branch_list</code></td><td style="text-align: left"><code>ui://jouledb/studio.html</code></td><td style="text-align: left"><code>["model", "app"]</code></td><td style="text-align: left">Lists <code>O(1)</code> CoW branches (<code>main</code> + forks) and hydrates the Studio branch bar</td></tr>
+<tr><td style="text-align: left"><code>db.schema_inspect</code></td><td style="text-align: left"><code>ui://jouledb/studio.html</code></td><td style="text-align: left"><code>["model", "app"]</code></td><td style="text-align: left">Inspects table columns/types and hydrates the Studio schema sidebar</td></tr>
+</tbody>
+</table>
+</div>
+<p>All remaining <code>21</code> core database/branch/capsule/migration tools and <code>25</code> agentic extension tools (<code>db.memory_*</code>, <code>db.semantic_cache_*</code>, <code>db.fabric_*</code>, <code>db.continuum_*</code>) remain available in the <code>50</code>-tool catalog (<code>includeAgenticExtensions: true</code>).</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hello-jouledb--jsyn"><a class="header" href="#hello-jouledb--jsyn">Hello, JouleDB &amp; <code>.jsyn</code></a></h1>
+<p>Start a local JouleDB <code>v0.12.0</code> node, create a table, pull the verified <code>all-MiniLM-L6-v2-LittleBit</code> <code>.jsyn</code> sentence-embedding model (<code>cos = 0.9441</code> vs upstream <code>FP32</code>) from Hugging Face, and inspect both SQL rows and nanojoule receipts:</p>
+<pre><code class="language-bash"># 1. Start JouleDB v0.12.0 on port 8080 (HTTP :8080, PgWire :8082)
+jouledb --port 8080 --data ./hello-jdb &amp;
+
+# 2. Run SQL with joule telemetry (`reported_j` on bare metal RAPL/SMC, `est_j` modeled fallback)
+jouledb query "CREATE TABLE sensors (id INT PRIMARY KEY, temp REAL)"
+jouledb query "INSERT INTO sensors VALUES (1, 21.4), (2, 39.8)"
+jouledb query "SELECT * FROM sensors WHERE temp &gt; 25.0"
+
+# 3. Pull the verified 1.95 MB .jsyn sentence embedder (0.44 BPW, 22.2x smaller than FP16, cos = 0.9441)
+curl -s http://127.0.0.1:8080/api/v1/synapse/hf/pull \
+  -H "Content-Type: application/json" \
+  -d '{"repo_id":"dcharlot65-openie/all-MiniLM-L6-v2-LittleBit","model_id":"minilm"}'
+
+# 4. Query the model's factorized bitplanes as SQL rows
+jouledb query "SELECT tensor_name, rows, cols, bits_per_weight FROM synapse_tensors LIMIT 5"
+</code></pre>
+<p>Runnable Rust workspace examples are also included under <a href="https://github.com/openIE-dev/jouledb/tree/main/examples"><code>examples/</code></a> (<code>hello</code>, <code>energy-per-query</code>, and <code>hdc-embeddings</code>).</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="multi-format-import--reconciliation-jouledb-migrate"><a class="header" href="#multi-format-import--reconciliation-jouledb-migrate">Multi-Format Import &amp; Reconciliation (<code>jouledb migrate</code>)</a></h1>
+<p><code>crates/joule-db-server/src/live_migration.rs</code> provides a parser, canonicalizer, and order-independent <code>BLAKE3</code> multiset checksum tool for importing structured exports into JouleDB (<code>v0.12.0</code> preview).</p>
+<h2 id="supported-input-formats"><a class="header" href="#supported-input-formats">Supported Input Formats</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th style="text-align: left"><code>--from</code> Flag</th><th style="text-align: left">Input File / Payload</th><th style="text-align: left">Parser Scope</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align: left"><strong><code>sqlite</code></strong></td><td style="text-align: left">Binary <code>.db</code> / <code>.sqlite</code> file (via local <code>sqlite3 .dump</code>) or <code>.sql</code> dump</td><td style="text-align: left">Simple <code>CREATE TABLE</code> + <code>INSERT INTO</code> value tuples</td></tr>
+<tr><td style="text-align: left"><strong><code>postgres</code></strong> / <strong><code>mysql</code></strong></td><td style="text-align: left"><code>.sql</code> dump (<code>CREATE TABLE</code> + <code>INSERT INTO</code>)</td><td style="text-align: left">Standard literal tuples (<code>NULL</code>, integers, floats, single-quoted strings); does not parse arbitrary <code>COPY ... FROM stdin</code> or PL/pgSQL procedures</td></tr>
+<tr><td style="text-align: left"><strong><code>mongo</code></strong></td><td style="text-align: left">MongoDB Extended JSONL (<code>mongoexport</code> one JSON object per line)</td><td style="text-align: left">Unwraps <code>$oid</code>, <code>$numberDecimal</code>, <code>$numberLong</code>, <code>$numberInt</code></td></tr>
+<tr><td style="text-align: left"><strong><code>elastic</code></strong></td><td style="text-align: left">Elasticsearch <code>_bulk</code> NDJSON</td><td style="text-align: left">Pairs action metadata lines (<code>index</code>/<code>create</code>) with document lines</td></tr>
+<tr><td style="text-align: left"><strong><code>csv</code></strong> / <strong><code>jsonl</code></strong></td><td style="text-align: left">Headered RFC-4180 CSV or newline-delimited JSON</td><td style="text-align: left">Infers integer, float, boolean, and string scalars</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="multiset-blake3-checksum--replay"><a class="header" href="#multiset-blake3-checksum--replay">Multiset <code>BLAKE3</code> Checksum &amp; Replay</a></h2>
+<ol>
+<li><strong>Order-Independent Multiset Digest:</strong> Each normalized record is hashed with <code>BLAKE3</code> and combined via wrapping <code>128</code>-bit sum and <code>XOR</code> accumulators, verifying whether source and target row sets match regardless of scan order.</li>
+<li><strong>Optional Delta Event Replay:</strong> Applies ordered <code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code> JSON change events after snapshot load during testing or staged cutover, then signs the JSON receipt with <code>ML-DSA-65</code> (<code>inv-pqcrypto</code>).</li>
+</ol>
+<pre><code class="language-bash"># Import a local SQLite database file and verify multiset BLAKE3 parity
+jouledb migrate --from sqlite --input ./legacy_app.db
+
+# Run the built-in 4-format parser &amp; reconciliation smoke check
+jouledb migrate
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="amorphous-continuum-morphrule-dsl--8-fluid-lenses"><a class="header" href="#amorphous-continuum-morphrule-dsl--8-fluid-lenses">Amorphous Continuum, <code>MorphRule</code> DSL &amp; 8 Fluid Lenses</a></h1>
+<p>Un-siloing the digital world requires <strong>maintaining exact semantic meaning while ditching arbitrary rigid structure</strong>.</p>
+<p>Traditional databases force a false choice: rigid relational DDL (requiring brittle ETL pipelines whenever schemas drift) or untyped JSON blobs (losing units, identity, and algebraic queryability). <code>JouleDB v0.12.0</code> (<code>crates/joule-db-amorphic</code> &amp; <code>crates/joule-db-viz</code>) explores an experimental alternative: the <strong>Amorphous Semantic Continuum</strong>.</p>
+<hr>
+<h2 id="1-zero-ddl-semantic-extraction--10240-bit-kanerva-vsa-holograms"><a class="header" href="#1-zero-ddl-semantic-extraction--10240-bit-kanerva-vsa-holograms">1. Zero-DDL Semantic Extraction &amp; <code>10,240</code>-Bit Kanerva VSA Holograms</a></h2>
+<p>Raw payloads from JSON APIs, CSV exports, nested XML telemetry, <code>k=v</code> traces, unstructured prose logs, and RDF N-Triples dissolve into typed <code>SemanticAtom</code>s and superimpose into a <strong><code>10,240</code>-bit (<code>160 × u64</code>) Hyperdimensional Hologram</strong>:</p>
+<ul>
+<li><strong>Algebraic Role Unbinding (<code>H ⊗ ROLE⁻¹</code>):</strong> Query any concept across heterogeneous records in $O(1)$ <code>SIMD POPCNT</code> (<code>100%</code> Top-1 unbinding accuracy) even when silos share <strong><code>0</code> field names</strong> (<code>customer_ref</code> vs <code>subject_uri</code> vs prose mention).</li>
+<li><strong>Exact Scientific &amp; Financial SI Harmonization (<code>0.00%</code> Skew):</strong>
+<ul>
+<li>Temperature: <code>25°C == 77°F == 298.15 K</code> (<code>0.000 K</code> error)</li>
+<li>Photonics / Length: <code>532 nm == 0.532 µm == 5.32e-7 m</code></li>
+<li>Mass &amp; Currency: <code>500 mg == 0.5 g</code>; <code>\$14,250.00 == 1,425,000 cents</code>.</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2 id="2-programmable-morphrule-dsl"><a class="header" href="#2-programmable-morphrule-dsl">2. Programmable <code>MorphRule</code> DSL</a></h2>
+<p>Domain engineers can declare custom harmonization, unit conversion, logarithmic scaling, and cross-entity linking rules without altering storage schemas:</p>
+<pre><code class="language-text">MAP "temp_celsius" -&gt; Quantity(Kelvin) USING offset_kelvin
+MAP "wavelength_nm" -&gt; Quantity(Meters) USING scale(1e-9)
+DERIVE "p_intensity" FROM "flux_ratio" USING neg_log10
+EQUATE "sensor_uid" == "device_serial"
+LINK WHEN entity.kelvin &gt; 310.0 -&gt; ALERT "thermal_excursion"
+</code></pre>
+<hr>
+<h2 id="3-bounded-memory-oe-multi-gigabyte-streaming-streamingamorphiccontinuum"><a class="header" href="#3-bounded-memory-oe-multi-gigabyte-streaming-streamingamorphiccontinuum">3. Bounded-Memory $O(E)$ Multi-Gigabyte Streaming (<code>StreamingAmorphicContinuum</code>)</a></h2>
+<p><code>jouledb amorphic stream-corpus</code> ingests multi-gigabyte heterogeneous directories in strictly bounded $O(E)$ RAM using 64 KiB streaming readers, reservoir sampling, and 16-bit SimHash LSH hologram buckets:</p>
+<ul>
+<li><strong>Single-Node Streaming Run (<code>Apple M5 Max</code>):</strong> <strong><code>1.35 GB</code> (<code>47,488,952</code> semantic atoms across <code>.jsonl</code>, <code>.csv</code>, <code>.xml</code>, <code>.kv</code>, <code>.log</code>, <code>.nt</code>)</strong> streamed in <strong><code>57.64 MB</code> OS Peak RSS</strong>.</li>
+<li><strong>Cross-OS Bit-Exact Determinism:</strong> Produces identical 128-bit FNV-1a stream fingerprints (<code>de6330b34ee42a9985a74261f86b431b</code>) across <code>macOS</code>, <code>Linux</code>, and <code>Windows 11</code>.</li>
+</ul>
+<hr>
+<h2 id="4-8-observer-intent-fluid-visual-lenses"><a class="header" href="#4-8-observer-intent-fluid-visual-lenses">4. 8 Observer-Intent Fluid Visual Lenses</a></h2>
+<p>The same underlying continuum morphs instantaneously into <strong>8 visual lenses</strong> without copying data (try it live at <strong><a href="https://jouledb.org/amorphic">jouledb.org/amorphic</a></strong>):</p>
+<ol>
+<li><code>EntityConstellation</code> (Force-directed cross-silo identity graph)</li>
+<li><code>TemporalRibbon</code> (Causal microsecond event timeline)</li>
+<li><code>SpatialManifold</code> (GeoJSON coordinate projection)</li>
+<li><code>MetricHorizon</code> (Normalized SI distribution bars)</li>
+<li><code>SynthesizedRelationalGrid</code> (On-the-fly SQL-like tabular projection)</li>
+<li><code>NarrativeBrief</code> (Grounded executive synthesis with provenance)</li>
+<li><code>ParetoScatter</code> (<code>CustomLensCompiler</code> 2D multi-objective Pareto frontier)</li>
+<li><code>SankeyLineage</code> (Source-format $\to$ Canonical-concept dissolution flow).</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="jsyn-jsyn-v1-experimental-low-rank-bitplanes--fidelity-boundaries"><a class="header" href="#jsyn-jsyn-v1-experimental-low-rank-bitplanes--fidelity-boundaries"><code>.jsyn</code> (<code>JSYN-v1</code>) Experimental Low-Rank Bitplanes &amp; Fidelity Boundaries</a></h1>
+<p><code>.jsyn</code> (<code>crates/joule-db-weights</code>) is JouleDB’s experimental low-bitwidth tensor container. It decomposes 2D weight projections via coupled binary sign bitplanes (<code>u_bits</code>, <code>v_bits</code>), <code>FP16</code> row/column/singular scales (<code>SVF</code>), and sparse outlier entries, while storing 1D normalization/bias vectors in exact <code>FP32</code>.</p>
+<hr>
+<h2 id="candid-quality-vs-compression-findings"><a class="header" href="#candid-quality-vs-compression-findings">Candid Quality vs. Compression Findings</a></h2>
+<p>Compression arithmetic alone (<code>20x–560x</code> smaller files) does not mean a compressed neural network behaves like the upstream model. Empirical quality depends strongly on architecture and bits-per-weight (<code>BPW</code>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th style="text-align: left">Model Class</th><th style="text-align: left">Representative Checkpoint</th><th style="text-align: center">Avg <code>BPW</code></th><th style="text-align: center">Size (<code>FP16 -&gt; .jsyn</code>)</th><th style="text-align: left">Measured Fidelity vs Original</th><th style="text-align: left">Practical Usability</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align: left"><strong>6L Bidirectional Sentence Encoder</strong></td><td style="text-align: left"><a href="https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit"><code>all-MiniLM-L6-v2-LittleBit</code></a> (<code>Apache-2.0</code>)</td><td style="text-align: center"><strong><code>0.4378</code></strong></td><td style="text-align: center"><code>43.32 MB -&gt; 1.95 MB</code> (<code>22.2×</code>)</td><td style="text-align: left"><strong><code>cos = 0.9441</code></strong> mean sentence-embedding cosine</td><td style="text-align: left"><strong>Usable</strong> for compact CPU/edge semantic retrieval (<code>BM25 + RaBitQ + HDC</code>)</td></tr>
+<tr><td style="text-align: left"><strong>Single Dense Projection (<code>BF16 q_proj</code>)</strong></td><td style="text-align: left">Rank-sweep ablation (<code>rank = 8 -&gt; 128</code>)</td><td style="text-align: center"><code>0.028 -&gt; 0.166</code></td><td style="text-align: center"><code>564× -&gt; 96.6×</code></td><td style="text-align: left">Output <code>cos = 0.271 -&gt; 0.455</code>, <code>KL = 3.87 -&gt; 2.72</code> (<code>65.6%</code> Top-5)</td><td style="text-align: left"><strong>Degraded</strong> — demonstrates Eckart-Young rank trade-off, not lossless LLM compression</td></tr>
+<tr><td style="text-align: left"><strong>30L Autoregressive Causal LLM</strong></td><td style="text-align: left"><code>SmolLM2-135M</code> rank sweep (<code>rank = 8 -&gt; 128</code>)</td><td style="text-align: center"><code>0.125 -&gt; 0.388</code></td><td style="text-align: center"><code>65.2× -&gt; 27.4×</code></td><td style="text-align: left">Mean weight <code>cos = 0.19 -&gt; 0.62</code></td><td style="text-align: left"><strong>Not a drop-in replacement</strong> for the upstream instruct LLM</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><strong>November 2026 Hugging Face Cleanup:</strong> 81 unverified ultra-low-BPW (<code>0.013–0.25 BPW</code>) and non-standard vendor-licensed <code>.jsyn</code> repositories were removed from <code>huggingface.co/dcharlot65-openie</code>. Only checkpoints with permissive licenses (<code>Apache-2.0</code> / <code>MIT</code>) and verified <code>&gt;= 0.85</code> task fidelity (currently <a href="https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit"><code>all-MiniLM-L6-v2-LittleBit</code></a>) are published publicly.</p>
+</blockquote>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="binary-tlv-envelope-framing-wal-archiving--pitr-v1_stability_and_pitrrs"><a class="header" href="#binary-tlv-envelope-framing-wal-archiving--pitr-v1_stability_and_pitrrs">Binary TLV Envelope Framing, WAL Archiving &amp; PITR (<code>v1_stability_and_pitr.rs</code>)</a></h1>
+<p><code>crates/joule-db-core/src/v1_stability_and_pitr.rs</code> implements versioned binary framing (<code>JWAL</code>, <code>JSYN</code>, <code>JWPV</code>, <code>ASNP</code>, <code>TCAP</code>) and an in-engine hash-chained WAL archive with <code>LSN</code> and microsecond timestamp Point-in-Time Recovery (<code>ContinuousPitrArchive</code>).</p>
+<blockquote>
+<p><strong>Pre-1.0 Status (<code>v0.12.0</code>):</strong> Although the framing header supports forward/backward Tag-Length-Value (<code>TLV</code>) extensions (<code>JWAL</code>, <code>JSYN</code>, <code>JWPV</code>, <code>ASNP</code>, <code>TCAP</code>, plus binary <code>JMVR\x01</code> &amp; <code>JWB1</code> MVCC/WAL encoding), JouleDB itself is at <code>v0.12.0</code> (pre-1.0) and wire/storage schemas may still evolve prior to a future <code>1.0</code> release.</p>
+</blockquote>
+<h2 id="capabilities-implemented"><a class="header" href="#capabilities-implemented">Capabilities Implemented</a></h2>
+<ul>
+<li><strong>16-Byte Header + IEEE <code>CRC-32</code>:</strong> <code>[magic: 4B][major: u16][minor: u16][flags: u16][tlv_count: u16][crc32: u32]</code>. Detects single-bit payload or header corruption before decoding.</li>
+<li><strong>Critical vs. Non-Critical <code>TLV</code> Extensions:</strong> Preserves unknown optional tags (<code>critical == false</code>) while failing closed (<code>UnsupportedCriticalExtension</code>) on unknown security-critical tags (<code>critical == true</code>).</li>
+<li><strong>Hash-Chained WAL Segments &amp; <code>PITR</code>:</strong> <code>ContinuousPitrArchive</code> chains segments via <code>FNV-128</code> + <code>CRC-32</code> and replays committed transactions up to <code>recover_to_lsn(lsn)</code> or <code>recover_to_timestamp_us(ts_us)</code>, excluding uncommitted or aborted transactions.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="sql-vectorized-execution-out-of-core-jcol-segments-columnar-tpc-h-join-engine--multi-host-wan-tcp-raft-v0120"><a class="header" href="#sql-vectorized-execution-out-of-core-jcol-segments-columnar-tpc-h-join-engine--multi-host-wan-tcp-raft-v0120">SQL Vectorized Execution, Out-of-Core <code>.jcol</code> Segments, Columnar <code>TPC-H</code> Join Engine &amp; Multi-Host WAN TCP Raft (<code>v0.12.0</code>)</a></h1>
+<p>This chapter separates JouleDB’s <strong>query execution engines</strong> from its <strong>networked TCP Raft consensus engine</strong> and states what each test actually exercises.</p>
+<hr>
+<h2 id="1-out-of-core-jcol-segments-vectorized-sql--columnar-multi-table-tpc-h-join-engine-disk_col_segmentsrs-columnar_execrs-columnar_joinrs-mvcc_adapterrs"><a class="header" href="#1-out-of-core-jcol-segments-vectorized-sql--columnar-multi-table-tpc-h-join-engine-disk_col_segmentsrs-columnar_execrs-columnar_joinrs-mvcc_adapterrs">1. Out-of-Core <code>.jcol</code> Segments, Vectorized SQL &amp; Columnar Multi-Table <code>TPC-H</code> Join Engine (<code>disk_col_segments.rs</code>, <code>columnar_exec.rs</code>, <code>columnar_join.rs</code>, <code>mvcc_adapter.rs</code>)</a></h2>
+<ul>
+<li><strong>Out-of-Core <code>.jcol</code> Segment Engine (<code>disk_col_segments.rs</code> + <code>execute_segmented</code>, <code>v0.8.0</code>–<code>v0.12.0</code>):</strong> Drains tables exceeding <code>JOULEDB_COL_SPILL_ROWS</code> (<code>131,072</code> rows, using disjoint <code>JCOL_ID_TAG</code> [<code>1 &lt;&lt; 62</code>] segment IDs, owned-batch Parquet streaming, and GNU/Linux <code>malloc_trim(0)</code> heap release) into immutable <code>.jcol</code> files (<code>I8/I16/I32/I64</code> narrowing, Arrow <code>Decimal128</code> streaming ingest, bitpacked null masks, compact <code>u8/u16/u32</code> local string dictionaries, per-column <code>global_int_sum</code> + <code>min_i64</code>/<code>max_i64</code> ZoneMaps, CRC-32 slice + <code>JCL1</code> footer checksums). Executes all <strong><code>43 / 43</code> Official ClickBench queries on the full <code>99,997,497</code>-row (<code>14.78 GB</code>) dataset in <code>5.90 GB</code> post-load RSS (<code>2.11×</code> geomean vs DuckDB <code>2.0.1</code>)</strong>.</li>
+<li><strong>Out-of-Core Columnar Multi-Table Join &amp; Subquery Engine (<code>columnar_join.rs</code>, <code>v0.11.0</code>–<code>v0.12.0</code>):</strong> Streams <code>262,144</code>-row <code>.jcol</code> probe segments in parallel against compact post-order Snowflake dimension hash branches (<code>DenseKeyBits::overlaps_range</code> zero-I/O ZoneMap pruning, two-stage sparse dictionary loading via <code>load_filtered_segment</code>, <code>CompactCol</code>, <code>DenseUnique1</code>, <code>HashUnique1</code>, <code>HashMulti1</code>, <code>Hash2</code>, <code>O(1)</code> <code>DictBitset</code> string/date predicates, derived-table flattening, <code>WITH</code> CTEs, parallel <code>LEFT OUTER JOIN</code> grouped count for <code>Q13</code>, <code>NeqSummary</code> + outer-domain pushdown for <code>Q21</code>, 64-shard radix-partitioned single-<code>i64</code> <code>GROUP BY</code> for <code>Q18</code>, <code>&lt;= 20M</code>-row semi-join key propagation for <code>Q10</code>, outer-domain correlated scalar <code>MIN</code>/<code>MAX</code>/<code>SUM</code>/<code>AVG</code> for <code>Q02, Q17, Q20</code>, and <code>OR</code>-branch bounding filters for <code>Q07, Q19</code>) — executing all <strong><code>22 / 22</code> official <code>TPC-H</code> queries (<code>tpch_queries()</code>) exact over TCP <code>pgwire</code> at <code>SF=0.1</code> (<code>1.99×</code> geomean, <code>5</code> wins), <code>SF=1.0</code> (<code>8.66M</code> rows in <code>1.78 s</code>, <code>4.33×</code> geomean, <code>201.4 MB</code> post-load RSS), AND <code>SF=10.0</code> (<code>86.6M</code> rows / <code>60M</code> <code>lineitem</code> out-of-core in <code>755.3 MB</code> post-load RSS, <code>15.46 s</code> total, <code>8.49×</code> geomean)</strong>.</li>
+<li><strong>Morsel-Parallel In-Memory Engine (<code>columnar_exec.rs</code>):</strong> Executes single-table scans, <code>PrepPred</code> zone-map/dictionary filters, <code>VCol</code> virtual projections (<code>EXTRACT</code>, <code>DATE_TRUNC</code>, <code>STRLEN</code>, <code>REGEXP_REPLACE</code>, <code>CASE WHEN</code>, <code>FloatArith</code>, <code>DictExtractInt</code>), algebraic <code>SUM(col ± k)</code> scan sharing, inline <code>HKey</code>/<code>GKey</code> grouped aggregations, <code>HAVING</code>, and parallel Top-K <code>ORDER BY ... LIMIT</code>.</li>
+<li><strong>64-Shard <code>MvccStore</code>/<code>MvccTableStorage</code> + Binary <code>JMVR</code>/<code>JWB1</code>/<code>JWU1</code> OLTP (<code>mvcc.rs</code>, <code>mvcc_adapter.rs</code>, <code>amorphic_adapter/*</code>, <code>pgwire.rs</code>):</strong> 64-shard <code>MvccStore</code> (<code>find_visible_at</code> zero-<code>HashSet</code>-clone reads), 64-shard <code>table_id_shards</code> &amp; session table, <code>SchemaMetaCache</code>, <code>try_direct_indexed_eq_query</code> (<code>O(1)</code> point reads and <code>O(k)</code> register-accumulated indexed <code>COUNT</code>/<code>SUM</code>), binary <code>JMVR\x01</code> <code>MvccRecord</code> + <code>JWB1</code> <code>batch_ingest_fields</code> + <code>JWU1</code> <code>UpdateFields</code> delta WAL encoding (deferring HDC hypervectors off <code>INSERT</code>/<code>UPDATE</code> commits), and adaptive <code>SmallVec</code>/<code>BTreeSet</code> <code>ValueIds</code> (<code>1,950.5 TPS</code> vs <code>PostgreSQL 16.16</code> <code>1,199.7 TPS</code> at <code>c=1</code> Simple; <code>5,154.1 TPS</code> Simple / <code>5,159.7 TPS</code> Pipelined at <code>c=16</code> on physical NVMe <code>fdatasync</code>, <code>invariant_verified = true</code>).</li>
+<li><strong>Window Frames, <code>CUBE</code> &amp; <code>WITH RECURSIVE</code> (<code>sql2023_powerhouse.rs</code>):</strong> Partitioned <code>ROW_NUMBER</code>/<code>RANK</code>/<code>DENSE_RANK</code>/<code>LAG</code>/<code>LEAD</code>/<code>CUME_DIST</code> + <code>ROWS BETWEEN</code> sliding frames, 3D <code>CUBE</code> with <code>GROUPING_ID</code> bitmasks, cycle-pruned recursive CTEs, and runtime Adaptive Query Execution (<code>AQE</code>) join switching.</li>
+<li><strong>Out-of-Core Morsel Spill (<code>morsel_spill.rs</code>):</strong> <code>2,048</code>-row columnar morsels spilling <code>CRC-32</code>-checked <code>JMSB</code> partitions to disk when hash state exceeds <code>memory_budget_bytes</code>.</li>
+</ul>
+<hr>
+<h2 id="2-networked-tcp-raft-consensus-raftrs-raft_serverrs-raft_transportrs"><a class="header" href="#2-networked-tcp-raft-consensus-raftrs-raft_serverrs-raft_transportrs">2. Networked TCP Raft Consensus (<code>raft.rs</code>, <code>raft_server.rs</code>, <code>raft_transport.rs</code>)</a></h2>
+<p>JouleDB contains <strong>two distinct consensus code paths</strong> that must not be conflated:</p>
+<ol>
+<li>
+<p><strong>Production Networked TCP Raft Engine (<code>crates/joule-db-server/src/{raft.rs, raft_server.rs, raft_transport.rs}</code> + <code>examples/raft_wan_node.rs</code> + TLA+ spec):</strong></p>
+<ul>
+<li>Full Ongaro &amp; Ousterhout Raft state machine (<code>Follower</code>, <code>Candidate</code>, <code>Leader</code>), <code>RequestVote</code>, <code>AppendEntries</code>, <code>InstallSnapshot</code> (with optional Reed-Solomon erasure shards), joint-consensus membership changes, and <code>CRC-32</code> on-disk <code>RaftWal</code> recovery.</li>
+<li><strong>Quorum Writes (<code>RaftNode::propose_and_commit</code>):</strong> Appends to the leader WAL and awaits majority replication (<code>commit_index &gt;= index</code>) plus Raft §5.4.2 current-term commit verification before returning.</li>
+<li><strong>Quorum Linearizable Reads (<code>RaftNode::read_index</code> &amp; <code>RaftNode::read_linearizable</code>):</strong> Implements Ongaro &amp; Ousterhout Raft §6.4 <code>ReadIndex</code>: records <code>read_index = commit_index</code>, confirms current-term leadership via a majority round of empty-<code>AppendEntries</code> heartbeats (<strong>zero Raft log / WAL writes</strong>), waits until <code>last_applied &gt;= read_index</code>, and reads the local state machine linearizably while rejecting stale-leader reads on isolated minority nodes. <em>(Direct <code>RaftNode::with_state_machine</code> remains available for explicitly local/bounded-staleness reads.)</em></li>
+<li><strong>5-Node Multi-Host Cross-Machine WAN/Tailscale Fault-Injection + Official <code>elle</code> (<code>0.2.8</code>) Verification (<code>bench/raft_multihost_wan.py</code> &amp; <code>tests/raft_tcp_elle_fault_injection.rs</code>):</strong>
+<ul>
+<li><strong>Cross-Machine WAN Run:</strong> Spawns 5 separate OS <code>raft_wan_node</code> processes across <strong>2 distinct physical Linux hosts over encrypted Tailscale WAN</strong> (<code>framework-128gb-0000</code> bare-metal + <code>openie-core-1</code> Cloud Debian 12 VM, <code>27.58 ms</code> median WAN TCP RTT), injects a cross-WAN <code>2/5</code> minority split (<code>["n1", "n4"]</code> vs <code>["n2", "n3", "n5"]</code>) isolating initial leader <code>n1</code>, verifies stale write &amp; <code>ReadIndex</code> read rejection on <code>n1</code> while majority quorum elects <code>n3</code> (term <code>2</code>) and commits <code>24</code> ops, sends real OS <strong><code>SIGKILL</code> (<code>kill -9</code>)</strong> to cloud node <code>n5</code> (<code>16</code> ops committed during crash), restarts <code>n5</code> from <code>raft.wal</code>, verifies 5-node state convergence (<code>commit=68, applied=68, x=68, y=39</code> across both hosts), and checks the <code>270</code>-event EDN history (<code>bench/results/raft_wan_multihost_elle_history.edn</code>) with Kyle Kingsbury’s official Clojure <code>elle/elle 0.2.8</code> (<code>rw-register</code>, <code>:strict-serializable</code> -&gt; <strong><code>{:valid? true}</code></strong>).</li>
+<li><strong>Single-Host Integration Test:</strong> <code>cargo test -p joule-db-server --test raft_tcp_elle_fault_injection</code> runs the deterministic 20-link socket-severing <code>TcpPartitionMatrix</code> check (<code>76</code> events -&gt; <code>{:valid? true}</code>).</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>Fast Scripted In-Memory Unit Simulation (<code>distributed_jepsen_consensus.rs</code>):</strong></p>
+<ul>
+<li>Simulates 5 <code>GeoRaftReplica</code> structs in a <code>Vec</code> to unit-test <code>HlcStamp</code> monotonicity and staleness-bound arithmetic (<code>est_wire_energy_nj = 12</code> analytical constant, <code>energy_evidence = "est_j"</code>). <strong>It is a deterministic unit check (<code>simulation_only: true</code>), not a networked Raft or Jepsen run.</strong></li>
+</ul>
+</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="wire--http-compatibility-adapters-bridgesmd"><a class="header" href="#wire--http-compatibility-adapters-bridgesmd">Wire &amp; HTTP Compatibility Adapters (<code>bridges.md</code>)</a></h1>
+<p>JouleDB implements wire-protocol and HTTP JSON translation routes (<code>crates/joule-db-server/src/universal_bridge.rs</code> and <code>pgwire</code>) so common database drivers and AI HTTP clients can talk to a local or self-hosted JouleDB instance for supported subsets.</p>
+<h2 id="1-live-tested-wire-protocol-testsclients"><a class="header" href="#1-live-tested-wire-protocol-testsclients">1. Live-Tested Wire Protocol (<code>tests/clients/</code>)</a></h2>
+<ul>
+<li><strong>PostgreSQL v3 Wire (<code>pgwire</code> on <code>port + 2</code>, default <code>:8082</code>):</strong> Exercised in CI (<code>pg-clients.yml</code> and <code>tests/clients/</code>) against real <code>psql</code>, Python <code>psycopg3</code>, <code>SQLAlchemy</code>, Node.js <code>pg</code> (<code>node-postgres</code>), and Java <code>JDBC</code> drivers (<code>CREATE TABLE</code>, <code>COPY</code>, <code>INSERT</code>, <code>SELECT</code>, aggregates). Note: JouleDB implements a practical SQL subset, not full PostgreSQL system catalogs (<code>pg_catalog</code> completeness) or PL/pgSQL.</li>
+</ul>
+<h2 id="2-http-compatibility-adapters-universal_bridgers"><a class="header" href="#2-http-compatibility-adapters-universal_bridgers">2. HTTP Compatibility Adapters (<code>universal_bridge.rs</code>)</a></h2>
+<p>These Axum routes translate common JSON/line-protocol payloads into JouleDB tables, vector collections, or Amorphic records (verified via HTTP integration tests in <code>tests/wave30_universal_ecosystem_bridge_and_trust_compliance_e2e.rs</code>):</p>
+<ul>
+<li><strong>Document &amp; Search HTTP Subsets:</strong> <code>/_compat/elastic/{index}/_doc</code>, <code>_bulk</code>, <code>_search</code>; <code>/_compat/mongo/action/{insertOne,insertMany,find,aggregate}</code>.</li>
+<li><strong>Vector HTTP Subsets:</strong> <code>/_compat/qdrant/collections/{name}/points</code> (upsert &amp; cosine search); <code>/_compat/pinecone/vectors/upsert</code> &amp; <code>/query</code>.</li>
+<li><strong>Telemetry &amp; CDC Ingest:</strong> <code>/_compat/influx/api/v2/write</code> (line protocol), <code>/v1/logs</code> &amp; <code>/v1/metrics</code> (OTLP JSON), <code>/api/v1/bridge/cdc_ingest</code> (Debezium JSON envelopes).</li>
+<li><strong>AI / Agent HTTP Subsets:</strong> OpenAI (<code>/v1/chat/completions</code>, <code>/v1/embeddings</code>, <code>/v1/models</code>), Anthropic (<code>/v1/messages</code>), Gemini (<code>/v1beta/models/{m}:generateContent</code>), Ollama (<code>/api/generate</code>, <code>/api/tags</code>), MCP JSON-RPC (<code>/mcp</code> — <code>49</code> tools), A2A (<code>/.well-known/agent.json</code>, <code>/a2a</code>), and <code>/v1/rerank</code>.</li>
+</ul>
+<blockquote>
+<p><strong>Scope note:</strong> <code>jouledb bridge</code> (<code>GET /api/v1/bridge/matrix</code>) runs a fast in-process 5-fragment entity-merge + 4D vector lookup unit smoke check (<code>in_process_entity_merge_smoke_passed</code>), not external third-party server benchmarks.</p>
+</blockquote>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="client-libraries-claude-mcpb-bundles--minimal-http-wrappers-v0120"><a class="header" href="#client-libraries-claude-mcpb-bundles--minimal-http-wrappers-v0120">Client Libraries, Claude <code>.mcpb</code> Bundles &amp; Minimal HTTP Wrappers (<code>v0.12.0</code>)</a></h1>
+<p>JouleDB can be accessed through standard PostgreSQL drivers (<code>pgwire</code> on <code>:8082</code>), <strong>Claude Apps / MCP Apps (<code>jouledb mcp</code> &amp; <code>/mcp</code>, <code>ui://jouledb/studio.html</code>)</strong>, the Rust client/embedded crates, the Python <code>PyO3</code> <code>cp39-abi3</code> package, or six lightweight zero-dependency HTTP wrapper libraries under <code>sdks/</code>.</p>
+<h2 id="honest-maturity--registry-status-matrix-v0120"><a class="header" href="#honest-maturity--registry-status-matrix-v0120">Honest Maturity &amp; Registry Status Matrix (<code>v0.12.0</code>)</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th style="text-align: left">Language / Host</th><th style="text-align: left">Path in Repo</th><th style="text-align: left">Size / Scope</th><th style="text-align: left">Distribution &amp; Public Registry Status (<code>v0.12.0</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align: left"><strong>PostgreSQL Drivers</strong> (<code>Python</code>, <code>Node</code>, <code>Java</code>, <code>Go</code>, <code>C#</code>, <code>Ruby</code>)</td><td style="text-align: left">Standard <code>psycopg3</code> (Simple &amp; Extended Pipeline), <code>node-pg</code>, <code>JDBC</code>, <code>pgx</code>, <code>Npgsql</code> against <code>:8082</code></td><td style="text-align: left">Production client ecosystems speaking PostgreSQL v3 wire (<code>tests/clients/</code>)</td><td style="text-align: left">Upstream registries</td></tr>
+<tr><td style="text-align: left"><strong>Claude Desktop / Claude Code / Antigravity (<code>MCP Apps</code>)</strong></td><td style="text-align: left"><code>deploy/claude-app/</code>, <code>deploy/antigravity-plugin/</code>, <code>jouledb mcp</code></td><td style="text-align: left">Built-in <code>SEP-1865</code> Studio UI (<code>ui://jouledb/studio.html</code>) + <code>50</code> MCP tools</td><td style="text-align: left"><strong><code>.mcpb</code> bundles attached to GitHub Release <code>v0.12.0</code></strong> (<code>manifest_version: "0.3"</code>)</td></tr>
+<tr><td style="text-align: left"><strong>Rust</strong></td><td style="text-align: left"><code>crates/joule-db-core</code>, <code>joule-db-local</code>, <code>joule-db-client</code></td><td style="text-align: left">Full embedded storage engine + async <code>HttpFabricClient</code></td><td style="text-align: left">Workspace source (<code>jouledb</code> <code>0.12.0</code> on <code>crates.io</code> is the CLI binary-fetcher stub)</td></tr>
+<tr><td style="text-align: left"><strong>Python (<code>&gt;= 3.9</code>, <code>cp39-abi3</code>)</strong></td><td style="text-align: left"><code>python/</code> (<code>PyO3</code> + HTTP client)</td><td style="text-align: left">Native <code>cp39-abi3</code> Rust extension + Arrow/Pandas/Polars helpers</td><td style="text-align: left"><strong>Prebuilt <code>.whl</code> wheels (macOS ARM64/x86_64 &amp; <code>manylinux_2_34_x86_64</code>) on GitHub Release <code>v0.12.0</code></strong> (<strong>not</strong> yet published on PyPI)</td></tr>
+<tr><td style="text-align: left"><strong>TypeScript / JS</strong></td><td style="text-align: left"><code>sdks/typescript/</code> (<code>218</code> LOC)</td><td style="text-align: left">Minimal zero-dep <code>fetch</code> wrapper over HTTP <code>/api/v1/*</code></td><td style="text-align: left"><strong><code>openie-jouledb-0.12.0.tgz</code> attached to GitHub Release <code>v0.12.0</code></strong> (<strong>not</strong> yet published on npm)</td></tr>
+<tr><td style="text-align: left"><strong>Go</strong></td><td style="text-align: left"><code>sdks/go/jouledb.go</code> (<code>163</code> LOC)</td><td style="text-align: left">Minimal <code>net/http</code> wrapper over HTTP <code>/api/v1/*</code></td><td style="text-align: left">In-repo Go module (<code>v0.12.0</code>)</td></tr>
+<tr><td style="text-align: left"><strong>C99 / C++</strong></td><td style="text-align: left"><code>crates/joule-db-c</code> &amp; <code>sdks/c/jouledb_universal.h</code> (<code>110</code> LOC)</td><td style="text-align: left">Native <code>cdylib</code> FFI + minimal POSIX/Winsock HTTP header</td><td style="text-align: left">In-repo source (<code>v0.12.0</code>)</td></tr>
+<tr><td style="text-align: left"><strong>Swift</strong></td><td style="text-align: left"><code>sdks/swift/</code> (<code>71</code> LOC)</td><td style="text-align: left">Minimal <code>URLSession</code> <code>actor</code> wrapper</td><td style="text-align: left">In-repo SwiftPM source (<code>v0.12.0</code>)</td></tr>
+<tr><td style="text-align: left"><strong>Java (<code>17+</code>)</strong></td><td style="text-align: left"><code>sdks/java/</code> (<code>63</code> LOC)</td><td style="text-align: left">Minimal <code>java.net.http.HttpClient</code> wrapper</td><td style="text-align: left">In-repo Maven source (<code>v0.12.0</code>)</td></tr>
+<tr><td style="text-align: left"><strong>C# / .NET</strong></td><td style="text-align: left"><code>sdks/dotnet/</code> (<code>56</code> LOC)</td><td style="text-align: left">Minimal <code>HttpClient</code> wrapper</td><td style="text-align: left">In-repo <code>.csproj</code> (<code>v0.12.0</code>; <strong>not</strong> published on NuGet)</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="installing-prebuilt-v0120-python-wheel-or-typescript-tarball-from-github-releases"><a class="header" href="#installing-prebuilt-v0120-python-wheel-or-typescript-tarball-from-github-releases">Installing Prebuilt <code>v0.12.0</code> Python Wheel or TypeScript Tarball from GitHub Releases</a></h3>
+<pre><code class="language-bash"># Python (&gt;= 3.9, macOS Apple Silicon/Intel or Linux x86_64 glibc &gt;= 2.34)
+pip install https://github.com/openIE-dev/jouledb/releases/download/v0.12.0/jouledb-0.12.0-cp39-abi3-manylinux_2_34_x86_64.whl
+
+# Node.js / Bun / Deno
+npm install https://github.com/openIE-dev/jouledb/releases/download/v0.12.0/openie-jouledb-0.12.0.tgz
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="implemented-security-controls-trust_compliancers--unaudited"><a class="header" href="#implemented-security-controls-trust_compliancers--unaudited">Implemented Security Controls (<code>trust_compliance.rs</code> — Unaudited)</a></h1>
+<blockquote>
+<p><strong>Mandatory Compliance Disclosure:</strong> Software cannot self-certify or cryptographically attest compliance with <code>SOC 2 Type II</code>, <code>ISO/IEC 27001</code>, <code>HIPAA</code>, <code>PCI-DSS</code>, <code>CMVP FIPS 140-3</code>, or <code>FedRAMP</code>. <strong>No third-party audit, certification, CMVP validation, or agency authorization has been performed on JouleDB.</strong> This chapter documents only the technical security primitives implemented in <code>crates/joule-db-server/src/trust_compliance.rs</code> and <code>crates/inv-pqcrypto</code>.</p>
+</blockquote>
+<hr>
+<h2 id="implemented-technical-primitives"><a class="header" href="#implemented-technical-primitives">Implemented Technical Primitives</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th style="text-align: left">Control Area</th><th style="text-align: left">What the Code Actually Implements</th><th style="text-align: left">Verification Endpoint / Test</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align: left"><strong>Hash-Chained Audit Log</strong></td><td style="text-align: left">Append-only in-engine log where each entry hashes <code>(seq, ts_ms, actor, control_ref, action, prev_hash)</code> with <code>SHA-256</code>; single-character mutation fails <code>verify_audit_chain()</code></td><td style="text-align: left"><code>POST /api/v1/trust/compliance_audit</code></td></tr>
+<tr><td style="text-align: left"><strong>Retention-Lock Flag (WORM Guard)</strong></td><td style="text-align: left">Optional <code>worm_retain_until_ms</code> timestamp on audit records; <code>attempt_delete_worm_protected</code> rejects deletion prior to that timestamp</td><td style="text-align: left">Unit &amp; HTTP self-test in <code>trust_compliance.rs</code></td></tr>
+<tr><td style="text-align: left"><strong>Per-Subject DEK Zeroization</strong></td><td style="text-align: left">Encrypts per-subject byte payloads under a per-subject <code>AES-256-GCM</code> key; <code>POST /api/v1/trust/crypto_shred</code> overwrites and drops the in-memory key entry</td><td style="text-align: left"><code>POST /api/v1/trust/crypto_shred</code></td></tr>
+<tr><td style="text-align: left"><strong>Regex &amp; Luhn Text Redaction</strong></td><td style="text-align: left">Scans strings for Luhn-valid payment card numbers, <code>NNN-NN-NNNN</code> patterns, email addresses, and <code>sk-*</code> tokens, replacing matches with salted hashes</td><td style="text-align: left"><code>POST /api/v1/trust/redact</code></td></tr>
+<tr><td style="text-align: left"><strong>Laplace Noise Budget Counter</strong></td><td style="text-align: left">Adds calibrated <code>Laplace(sensitivity / epsilon)</code> noise to scalar aggregates and decrements a per-tenant <code>epsilon</code> counter</td><td style="text-align: left"><code>evaluate_dp_laplace</code> in <code>trust_compliance.rs</code></td></tr>
+<tr><td style="text-align: left"><strong>Bell-LaPadula Lattice Check</strong></td><td style="text-align: left">Pure function checking clearance level dominance and compartment subset inclusion (<code>No Read Up</code> / <code>No Write Down</code>) on labeled requests</td><td style="text-align: left"><code>POST /api/v1/trust/mls_guard</code></td></tr>
+<tr><td style="text-align: left"><strong>Hybrid <code>Ed25519 + ML-DSA-65</code> Signing</strong></td><td style="text-align: left">Signs JSON digests/manifests using <code>ed25519-dalek</code> and <code>fips204</code> (<code>ML-DSA-65</code>, non-CMVP Rust crate)</td><td style="text-align: left"><code>crates/inv-pqcrypto</code></td></tr>
+<tr><td style="text-align: left"><strong>CycloneDX v1.6 JSON Manifest</strong></td><td style="text-align: left">Emits a JSON Software &amp; loaded-model Bill of Materials summary</td><td style="text-align: left"><code>GET /api/v1/trust/sbom</code> / <code>jouledb trust --sbom</code></td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="running-the-technical-control-self-tests"><a class="header" href="#running-the-technical-control-self-tests">Running the Technical Control Self-Tests</a></h2>
+<pre><code class="language-bash"># Run the in-process unit self-tests for the primitives above (returns external_audit_performed: false)
+jouledb trust
+
+# Emit CycloneDX v1.6 JSON summary
+jouledb trust --sbom &gt; sbom-v0.12.0.cdx.json
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="guided-tour-v0120-preview"><a class="header" href="#guided-tour-v0120-preview">Guided Tour (<code>v0.12.0</code> Preview)</a></h1>
+<p>Explore JouleDB <code>v0.12.0</code> locally in seven steps:</p>
+<ol>
+<li><strong>Claude Desktop / MCP App (<code>jouledb mcp</code> &amp; <code>.mcpb</code>):</strong> Install the <code>.mcpb</code> bundle in Claude Desktop or configure <code>jouledb mcp --data ./jdb</code> to launch the interactive <strong>JouleDB Studio</strong> (<code>ui://jouledb/studio.html</code>, <code>50</code> MCP tools).</li>
+<li><strong>SQL &amp; PostgreSQL <code>pgwire</code> (<code>:8082</code>):</strong> Start <code>jouledb --port 8080 --data ./jdb</code> and run SQL via <code>jouledb query</code> or <code>psql -h 127.0.0.1 -p 8082 -U postgres</code>.</li>
+<li><strong>Official ClickBench vs. DuckDB Harness (<code>bench/</code>):</strong> Run <code>python3 bench/harness.py</code> or <code>python3 bench/clickbench_official.py</code> to compare <code>JouleDB</code> (<code>pgwire</code>) against <code>DuckDB</code> with hardware RAPL / <code>powermetrics</code> joules (<code>reported_j</code>), including queries where <code>DuckDB</code> wins.</li>
+<li><strong>5-Node Multi-Host WAN &amp; Local TCP Raft + <code>elle</code> (<code>0.2.8</code>):</strong> Run <code>cargo test -p joule-db-server --test raft_tcp_elle_fault_injection</code> or <code>python3 bench/raft_multihost_wan.py</code> and verify the exported history (<code>bench/results/raft_wan_multihost_elle_history.edn</code>) with official Clojure <code>elle/elle 0.2.8</code> (<code>bench/elle_check.clj</code>).</li>
+<li><strong>Multi-Format Import (<code>jouledb migrate</code>):</strong> Import a local SQLite <code>.db</code>, <code>.sql</code>, <code>.jsonl</code>, <code>_bulk</code>, or <code>.csv</code> file with order-independent <code>BLAKE3</code> multiset verification.</li>
+<li><strong>Amorphous Continuum (<code>jouledb amorphic</code>):</strong> Stream mixed-format records (<code>JSONL</code>, <code>CSV</code>, <code>XML</code>, <code>k=v</code>, prose, triples) into <code>10,240</code>-bit hypervectors with SI unit normalization.</li>
+<li><strong>Verified <code>.jsyn</code> Sentence Embedder:</strong> Pull <a href="https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit"><code>dcharlot65-openie/all-MiniLM-L6-v2-LittleBit</code></a> (<code>1.95 MB</code>, <code>0.44 BPW</code>, <code>cos = 0.9441</code> vs upstream FP32) and inspect <code>synapse_tensors</code> in SQL.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="api-query--50-tool-mcp-reference-v0120"><a class="header" href="#api-query--50-tool-mcp-reference-v0120">API, Query &amp; 50-Tool MCP Reference (<code>v0.12.0</code>)</a></h1>
+<h2 id="1-query-languages-docsjouledbquery-md"><a class="header" href="#1-query-languages-docsjouledbquery-md">1. Query Languages (<code>docs/jouledb/QUERY-*.md</code>)</a></h2>
+<ul>
+<li><a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-SQL.md">SQL Subset (<code>SELECT</code>, Joins, Window Frames, <code>CUBE</code>, <code>WITH RECURSIVE</code>, <code>COPY</code>)</a></li>
+<li><a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-CYPHER.md">Cypher</a> · <a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-DATALOG.md">Datalog</a> · <a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-SPARQL.md">SPARQL</a> · <a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-GREMLIN.md">Gremlin</a> · <a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-CQL.md">CQL</a> · <a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-GRAPHQL.md">GraphQL</a></li>
+<li><a href="https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-TIMESERIES.md">Time-Series, <code>SigQL</code> &amp; Causal <code>ASOF</code></a> · <a href="#binary-tlv-envelope-framing-wal-archiving--pitr-v1_stability_and_pitrrs">TLV Framing &amp; WAL <code>PITR</code></a></li>
+</ul>
+<h2 id="2-primary-http--wire-endpoints-v0120"><a class="header" href="#2-primary-http--wire-endpoints-v0120">2. Primary HTTP &amp; Wire Endpoints (<code>v0.12.0</code>)</a></h2>
+<ul>
+<li><strong>Core SQL, KV &amp; CoW Branching:</strong> <code>POST /api/v1/query</code>, <code>GET|POST|DELETE /api/v1/keys/{key}</code>, <code>GET|POST /api/v1/branches</code>, <code>POST /api/v1/branches/{name}/merge</code></li>
+<li><strong>Amorphous Continuum &amp; MorphRules:</strong> <code>POST /api/v1/amorphic/unsilo_morph</code>, <code>POST /api/v1/amorphic/morph_rules_and_lens</code>, <code>POST /api/v1/amorphic/stream_corpus_scale</code></li>
+<li><strong>Import &amp; In-Process Subsystem Smoke Checks:</strong> <code>POST /api/v1/migrate/run</code>, <code>POST /api/v1/certify/v1_abi_pitr</code>, <code>POST /api/v1/bench/sql2023_powerhouse</code>, <code>POST /api/v1/certify/geo_raft_jepsen</code> <em>(5-struct in-memory sim)</em>, <code>POST /api/v1/bench/v1_powerhouse</code> <em>(6-check smoke runner)</em></li>
+<li><strong>HTTP Compatibility Adapters:</strong> <code>/_compat/elastic/*</code>, <code>/_compat/mongo/action/*</code>, <code>/_compat/qdrant/*</code>, <code>/_compat/pinecone/*</code>, <code>/_compat/influx/api/v2/write</code>, <code>/api/v1/bridge/cdc_ingest</code>, <code>/v1/chat/completions</code>, <code>/v1/messages</code>, <code>/v1beta/models/{m}:generateContent</code>, <code>/a2a</code>, <code>/v1/rerank</code></li>
+<li><strong>Unaudited Security Control Self-Tests &amp; SBOM:</strong> <code>POST /api/v1/trust/compliance_audit</code>, <code>GET /api/v1/trust/sbom</code></li>
+<li><strong><code>.jsyn</code> Weights &amp; Rank-Sweep:</strong> <code>GET /api/v1/synapse/status</code>, <code>POST /api/v1/synapse/hf/pull</code>, <code>POST /api/v1/synapse/bench/rank_sweep</code></li>
+</ul>
+<h2 id="3-mcp-json-rpc-server--sep-1865-studio-ui-50-tools-on-mcp-or-jouledb-mcp-stdio"><a class="header" href="#3-mcp-json-rpc-server--sep-1865-studio-ui-50-tools-on-mcp-or-jouledb-mcp-stdio">3. MCP JSON-RPC Server &amp; <code>SEP-1865</code> Studio UI (<code>50</code> Tools on <code>/mcp</code> or <code>jouledb mcp</code> <code>stdio</code>)</a></h2>
+<ul>
+<li><strong>Interactive MCP App Resource (<code>resources/list</code>, <code>resources/read</code>):</strong> <code>ui://jouledb/studio.html</code> (<code>text/html;profile=mcp-app</code>, strict <code>default-src 'none'</code> CSP; see <a href="#claude-apps-mcp-apps-sep-1865--antigravity-studio-ui-v0120">Claude Apps &amp; MCP Studio</a>).</li>
+<li><strong><code>25</code> Core Database Tools (<code>tools/list</code>):</strong> <code>db.studio</code> <em>(interactive Studio UI entrypoint)</em>, <code>db.query</code>, <code>db.insert</code>, <code>db.list_tables</code>, <code>db.describe_table</code>, <code>db.create_table</code>, <code>db.drop_table</code>, <code>db.branch_create</code>, <code>db.branch_list</code>, <code>db.branch_merge</code>, <code>db.branch_delete</code>, <code>db.vector_search</code>, <code>db.vector_upsert</code>, <code>db.tenant_create</code>, <code>db.tenant_list</code>, <code>db.memory_store</code>, <code>db.memory_recall</code>, <code>db.schema_inspect</code>, <code>db.energy_budget</code>, <code>db.status</code>, <code>db.workflow_create</code>, <code>db.workflow_run</code>, <code>db.workflow_status</code>, <code>db.queue_publish</code>, <code>db.queue_consume</code>.</li>
+<li><strong><code>25</code> Extended Tools (<code>includeAgenticExtensions: true</code>):</strong> <code>db.branch_diff</code>, <code>db.agentfs_{write,read,list}</code>, <code>db.memory_inhibit</code>, <code>db.explain_energy</code>, <code>sql.dialect_repair</code>, <code>robotics.stl_trajectory_clamp</code>, <code>db.synthetic_columnar_smoke</code>, <code>amorphic.*</code>, <code>sovereign.*</code>, <code>bridge.entity_merge_smoke</code>, <code>trust.security_controls_self_test</code>, <code>trust.sbom_cyclonedx</code>, <code>migrate.shadow_cutover</code>, <code>core.tlv_and_pitr_smoke</code>, <code>query.window_cube_aqe_smoke</code>, <code>cluster.in_memory_partition_sim</code>, <code>deploy.iac_blueprint</code>, <code>bench.subsystem_smoke</code>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cookbook-recipes-v0120"><a class="header" href="#cookbook-recipes-v0120">Cookbook Recipes (<code>v0.12.0</code>)</a></h1>
+<h2 id="1-run-the-5-node-networked-tcp-raft-fault-injection-suite--official-elle-028"><a class="header" href="#1-run-the-5-node-networked-tcp-raft-fault-injection-suite--official-elle-028">1. Run the 5-Node Networked TCP Raft Fault-Injection Suite + Official <code>elle</code> (<code>0.2.8</code>)</a></h2>
+<pre><code class="language-bash">cargo test -p joule-db-server --test raft_tcp_elle_fault_injection
+clojure -Sdeps '{:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}} :deps {elle/elle {:mvn/version "0.2.8"} spootnik/unilog {:mvn/version "0.7.31"}}}' \
+  -M bench/elle_check.clj bench/results/raft_tcp_elle_history.edn rw-register
+</code></pre>
+<h2 id="2-run-official-clickbench-queries-against-duckdb-pgwire--hardware-rapl--powermetrics"><a class="header" href="#2-run-official-clickbench-queries-against-duckdb-pgwire--hardware-rapl--powermetrics">2. Run Official ClickBench Queries Against DuckDB (<code>pgwire</code> + Hardware RAPL / <code>powermetrics</code>)</a></h2>
+<pre><code class="language-bash">./target/release/jouledb -p 28080 -d /tmp/jdb-cb &amp;
+python3 bench/clickbench_official.py --parquet /path/to/hits.parquet --queries /path/to/queries.sql --pg-port 28082
+</code></pre>
+<h2 id="3-import-a-sqlite-database-with-multiset-blake3-verification"><a class="header" href="#3-import-a-sqlite-database-with-multiset-blake3-verification">3. Import a SQLite Database with Multiset <code>BLAKE3</code> Verification</a></h2>
+<pre><code class="language-bash">sqlite3 /tmp/demo.db "CREATE TABLE items(id INT PRIMARY KEY, name TEXT); INSERT INTO items VALUES (1,'laser-532nm');"
+jouledb migrate --from sqlite --input /tmp/demo.db
+</code></pre>
+<h2 id="4-stream-a-multi-format-directory-in-bounded-memory"><a class="header" href="#4-stream-a-multi-format-directory-in-bounded-memory">4. Stream a Multi-Format Directory in Bounded Memory</a></h2>
+<pre><code class="language-bash">jouledb amorphic stream-corpus --dir /tmp/unsilo_demo --generate-bytes 50000000 --entities 512 --cleanup
+</code></pre>
+<h2 id="5-run-technical-security-control-self-tests-unaudited--export-cyclonedx-sbom"><a class="header" href="#5-run-technical-security-control-self-tests-unaudited--export-cyclonedx-sbom">5. Run Technical Security-Control Self-Tests (Unaudited) &amp; Export CycloneDX SBOM</a></h2>
+<pre><code class="language-bash">jouledb trust
+jouledb trust --sbom &gt; sbom-v0.12.0.cdx.json
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="benchmarks-consensus-verification--subsystem-smoke-tests-v0120"><a class="header" href="#benchmarks-consensus-verification--subsystem-smoke-tests-v0120">Benchmarks, Consensus Verification &amp; Subsystem Smoke Tests (<code>v0.12.0</code>)</a></h1>
+<blockquote>
+<p><strong>Audit Remediation &amp; Evidence Standard (<code>v0.12.0</code>):</strong> Earlier <code>v0.2.8</code>–<code>v1.0.0</code> documentation presented 36 in-process micro-harnesses and synthetic simulations as <em>“36 / 36 Certified Global Benchmark Pillars”</em>, including synthetic frontier AI exam routes (<code>frontier_exam_routes.rs</code>). <strong>All synthetic frontier AI benchmark claims remain retracted and <code>frontier_exam_routes.rs</code> has been deleted.</strong></p>
+<p>Below we strictly separate <strong>(1) reproducible external dataset, multi-table <code>TPC-H</code> (<code>SF=0.1..10.0</code>), physical-NVMe multi-client <code>pgwire</code> OLTP, &amp; multi-host WAN consensus evaluations</strong> (with every win, loss, memory profile, and architectural bottleneck reported openly) from <strong>(2) fast in-process functional smoke checks</strong>, and tag every energy figure as <strong><code>reported_j</code></strong> (hardware RAPL / SMC counters) or <strong><code>est_j</code></strong> (analytical cost model).</p>
+</blockquote>
+<hr>
+<h2 id="1-full-official-clickbench-hitsparquet-99997497-rows-105-columns-43-queries-vs-duckdb-201"><a class="header" href="#1-full-official-clickbench-hitsparquet-99997497-rows-105-columns-43-queries-vs-duckdb-201">1. Full Official ClickBench (<code>hits.parquet</code>, <code>99,997,497</code> Rows, <code>105</code> Columns, <code>43</code> Queries) vs. DuckDB <code>2.0.1</code></a></h2>
+<ul>
+<li><strong>Harness &amp; Raw Artifacts:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/clickbench_official.py"><code>bench/clickbench_official.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_100k.json"><code>clickbench_official_100k.json</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_1m.json"><code>clickbench_official_1m.json</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_10m.json"><code>clickbench_official_10m.json</code></a>, <strong><a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_100m.json"><code>clickbench_official_100m.json</code></a></strong>.</li>
+<li><strong>Methodology:</strong> Streams the official <code>14.78 GB</code> (<code>99,997,497</code>-row, <code>105</code>-column) ClickBench <code>hits.parquet</code> file into DuckDB <code>2.0.1</code> (in-process) and JouleDB (over real TCP <code>pgwire</code> via <code>psycopg 3.3.9</code>, spilling immutable <code>262,144</code>-row <code>.jcol</code> segments to disk), then runs all <strong>43 official ClickBench SQL queries (<code>Q0..Q42</code>)</strong> unchanged on <code>framework-128gb-0000</code> (<code>AMD Ryzen AI Max+ 395</code>, 32 logical cores, <code>128 GB</code> UMA RAM, Linux <code>rapl-package</code> <strong><code>reported_j</code></strong>).</li>
+</ul>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Dataset Scale (<code>hits.parquet</code>)</th><th style="text-align: right">Parquet Load (<code>DuckDB</code> vs <code>JouleDB</code>)</th><th style="text-align: right">JouleDB Load RSS (<code>VmHWM</code> Peak)</th><th style="text-align: right">Queries Succeeded</th><th style="text-align: right">SQL-Valid Match (<code>Exact</code>)</th><th style="text-align: right">Faster (<code>JouleDB</code> / <code>DuckDB</code>)</th><th style="text-align: right">Geomean Latency (<code>JouleDB / DuckDB</code>)</th><th style="text-align: right">Geomean Energy (<code>reported_j</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td><strong><code>100,000</code> rows</strong> (<code>105</code> cols)</td><td style="text-align: right"><code>0.179 s</code> (<code>11.2 J</code>) vs <code>0.265 s</code> (<code>18.3 J</code>)</td><td style="text-align: right"><code>917.8 MB</code> (<code>2,651.5 MB</code>)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>34</code> exact)</td><td style="text-align: right"><strong><code>20</code></strong> / <code>23</code></td><td style="text-align: right"><strong><code>1.47×</code> slower</strong> (<code>median 1.19×</code>)</td><td style="text-align: right"><strong><code>1.97×</code> more J</strong></td></tr>
+<tr><td><strong><code>1,000,000</code> rows</strong> (<code>105</code> cols)</td><td style="text-align: right"><code>0.158 s</code> (<code>15.8 J</code>) vs <code>0.871 s</code> (<code>77.7 J</code>)</td><td style="text-align: right"><code>1,282.9 MB</code> (<code>1,922.8 MB</code>)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>29</code> exact)</td><td style="text-align: right"><strong><code>11</code></strong> / <code>32</code></td><td style="text-align: right"><strong><code>2.34×</code> slower</strong> (<code>median 2.95×</code>)</td><td style="text-align: right"><strong><code>2.50×</code> more J</strong></td></tr>
+<tr><td><strong><code>10,000,000</code> rows</strong> (<code>105</code> cols)</td><td style="text-align: right"><code>2.422 s</code> (<code>336.4 J</code>) vs <code>13.340 s</code> (<code>1,850.8 J</code>)</td><td style="text-align: right"><code>2,384.7 MB</code> (<strong><code>3,448.4 MB</code></strong>)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>31</code> exact)</td><td style="text-align: right"><strong><code>9</code></strong> / <code>34</code></td><td style="text-align: right"><strong><code>2.28×</code> slower</strong> (<code>median 2.63×</code>)</td><td style="text-align: right"><strong><code>2.22×</code> more J</strong></td></tr>
+<tr><td><strong><code>99,997,497</code> rows — FULL <code>14.78 GB</code></strong> (<code>is_full_100m_dataset: true</code>)</td><td style="text-align: right"><code>13.866 s</code> (<code>1,805.6 J</code>) vs <code>97.835 s</code> (<code>10,047.0 J</code>)</td><td style="text-align: right"><strong><code>5,901.8 MB</code> (<code>16,469.7 MB</code>)</strong></td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>32</code> exact)</td><td style="text-align: right"><strong><code>7</code></strong> / <code>36</code></td><td style="text-align: right"><strong><code>2.11×</code> slower</strong> (<code>median 3.39×</code>)</td><td style="text-align: right"><strong><code>2.03×</code> more J</strong></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="selected-per-query-results-on-the-full-99997497-row-100m-dataset-reported_j"><a class="header" href="#selected-per-query-results-on-the-full-99997497-row-100m-dataset-reported_j">Selected Per-Query Results on the Full <code>99,997,497</code>-Row (<code>100M</code>) Dataset (<code>reported_j</code>)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Query</th><th>SQL Summary</th><th style="text-align: right">DuckDB <code>2.0.1</code></th><th style="text-align: right">JouleDB (<code>.jcol</code> + <code>pgwire</code>)</th><th>Outcome</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Q0</code></td><td><code>SELECT COUNT(*) FROM hits</code></td><td style="text-align: right"><code>5.67 ms</code></td><td style="text-align: right"><strong><code>1.91 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>2.98×</code> faster</strong> — segment metadata)</td></tr>
+<tr><td><code>Q1</code></td><td><code>SELECT COUNT(*) FROM hits WHERE AdvEngineID &lt;&gt; 0</code></td><td style="text-align: right"><code>41.65 ms</code></td><td style="text-align: right"><strong><code>20.23 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>2.06×</code> faster</strong> — <code>WordMask</code> bitpacked selection)</td></tr>
+<tr><td><code>Q2</code></td><td><code>SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits</code></td><td style="text-align: right"><code>61.55 ms</code></td><td style="text-align: right"><strong><code>2.41 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>25.5×</code> faster</strong> — zero-I/O <code>global_int_sum</code>)</td></tr>
+<tr><td><code>Q3</code></td><td><code>SELECT AVG(UserID) FROM hits</code></td><td style="text-align: right"><code>51.82 ms</code></td><td style="text-align: right"><strong><code>2.32 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>22.4×</code> faster</strong> — zero-I/O <code>global_int_sum</code>)</td></tr>
+<tr><td><code>Q6</code></td><td><code>SELECT MIN(EventDate), MAX(EventDate) FROM hits</code></td><td style="text-align: right"><code>22.07 ms</code></td><td style="text-align: right"><strong><code>1.58 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>14.0×</code> faster</strong> — segment ZoneMap)</td></tr>
+<tr><td><code>Q29</code></td><td><code>SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), ...</code> (<code>90</code> sums)</td><td style="text-align: right"><code>56.20 ms</code></td><td style="text-align: right"><strong><code>2.40 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>23.4×</code> faster</strong> — algebraic <code>global_int_sum</code>)</td></tr>
+<tr><td><code>Q42</code></td><td><code>SELECT DATE_TRUNC('minute', EventTime), COUNT(*) WHERE CounterID = 62 ...</code></td><td style="text-align: right"><code>34.83 ms</code></td><td style="text-align: right"><strong><code>22.78 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>1.53×</code> faster</strong> — ZoneMap + <code>WHERE</code>-first skip)</td></tr>
+<tr><td><code>Q7</code></td><td><code>SELECT MIN(EventDate), MAX(EventDate) FROM hits WHERE CounterID = 62</code></td><td style="text-align: right"><code>33.75 ms</code></td><td style="text-align: right"><code>34.95 ms</code></td><td>Exact match (<code>1.04×</code> slower — filtered <code>MIN</code>/<code>MAX</code>)</td></tr>
+<tr><td><code>Q30</code></td><td><code>SELECT SUM(ResolutionWidth), ... FROM hits WHERE ResolutionWidth &gt; 0</code></td><td style="text-align: right"><code>234.50 ms</code></td><td style="text-align: right"><code>668.50 ms</code></td><td>Exact match (<code>2.85×</code> slower — <code>90</code>-sum SIMD slice batching)</td></tr>
+<tr><td><code>Q32</code></td><td><code>SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) GROUP BY ...</code></td><td style="text-align: right"><code>1,750.00 ms</code></td><td style="text-align: right"><code>5,933.50 ms</code></td><td>SQL-valid tie (<code>3.39×</code> slower — 256-partition <code>CompactI2Row</code> sort-reduce)</td></tr>
+<tr><td><code>Q39</code></td><td><code>SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN ... GROUP BY ...</code></td><td style="text-align: right"><code>61.10 ms</code></td><td style="text-align: right"><code>906.85 ms</code></td><td>Exact match (<code>14.84×</code> slower — widest <code>100M</code> ratio)</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="2-official-22-query-tpc-h-relational-suite-tpch_queries-8-tables-sf--01-10--100-vs-duckdb-201"><a class="header" href="#2-official-22-query-tpc-h-relational-suite-tpch_queries-8-tables-sf--01-10--100-vs-duckdb-201">2. Official 22-Query <code>TPC-H</code> Relational Suite (<code>tpch_queries()</code>, 8 Tables, <code>SF = 0.1</code>, <code>1.0</code> &amp; <code>10.0</code>) vs. DuckDB <code>2.0.1</code></a></h2>
+<ul>
+<li><strong>Harness &amp; Raw Artifacts:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/tpch_official.py"><code>bench/tpch_official.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf01.json"><code>tpch_official_sf01.json</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf1.json"><code>tpch_official_sf1.json</code></a>, <strong><a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf10.json"><code>tpch_official_sf10.json</code></a></strong>.</li>
+<li><strong>Methodology:</strong> Generates standard 8-table <code>TPC-H</code> Parquet fixtures via DuckDB <code>dbgen(sf=...)</code> on physical NVMe (<code>--work-dir /var/tmp</code>), loads them into JouleDB <code>0.12.0</code> over TCP <code>pgwire</code> (<code>COPY ... FROM</code> Parquet, spilling <code>.jcol</code> segments above <code>131,072</code> rows in disjoint <code>JCOL_ID_TAG</code> ID space), and runs all <strong>22 official <code>tpch_queries()</code> (<code>Q01..Q22</code>)</strong> unmodified via <code>columnar_join.rs</code> with row-by-row verification against DuckDB <code>2.0.1</code> (<code>rapl-package</code> <strong><code>reported_j</code></strong>).</li>
+</ul>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>TPC-H</code> Scale</th><th style="text-align: right">Total Rows (8 Tables)</th><th style="text-align: right">Parquet Load (<code>DuckDB</code> vs <code>JouleDB</code>)</th><th style="text-align: right">Post-Load RSS (<code>VmHWM</code> Peak)</th><th style="text-align: right">Verified Exact (<code>Faster</code>)</th><th style="text-align: right">Total 22-Query Time (<code>DuckDB</code> vs <code>JouleDB</code>)</th><th style="text-align: right">Geomean Latency (<code>JouleDB / DuckDB</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td><strong><code>SF = 0.1</code></strong></td><td style="text-align: right"><code>866,602</code> rows</td><td style="text-align: right"><code>0.430 s</code> (<code>12.2 J</code>) vs <code>1.380 s</code> (<code>54.5 J</code>)</td><td style="text-align: right"><strong><code>780.8 MB</code></strong> (<code>939.3 MB</code>)</td><td style="text-align: right"><strong><code>22 / 22</code> (<code>5</code> wins)</strong></td><td style="text-align: right"><code>88.2 ms</code> vs <strong><code>253.0 ms</code></strong></td><td style="text-align: right"><strong><code>1.99×</code> slower</strong> (<code>median 2.16×</code>, vs <code>125.5×</code> in <code>v0.10.0</code>)</td></tr>
+<tr><td><strong><code>SF = 1.0</code></strong></td><td style="text-align: right"><code>8,661,245</code> rows (<code>6.0M</code> <code>lineitem</code>)</td><td style="text-align: right"><code>1.142 s</code> (<code>64.6 J</code>) vs <code>5.504 s</code> (<code>288.5 J</code>)</td><td style="text-align: right"><strong><code>201.4 MB</code></strong> (<code>1,561.8 MB</code>)</td><td style="text-align: right"><strong><code>22 / 22</code> (<code>0</code> err)</strong></td><td style="text-align: right"><code>253.0 ms</code> vs <strong><code>1,779.0 ms</code></strong> (<code>1.57×</code> vs <code>v0.11.0</code>)</td><td style="text-align: right"><strong><code>4.33×</code> slower</strong> (<code>median 3.60×</code>, down from <code>6.18×</code>)</td></tr>
+<tr><td><strong><code>SF = 10.0</code></strong></td><td style="text-align: right"><strong><code>86,586,082</code> rows (<code>60.0M</code> <code>lineitem</code>)</strong></td><td style="text-align: right"><code>5.434 s</code> (<code>506.5 J</code>) vs <code>38.059 s</code> (<code>1,242.5 J</code>)</td><td style="text-align: right"><strong><code>755.3 MB</code></strong> (<code>15,586.4 MB</code>)</td><td style="text-align: right"><strong><code>22 / 22</code> (<code>0</code> err)</strong></td><td style="text-align: right"><code>1,001.4 ms</code> vs <strong><code>15,464.6 ms</code></strong> (<strong><code>2.20×</code> vs <code>v0.11.0</code></strong>)</td><td style="text-align: right"><strong><code>8.49×</code> slower</strong> (<code>median 8.38×</code>, <code>20/22 &lt; 1.2 s</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="selected-per-query-tpc-h-latencies-sf--01-sf--10--sf--100-reported_j"><a class="header" href="#selected-per-query-tpc-h-latencies-sf--01-sf--10--sf--100-reported_j">Selected Per-Query <code>TPC-H</code> Latencies (<code>SF = 0.1</code>, <code>SF = 1.0</code> &amp; <code>SF = 10.0</code>, <code>reported_j</code>)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Query</th><th>Relational Pattern</th><th><code>SF = 0.1</code> (<code>JDB</code> vs <code>DuckDB</code>)</th><th><code>SF = 1.0</code> (<code>JDB</code> vs <code>DuckDB</code>)</th><th><code>SF = 10.0</code> (<code>JDB</code> vs <code>DuckDB</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Q22</code></td><td><code>NOT EXISTS</code> + <code>AVG</code> scalar subquery + <code>SUBSTRING</code></td><td><strong><code>1.97 ms</code></strong> vs <code>3.73 ms</code> (<strong><code>0.53×</code> win</strong>)</td><td><code>33.08 ms</code> vs <code>16.55 ms</code> (<code>2.00×</code>)</td><td><strong><code>65.48 ms</code></strong> vs <code>37.07 ms</code> (<code>1.77×</code>)</td></tr>
+<tr><td><code>Q11</code></td><td>3-table join + <code>HAVING SUM &gt; scalar subquery</code></td><td><strong><code>2.51 ms</code></strong> vs <code>4.72 ms</code> (<strong><code>0.53×</code> win</strong>)</td><td><code>20.41 ms</code> vs <code>6.92 ms</code> (<code>2.95×</code>)</td><td><code>173.4 ms</code> vs <code>10.4 ms</code> (<code>16.6×</code>)</td></tr>
+<tr><td><code>Q02</code></td><td>5-table join + correlated <code>MIN(ps_supplycost)</code></td><td><strong><code>2.39 ms</code></strong> vs <code>2.99 ms</code> (<strong><code>0.80×</code> win</strong>)</td><td><code>15.53 ms</code> vs <code>5.57 ms</code> (<code>2.79×</code>)</td><td><code>572.1 ms</code> vs <code>21.8 ms</code> (<code>26.3×</code>)</td></tr>
+<tr><td><code>Q20</code></td><td>Nested <code>IN</code> + correlated <code>0.5 * SUM(l_quantity)</code></td><td><strong><code>3.03 ms</code></strong> vs <code>3.66 ms</code> (<strong><code>0.83×</code> win</strong>)</td><td><strong><code>16.99 ms</code></strong> vs <code>10.41 ms</code> (<code>1.63×</code>)</td><td><strong><code>99.73 ms</code></strong> vs <code>34.4 ms</code> (<code>2.90×</code>, <code>6.59×</code> vs <code>v0.11</code>)</td></tr>
+<tr><td><code>Q16</code></td><td><code>partsupp ⋈ part</code> + <code>NOT IN (SELECT s_suppkey ...)</code></td><td><strong><code>5.07 ms</code></strong> vs <code>5.24 ms</code> (<strong><code>0.97×</code> win</strong>)</td><td><code>61.71 ms</code> vs <code>17.97 ms</code> (<code>3.43×</code>)</td><td><code>333.6 ms</code> vs <code>43.8 ms</code> (<code>7.61×</code>)</td></tr>
+<tr><td><code>Q04</code></td><td><code>orders</code> quarter filter + <code>EXISTS (lineitem)</code></td><td><code>3.80 ms</code> vs <code>2.23 ms</code> (<code>1.70×</code>)</td><td><strong><code>11.09 ms</code></strong> vs <code>6.43 ms</code> (<code>1.73×</code>)</td><td><strong><code>65.07 ms</code></strong> vs <code>41.7 ms</code> (<code>1.56×</code>, <code>3.47×</code> vs <code>v0.11</code>)</td></tr>
+<tr><td><code>Q17</code></td><td><code>lineitem ⋈ part</code> correlated <code>0.2 * AVG(l_quantity)</code></td><td><code>3.86 ms</code> vs <code>3.20 ms</code> (<code>1.21×</code>)</td><td><code>21.63 ms</code> vs <code>8.36 ms</code> (<code>2.59×</code>)</td><td><strong><code>88.65 ms</code></strong> vs <code>32.0 ms</code> (<code>2.77×</code>, <strong><code>17.2×</code> vs <code>v0.11</code></strong>)</td></tr>
+<tr><td><code>Q05</code></td><td>6-table cyclic <code>region..lineitem</code> join</td><td><code>8.86 ms</code> vs <code>4.46 ms</code> (<code>1.99×</code>)</td><td><code>37.43 ms</code> vs <code>8.76 ms</code> (<code>4.27×</code>)</td><td><code>470.2 ms</code> vs <code>41.6 ms</code> (<code>11.3×</code>)</td></tr>
+<tr><td><code>Q08</code></td><td>8-table Snowflake join + <code>CASE</code> market share</td><td><code>8.14 ms</code> vs <code>3.87 ms</code> (<code>2.10×</code>)</td><td><code>35.11 ms</code> vs <code>9.30 ms</code> (<code>3.77×</code>)</td><td><code>363.2 ms</code> vs <code>45.2 ms</code> (<code>8.03×</code>)</td></tr>
+<tr><td><code>Q21</code></td><td>4-table <code>EXISTS</code> + <code>NOT EXISTS</code> (<code>NeqSummary</code>)</td><td><code>44.45 ms</code> vs <code>5.14 ms</code> (<code>8.65×</code>)</td><td><code>196.55 ms</code> vs <code>16.52 ms</code> (<code>11.9×</code>)</td><td><code>1,187.4 ms</code> vs <code>72.4 ms</code> (<code>16.4×</code>, <code>2.32×</code> vs <code>v0.11</code>)</td></tr>
+<tr><td><code>Q18</code></td><td><code>IN (SELECT l_orderkey GROUP BY HAVING SUM &gt; 300)</code></td><td><code>34.69 ms</code> vs <code>4.53 ms</code> (<code>7.65×</code>)</td><td><code>260.34 ms</code> vs <code>14.93 ms</code> (<code>17.4×</code>)</td><td><code>1,799.8 ms</code> vs <code>99.1 ms</code> (<code>18.2×</code>, <strong><code>6.29×</code> vs <code>v0.11</code></strong>)</td></tr>
+<tr><td><code>Q10</code></td><td>4-table quarter return revenue (<code>20</code>-row Top-K, widest tail)</td><td><code>24.75 ms</code> vs <code>6.00 ms</code> (<code>4.13×</code>)</td><td><code>546.87 ms</code> vs <code>25.49 ms</code> (<code>21.5×</code>)</td><td><code>5,230.7 ms</code> vs <code>80.7 ms</code> (<code>64.8×</code>, <code>1.74×</code> vs <code>v0.11</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="3-head-to-head-100-warehouse-physical-nvme-tcp-pgwire-oltp-vs-postgresql-1616--sqlite-3531"><a class="header" href="#3-head-to-head-100-warehouse-physical-nvme-tcp-pgwire-oltp-vs-postgresql-1616--sqlite-3531">3. Head-to-Head <code>100</code>-Warehouse Physical-NVMe TCP <code>pgwire</code> OLTP vs. <code>PostgreSQL 16.16</code> &amp; <code>SQLite 3.53.1</code></a></h2>
+<ul>
+<li><strong>Harness &amp; Raw Artifact:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/oltp_pgwire.py"><code>bench/oltp_pgwire.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/oltp_pgwire_100wh.json"><code>oltp_pgwire_100wh.json</code></a>.</li>
+<li><strong>Workload:</strong> <code>100,000</code> accounts (<code>100</code> warehouses × <code>1,000</code> accounts, initial <code>SUM(balance) = 100,000,000</code>), physical NVMe storage (<code>--work-dir /var/tmp</code>), <code>1, 4, 8, 16</code> concurrent worker threads (<code>8.0 s</code> per level), <code>50%</code> <code>SELECT ... WHERE id = $1</code>, <code>30%</code> <code>BEGIN; UPDATE accounts SET balance = balance + $1 WHERE id = $2; INSERT INTO history ...; COMMIT</code> (<code>fsync=on</code>, <code>synchronous_commit=on</code>), <code>20%</code> <code>SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = $1</code> (<code>rapl-package</code> <strong><code>reported_j</code></strong>, quiet host <code>idle_watts = 10.68 W</code>).</li>
+</ul>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Engine &amp; Wire Mode (<code>invariant_verified = true</code>, <code>0</code> errors on all 5)</th><th style="text-align: right"><code>c = 1</code> TPS (<code>p50</code>)</th><th style="text-align: right"><code>c = 4</code> TPS (<code>p50</code>)</th><th style="text-align: right"><code>c = 8</code> TPS (<code>p50</code>)</th><th style="text-align: right"><code>c = 16</code> TPS (<code>p50</code>, <code>mJ/txn</code>)</th><th style="text-align: right">Committed Writes</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>JouleDB <code>0.12.0</code> (<code>pgwire</code> Simple Query, 4-RTT + NVMe <code>fdatasync</code>)</strong></td><td style="text-align: right"><strong><code>1,950.53</code></strong> (<code>0.148 ms</code>)</td><td style="text-align: right"><code>1,005.03</code> (<code>0.666 ms</code>)</td><td style="text-align: right"><code>2,617.89</code> (<code>0.640 ms</code>)</td><td style="text-align: right"><strong><code>5,154.08</code></strong> (<code>0.718 ms</code>, <code>10.34 mJ</code>)</td><td style="text-align: right"><code>25,677</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>JouleDB <code>0.12.0</code> (<code>pgwire</code> Extended Pipeline, 1-RTT + NVMe <code>fdatasync</code>)</strong></td><td style="text-align: right"><code>620.92</code> (<code>0.169 ms</code>)</td><td style="text-align: right"><code>1,149.02</code> (<code>0.616 ms</code>)</td><td style="text-align: right"><code>2,730.90</code> (<code>0.633 ms</code>)</td><td style="text-align: right"><strong><code>5,159.73</code></strong> (<code>0.773 ms</code>, <code>11.71 mJ</code>)</td><td style="text-align: right"><code>23,158</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>PostgreSQL <code>16.16</code> (<code>pgwire</code> Simple Query, 4-RTT + NVMe <code>fsync</code>)</strong></td><td style="text-align: right"><code>1,199.69</code> (<code>0.100 ms</code>)</td><td style="text-align: right"><code>2,813.01</code> (<code>0.142 ms</code>)</td><td style="text-align: right"><code>5,571.65</code> (<code>0.111 ms</code>)</td><td style="text-align: right"><strong><code>10,419.39</code></strong> (<code>0.273 ms</code>, <code>4.14 mJ</code>)</td><td style="text-align: right"><code>47,846</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>PostgreSQL <code>16.16</code> (<code>pgwire</code> Extended Pipeline, 1-RTT + NVMe <code>fsync</code>)</strong></td><td style="text-align: right"><code>1,171.69</code> (<code>0.071 ms</code>)</td><td style="text-align: right"><code>2,555.25</code> (<code>0.100 ms</code>)</td><td style="text-align: right"><code>5,046.95</code> (<code>0.167 ms</code>)</td><td style="text-align: right"><strong><code>9,635.60</code></strong> (<code>0.231 ms</code>, <code>3.67 mJ</code>)</td><td style="text-align: right"><code>44,020</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>SQLite <code>3.53.1</code> (Embedded in-proc C API, NVMe <code>WAL</code>, <code>NORMAL</code>)</strong></td><td style="text-align: right"><code>42,194.70</code> (<code>0.005 ms</code>)</td><td style="text-align: right"><code>86,523.31</code> (<code>0.006 ms</code>)</td><td style="text-align: right"><code>97,425.32</code> (<code>0.007 ms</code>)</td><td style="text-align: right"><strong><code>109,483.53</code></strong> (<code>0.007 ms</code>, <code>0.36 mJ</code>)</td><td style="text-align: right"><code>830,955</code> (in-proc)</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><strong>Candid Physical-NVMe OLTP Findings:</strong>
+<ol>
+<li><strong>JouleDB Beats <code>PostgreSQL 16.16</code> <code>1.63×</code> at <code>c=1</code> Simple (<code>1,950.5</code> vs <code>1,199.7 TPS</code>) &amp; Scales to <code>5,159.7 TPS</code> at <code>c=16</code>:</strong> On real NVMe <code>fdatasync</code> (<code>--work-dir /var/tmp</code>, vs <code>/tmp</code> <code>tmpfs</code> in <code>v0.11.0</code>), binary <code>JWU1</code> delta <code>UPDATE</code>s, deferred-hologram updates, and <code>GroupSync</code> narrow the <code>c=16</code> gap vs <code>PostgreSQL 16.16</code> from <code>2.91× / 2.61×</code> (<code>v0.11.0</code>) to <strong><code>2.02×</code> Simple / <code>1.87×</code> Pipelined</strong>.</li>
+<li><strong>Remaining Bottlenecks (<code>c=4..16</code> &amp; <code>c=1</code> Pipelined):</strong> <code>PostgreSQL 16.16</code> wins <code>1.87×–2.80×</code> at <code>c=4..16</code> via shared-buffer page locks vs JouleDB’s store-wide apply lock, and <code>GroupSync</code>’s batch coalescing window adds <code>~1.5 ms</code> wait when only 1 pipelined client is active (<code>620.9 TPS</code>).</li>
+</ol>
+</li>
+</ul>
+<hr>
+<h2 id="4-5-node-multi-host-cross-machine-wantailscale-tcp-raft-readindex--official-clojure-elle-028"><a class="header" href="#4-5-node-multi-host-cross-machine-wantailscale-tcp-raft-readindex--official-clojure-elle-028">4. 5-Node Multi-Host Cross-Machine WAN/Tailscale TCP Raft (<code>ReadIndex</code>) + Official Clojure <code>elle 0.2.8</code></a></h2>
+<ul>
+<li><strong>Harnesses &amp; Verifier:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/raft_multihost_wan.py"><code>bench/raft_multihost_wan.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/crates/joule-db-server/examples/raft_wan_node.rs"><code>examples/raft_wan_node.rs</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs"><code>tests/raft_tcp_elle_fault_injection.rs</code></a>, and <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/elle_check.clj"><code>bench/elle_check.clj</code></a>.</li>
+<li><strong>Cross-Machine WAN Run &amp; Official <code>jepsen/elle 0.2.8</code> Verdict:</strong> 5 independent OS <code>raft_wan_node</code> processes across <strong>2 distinct physical Linux machines</strong> (<code>framework-128gb-0000</code> bare-metal + <code>openie-core-1</code> Cloud Debian 12 VM, <strong><code>27.58 ms</code> median Tailscale WAN TCP RTT</strong>) survive cross-WAN <code>2/5</code> minority leader isolation, stale write &amp; <code>ReadIndex</code> rejection, majority leader failover (<code>n3</code> term <code>2</code>), real OS <strong><code>SIGKILL</code> (<code>kill -9</code>)</strong> on <code>n5</code>, and <code>raft.wal</code> convergence (<code>commit=68, applied=68, x=68, y=39</code>) -&gt; <strong><code>{:valid? true}</code></strong> (<code>270</code> events, <code>:strict-serializable</code>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/raft_wan_multihost_elle_verdict.txt"><code>raft_wan_multihost_elle_verdict.txt</code></a>).</li>
+<li><strong>Note:</strong> The separate HTTP endpoint <code>POST /api/v1/certify/geo_raft_jepsen</code> (<code>distributed_jepsen_consensus.rs</code>) is an <strong>in-memory 5-struct simulation</strong> (<code>simulation_only: true</code>, <code>est_j</code>), not a multi-process Jepsen run.</li>
+</ul>
+<hr>
+<h2 id="5-jsyn-jsyn-v1-sub-1-bit-weights-measured-quality-vs-compression"><a class="header" href="#5-jsyn-jsyn-v1-sub-1-bit-weights-measured-quality-vs-compression">5. <code>.jsyn</code> (<code>JSYN-v1</code>) Sub-1-Bit Weights: Measured Quality vs. Compression</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Checkpoint / Layer</th><th style="text-align: right"><code>BPW</code></th><th style="text-align: right">Shrink vs <code>FP16</code></th><th>Measured Fidelity vs Upstream</th><th>Status in <code>v0.12.0</code></th></tr>
+</thead>
+<tbody>
+<tr><td><strong><a href="https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit"><code>dcharlot65-openie/all-MiniLM-L6-v2-LittleBit</code></a></strong> (<code>6L</code> Encoder)</td><td style="text-align: right"><code>0.4378</code></td><td style="text-align: right"><code>22.23×</code> (<code>1.95 MB</code>)</td><td><strong><code>0.9441</code> sentence-embedding cosine</strong> vs <code>FP32</code></td><td><strong>Published &amp; Verified on Hugging Face</strong> (<code>Apache-2.0</code>)</td></tr>
+<tr><td><code>Gemma-4-E2B</code> <code>q_proj</code> (<code>r = 8 -&gt; 128</code> rank sweep)</td><td style="text-align: right"><code>0.028–0.166</code></td><td style="text-align: right"><code>564× -&gt; 96.6×</code></td><td><code>0.271 -&gt; 0.455</code> output cosine (<code>KL 3.87 -&gt; 2.72</code>, <code>65.6%</code> Top-5)</td><td><strong>Retracted from HF</strong> (not drop-in LLM fidelity)</td></tr>
+<tr><td><code>Inkling-2-Mini</code> <code>w13</code> (<code>128</code>-Exp MoE slice, <code>r = 8 -&gt; 128</code>)</td><td style="text-align: right"><code>0.023–0.134</code></td><td style="text-align: right"><code>701× -&gt; 120×</code></td><td><code>0.113 -&gt; 0.350</code> output cosine (<code>KL 2.91 -&gt; 2.59</code>)</td><td><strong>Retracted from HF</strong> (not drop-in LLM fidelity)</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="6-in-process-subsystem-smoke-tests-jouledb-self-check-est_j"><a class="header" href="#6-in-process-subsystem-smoke-tests-jouledb-self-check-est_j">6. In-Process Subsystem Smoke Tests (<code>jouledb self-check</code>, <code>est_j</code>)</a></h2>
+<p>The fast HTTP/CLI self-checks (<code>jouledb self-check</code>, <code>POST /api/v1/bench/industry_suite</code>, <code>POST /api/v1/bench/analytic_suite</code>) execute in <code>5–40 ms</code> over small synthetic inputs and report analytical energy estimates (<strong><code>energy_evidence: "est_j"</code></strong>). They verify internal data-structure invariants during development and <strong>must not</strong> be cited as official TPC-C, ClickBench, TPC-H, JOB, STAC-M3, or Jepsen benchmark results.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="why-jouledb-prior-art-architecture-evaluation--licensing"><a class="header" href="#why-jouledb-prior-art-architecture-evaluation--licensing">Why JouleDB: Prior Art, Architecture, Evaluation &amp; Licensing</a></h1>
+<p>Data movement across disconnected infrastructure silos—OLTP database, columnar warehouse,
+vector index, property-graph engine, container daemon, and external LLM weight servers—consumes
+orders of magnitude more joules and tail latency than arithmetic inside an ALU. JouleDB
+consolidates transactional storage, hybrid retrieval, and sub-1-bit <code>.jsyn</code> neural execution
+onto a single Copy-on-Write Serializable Snapshot Isolation (<code>SSI</code>) substrate written in
+Rust (<code>41</code> workspace member crates / <code>746,915</code> LOC in <a href="https://github.com/openIE-dev/jouledb/tree/main/crates"><code>crates/</code></a>, <code>v0.12.0</code> pre-1.0 preview, <code>41 / 41</code> <code>deny(clippy::unwrap_used)</code>).</p>
+<p>This chapter states the prior art JouleDB builds on, where established systems outperform
+JouleDB, the exact <code>1..15</code> hyperdimensional computing (<code>HDC</code>) primitives, benchmark protocols
+(including where <code>Hits@1</code> drops sharply relative to <code>Hits@10</code>), and licensing/packaging history.</p>
+<hr>
+<h2 id="1-the-core-problem--prior-art-data-movement-vs-arithmetic-energy"><a class="header" href="#1-the-core-problem--prior-art-data-movement-vs-arithmetic-energy">1. The Core Problem &amp; Prior Art: Data Movement vs. Arithmetic Energy</a></h2>
+<p>Energy-aware data management and low-bitwidth inference build on a deep systems literature:</p>
+<ul>
+<li><strong>Whole-System Sorting &amp; I/O Energy — JouleSort (Rivoire, Shah, Ranganathan &amp; Kozyrakis,
+<em>SIGMOD</em> 2007):</strong> Introduced whole-system joules-per-record sorting benchmarks and showed
+that storage I/O, DRAM traffic, and system base power dominate raw CPU arithmetic.</li>
+<li><strong>Energy-Proportional Data Systems (Harizopoulos, Shah, Meza &amp; Ranganathan, <em>CIDR</em> 2009):</strong>
+Framed software-level query energy optimization and hardware energy proportionality as
+first-class database architecture objectives.</li>
+<li><strong>Why “Fastest = Most Energy-Efficient” on Conventional Servers (Tsirogiannis, Harizopoulos
+&amp; Shah, <em>SIGMOD</em> 2010):</strong> Demonstrated experimentally across DBMS operators that on
+conventional servers with high static/idle socket power, <strong>the fastest execution plan is
+almost always the most energy-efficient plan</strong>, because keeping the package awake longer
+outweighs small dynamic-power differences between join or scan operators.</li>
+<li><strong>Ternary Weight Compression — BitNet b1.58 (Ma et al., 2024):</strong> Showed that ternary
+${-1, 0, +1}$ weight matrices replace floating-point multiply-accumulate (<code>FP16 MAC</code>) with
+integer addition while drastically reducing weight-fetch memory bandwidth.</li>
+</ul>
+<h3 id="where-tsirogiannis-et-al-2010-governs--and-where-jouledb-operates-differently"><a class="header" href="#where-tsirogiannis-et-al-2010-governs--and-where-jouledb-operates-differently">Where Tsirogiannis et al. (2010) Governs — and Where JouleDB Operates Differently</a></h3>
+<p>Inside a single relational scan, join, or aggregation on an active server, <strong>Tsirogiannis et
+al.’s result holds directly for JouleDB</strong>: morsel-driven <code>2,048</code>-row vectorization, <code>ZoneMap</code>
+cold-granule skipping (<code>97.96%</code> skip on <code>ClickBench</code>-style filters), and <code>SIMD POPCNT</code> save
+energy primarily by minimizing wall-clock time.</p>
+<p>JouleDB targets three cross-layer regimes outside single-engine SQL plan selection:</p>
+<ol>
+<li><strong>Eliminating Cross-Service Serialization &amp; IPC:</strong> Collapsing a multi-service stack
+(<code>PostgreSQL -&gt; JSON/Arrow -&gt; Vector Store -&gt; Graph Engine -&gt; HTTP LLM Server</code>) into one
+shared-memory <code>SSI</code> snapshot removes repeated UTF-8 JSON marshaling, socket round-trips,
+and duplicated OS page caches.</li>
+<li><strong>Multi-Tier Algorithmic Complexity Cascade:</strong> Rather than running a fixed-cost neural
+pass on every request, JouleDB routes queries through an escalating cost cascade:
+<code>LSN LangCache (~95 nJ est) -&gt; Engram O(1) exact lookup (~220 nJ est) -&gt; TriModal RRF (BM25 ⋈ RaBitQ 1-bit POPCNT ⋈ HDC, ~1–10 µJ) -&gt; .jsyn Living Bitplanes (mJ–J)</code>.
+Short-circuiting repeated or exact factual lookups at <code>O(1)</code> avoids waking GPU/NPU rails
+at all—reducing work by $10^3\times$–$10^6\times$ rather than tuning operator watts by 10%.</li>
+<li><strong>Sub-1-bit <code>.jsyn</code> (<code>LittleBit-2 ⊕ Sakana SVF</code>) Memory-Traffic Reduction (Within Rank Limits):</strong>
+Compressing compact bidirectional encoders (<code>all-MiniLM-L6-v2-LittleBit</code> at <code>0.44 BPW</code>, <code>22.2×</code> smaller)
+preserves <code>0.9441</code> cosine similarity, whereas ultra-low <code>0.02–0.17 BPW</code> settings severely degrade
+autoregressive LLMs (<code>cos = 0.27–0.45</code>) and are not drop-in LLM replacements.</li>
+</ol>
+<hr>
+<h2 id="2-baseline-positioning--when-not-to-use-jouledb"><a class="header" href="#2-baseline-positioning--when-not-to-use-jouledb">2. Baseline Positioning &amp; When <em>Not</em> to Use JouleDB</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>System</th><th>Core Architecture</th><th>Primary Sweet Spot</th><th>Where It Beats JouleDB</th><th>Where JouleDB Fits Better</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>DuckDB</strong> (Raasveldt &amp; Mühleisen, <em>SIGMOD</em> 2019)</td><td>Embedded vectorized columnar OLAP (<code>C++</code>)</td><td>In-process analytics over Parquet, CSV, and Arrow</td><td>Richer analytical SQL optimizer, mature extension ecosystem, fastest pure single-node Parquet OLAP</td><td>Multi-client <code>SSI</code> server + <code>pgwire</code> + CoW branching + integrated <code>GraphRAG</code> and <code>.jsyn</code> weights</td></tr>
+<tr><td><strong>ClickHouse</strong></td><td>Shared-nothing distributed columnar OLAP</td><td>Petabyte-scale append-heavy logs, traces, and BI</td><td>Horizontal multi-node merge-tree ingestion and petabyte aggregation throughput</td><td>Transactional <code>SSI</code> point updates, <code>1.13 µs</code> CoW forks, and zero-ETL hybrid retrieval</td></tr>
+<tr><td><strong>PostgreSQL + <code>pgvector</code></strong></td><td>Extensible MVCC relational OLTP + HNSW / IVFFlat</td><td>General-purpose production OLTP with moderate vector search</td><td>Decades of production hardening, logical replication, extensions (<code>PostGIS</code>, FDWs), managed cloud HA</td><td><code>32x</code> smaller <code>RaBitQ</code> 1-bit vectors + <code>BM25</code> + <code>HDC</code> + in-engine <code>.jsyn</code> inference without sidecars</td></tr>
+<tr><td><strong>Standalone <code>llama.cpp</code> / <code>vLLM</code></strong></td><td>Dedicated <code>GGUF</code> (<code>C++</code>) or PagedAttention (<code>CUDA</code>) inference servers</td><td>High-throughput dense/quantized LLM token generation</td><td>Higher tokens/sec on <code>FP8</code>/<code>Q4_K_M</code> long-form creative generation and multi-GPU tensor parallelism</td><td>Sub-1-bit <code>.jsyn</code> circuits coupled to exact SQL/<code>Engram</code> facts with per-request energy receipts</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="when-to-choose-duckdb-postgresql-clickhouse-or-vllm-instead-of-jouledb"><a class="header" href="#when-to-choose-duckdb-postgresql-clickhouse-or-vllm-instead-of-jouledb">When to Choose DuckDB, PostgreSQL, ClickHouse, or <code>vLLM</code> Instead of JouleDB</a></h3>
+<ul>
+<li><strong>Use DuckDB</strong> for embedded analytical SQL over local Parquet/Arrow datasets in Python, R, or CLI scripts.</li>
+<li><strong>Use ClickHouse</strong> for multi-terabyte or petabyte distributed event/observability warehousing.</li>
+<li><strong>Use PostgreSQL + <code>pgvector</code></strong> when you need battle-tested relational OLTP, full PostgreSQL extension compatibility, mature logical replication, or a managed cloud SLA.</li>
+<li><strong>Use <code>vLLM</code> or <code>llama.cpp</code></strong> when your primary workload is high-concurrency open-ended text generation over multi-GPU <code>BF16</code>/<code>FP8</code>/<code>Q4</code> models without database state coupling.</li>
+</ul>
+<hr>
+<h2 id="3-the-15-core-hdc-primitives-explicitly-enumerated-115"><a class="header" href="#3-the-15-core-hdc-primitives-explicitly-enumerated-115">3. The 15 Core HDC Primitives (Explicitly Enumerated <code>1..15</code>)</a></h2>
+<p>Earlier summary prose referred to <em>“15 irreducible primitives”</em> while naming only 14 operations
+(omitting <code>Synchronize</code> or counting <code>Merge / Un-merge</code> inconsistently). In
+<a href="https://github.com/openIE-dev/jouledb/tree/main/crates/joule-db-hdc"><code>crates/joule-db-hdc</code></a>
+(see <a href="https://github.com/openIE-dev/jouledb/blob/main/crates/joule-db-hdc/PRIMITIVES.md"><code>PRIMITIVES.md</code></a>
+and <a href="https://github.com/openIE-dev/jouledb/blob/main/docs/MGAI-HDC-REFERENCE.md"><code>MGAI-HDC-REFERENCE.md</code></a>),
+the four classical Vector Symbolic Architecture (<code>VSA</code>) operations (<code>Encode</code>, <code>Bind</code>, <code>Permute</code>,
+<code>Compare</code>) are extended to the following <strong>1-to-1 numbered list of 15 primitives</strong>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th style="text-align: right">#</th><th>Primitive</th><th>Algebraic Role</th><th>Rust Module (<code>joule-db-hdc</code> / <code>joule-db-amorphic</code>)</th><th>Coverage</th></tr>
+</thead>
+<tbody>
+<tr><td style="text-align: right">1</td><td><strong>Encode</strong></td><td>Project scalars, tokens, or structs into <code>10,000</code>-bit hypervectors</td><td><code>binary_hd</code>, <code>ternary_hv</code>, <code>holo.rs</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">2</td><td><strong>Bind</strong></td><td>Associative/relational binding (<code>XOR</code>, <code>MAP</code>, Fourier, <code>GHRR</code> block-circular)</td><td><code>binary_hd</code>, <code>map_bind</code>, <code>fourier_bind</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">3</td><td><strong>Permute</strong></td><td>Cyclic bit-shift imposing sequence and causal asymmetry (<code>A -&gt; B != B -&gt; A</code>)</td><td><code>binary_hd</code>, <code>map_bind</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">4</td><td><strong>Compare</strong></td><td>Non-destructive similarity measurement (<code>SIMD</code> Hamming / cosine distance)</td><td><code>binary_hd</code>, <code>ternary_hv</code>, <code>contrast.rs</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">5</td><td><strong>Route</strong></td><td>Novelty-proportional compute allocation across metabolic tiers</td><td><code>amorphic::metabolic</code>, <code>selector.rs</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">6</td><td><strong>Remember</strong></td><td>One-shot associative write (<code>SDM</code> / holographic memory, <code>0</code> gradient steps)</td><td><code>turbo_holographic</code>, <code>sdm</code>, <code>memory.rs</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">7</td><td><strong>Forget</strong></td><td>Passive half-life decay / temporal decoherence without full table scans</td><td><code>primitives/forget.rs</code> (<code>Forgettable</code>, <code>Decay</code>)</td><td>Domain-scoped</td></tr>
+<tr><td style="text-align: right">8</td><td><strong>Reflect</strong></td><td>Second-order residual self-comparison (<code>state XOR context</code>)</td><td><code>primitives/reflect.rs</code>, <code>variational.rs</code></td><td>Domain-scoped</td></tr>
+<tr><td style="text-align: right">9</td><td><strong>Merge / Un-merge</strong></td><td>Majority-vote bundle superposition paired with resonator factorization</td><td><code>binary_hd</code> (<code>BundleAccumulator</code>), <code>resonator</code></td><td>Core (dual pair)</td></tr>
+<tr><td style="text-align: right">10</td><td><strong>Update</strong></td><td>In-place incremental hypervector delta mutation without full re-encoding</td><td><code>binary_hd</code>, <code>turbo_holographic</code>, <code>tx.rs</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">11</td><td><strong>Test</strong></td><td>Structural orthogonality and capacity health check (<code>HologramHealth</code>)</td><td><code>binary_hd</code>, <code>amorphic::partition</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">12</td><td><strong>Spawn</strong></td><td>Fork an isolated autonomous entity / sub-workspace</td><td><code>primitives/spawn.rs</code> (<code>Spawner</code>, <code>SpawnedEntity</code>)</td><td>Domain-scoped</td></tr>
+<tr><td style="text-align: right">13</td><td><strong>Inhibit</strong></td><td>Active winner-take-all competitive cleanup suppression</td><td><code>resonator</code>, <code>spiking</code></td><td>Core</td></tr>
+<tr><td style="text-align: right">14</td><td><strong>Coarsen</strong></td><td>Scale-changing lossy projection (<code>XOR</code> fold / block majority hierarchy)</td><td><code>primitives/coarsen.rs</code>, <code>quantization.rs</code></td><td>Domain-scoped</td></tr>
+<tr><td style="text-align: right">15</td><td><strong>Synchronize</strong></td><td>Multi-entity causal/temporal barrier coordination (<code>Barrier</code>, <code>SyncGroup</code>)</td><td><code>primitives/sync.rs</code>, <code>spiking/temporal.rs</code></td><td>Domain-scoped</td></tr>
+</tbody>
+</table>
+</div>
+<p><em>Engineering note:</em> As noted in <code>PRIMITIVES.md</code>, “irreducible” denotes the lowest-level API
+vocabulary in <code>joule-db-hdc</code> rather than a strict mathematical independence proof; composite
+operators (<code>Attention = Compare + Route + Merge</code>, <code>Predict = Reflect + Compare</code>) are built on
+top of <code>1..15</code> without backpropagation.</p>
+<hr>
+<h2 id="4-evaluation-protocols-metrics--orthogonal-evidence-classes"><a class="header" href="#4-evaluation-protocols-metrics--orthogonal-evidence-classes">4. Evaluation Protocols, Metrics &amp; Orthogonal Evidence Classes</a></h2>
+<h3 id="41-energy-evidence-taxonomy-measured_j--reported_j--est_j--unmetered"><a class="header" href="#41-energy-evidence-taxonomy-measured_j--reported_j--est_j--unmetered">4.1 Energy Evidence Taxonomy (<code>measured_j ⊥ reported_j ⊥ est_j ⊥ unmetered</code>)</a></h3>
+<p>JouleDB enforces four mutually orthogonal energy classes—values from distinct classes must
+never be summed, averaged, or relabeled:</p>
+<ul>
+<li><strong><code>measured_j</code> (External Inline Meter):</strong> Physical DC rail shunt (<code>INA238</code> / <code>INA3221</code>) or
+calibrated AC wall analyzer. <strong>JouleDB software alone never emits <code>measured_j</code></strong> unless an
+external hardware meter is attached.</li>
+<li><strong><code>reported_j</code> (On-Chip / OS Hardware Counter):</strong> Kernel/PMU counters on bare-metal hosts:
+Apple Silicon <code>IOReport</code> / <code>proc_pid_rusage(RUSAGE_INFO_V6).ri_energy_nj</code> on macOS and
+<code>/sys/class/powercap/intel-rapl*</code> (Intel &amp; AMD RAPL) on Linux. Socket/package counters
+reflect co-tenant load unless isolated via per-PID counters or idle-drift checks.</li>
+<li><strong><code>est_j</code> (Analytical Silicon Ledger):</strong> Deterministic instruction + cache/DRAM byte-movement
+cost model (<code>crates/joule-energy</code>, e.g., <code>~95 nJ</code> <code>LangCache</code>, <code>~220 nJ</code> <code>Engram</code>) used for
+sub-microsecond single-operator attribution or inside <code>WASM</code> / unprivileged containers.</li>
+<li><strong><code>unmetered</code> (<code>joules: null</code>):</strong> Exact wall-clock nanoseconds, CPU time, and byte counts
+when no hardware energy counter is readable without root.</li>
+</ul>
+<h3 id="42-wn18rr--pathhd-filtered-link-prediction-protocol--hits1-vs-hits10"><a class="header" href="#42-wn18rr--pathhd-filtered-link-prediction-protocol--hits1-vs-hits10">4.2 <code>WN18RR</code> / <code>PathHD</code> Filtered Link-Prediction Protocol &amp; <code>Hits@1</code> vs. <code>Hits@10</code></a></h3>
+<p>Knowledge-graph link prediction is evaluated on <strong><code>WN18RR</code></strong> (<code>40,943</code> entities, <code>11</code> lexical
+relations, <code>86,835</code> train / <code>3,034</code> validation / <code>3,134</code> test triples) under the <strong>standard
+filtered ranking protocol (Bordes et al., <em>NeurIPS</em> 2013)</strong>:</p>
+<ol>
+<li>For each test triple $(h, r, t)$, evaluate both tail corruption $(h, r, t’)$ and head
+corruption $(h’, r, t)$ across all $40,943$ entities (<code>6,268</code> ranked queries total) with
+zero gradient updates.</li>
+<li>Remove every corrupted candidate $(h, r, t’) \neq (h, r, t)$ that appears in
+<code>train ∪ valid ∪ test</code> (<em>filtered</em> setting) so known true facts do not artificially demote
+the ground-truth target.</li>
+<li>Break ties deterministically (strict/mean rank, never optimistic rank-1 ties) and report
+<strong>both <code>Hits@1</code> and <code>Hits@10</code></strong> alongside <code>MRR</code>:</li>
+</ol>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Engine Generation</th><th>Structural Representation</th><th style="text-align: right"><code>WN18RR</code> <code>Hits@1</code></th><th style="text-align: right"><code>WN18RR</code> <code>Hits@10</code></th><th style="text-align: right"><code>MRR</code></th><th style="text-align: right">Energy / Pred (<code>reported_j</code>)</th><th>Relation-Level Behavior &amp; Limitation</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>1-Hop <code>PathStore</code> (<code>v0.1</code>–<code>v0.2</code>)</strong></td><td>1-hop bundle superposition (<code>WHITEPAPER-2026-04/05</code>)</td><td style="text-align: right"><strong><code>26.4%</code></strong></td><td style="text-align: right"><code>83.8%</code></td><td style="text-align: right"><code>0.4680</code></td><td style="text-align: right"><code>~9 µJ</code></td><td>Places right neighborhood in top-10, <strong>but <code>Hits@1</code> drops to <code>26.4%</code> overall</strong> (<code>11%</code> on <code>_hypernym</code> <code>IsA</code>; <code>0%</code> on <code>_has_part</code> <code>PartOf</code>) due to <code>1-to-N</code> superposition ambiguity</td></tr>
+<tr><td><strong>3-Hop <code>PathHD</code> <code>GHRR</code> (<code>v0.3</code>–<code>v0.4</code>)</strong></td><td>Non-commutative 3-hop <code>GHRR</code> block-circular path composition + degree/type constraints</td><td style="text-align: right"><strong><code>70.0%</code></strong></td><td style="text-align: right"><strong><code>88.1%</code></strong></td><td style="text-align: right"><code>0.7628</code></td><td style="text-align: right"><code>~10 µJ</code></td><td>Resolves multi-hop asymmetric composition; high-fanout <code>1-to-N</code> relations without relational SQL verification still exhibit a <code>Hits@1</code>-vs-<code>Hits@10</code> gap</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Reporting rule:</strong> <code>Hits@10</code> must never be cited without <code>Hits@1</code>. Workloads requiring exact
+rank-1 factual recall should query MVCC SQL / <code>Engram</code> keys directly or apply relational
+constraints over <code>PathHD</code> candidates.</p>
+<hr>
+<h2 id="5-licensing-cratesio-packaging--repository-availability-disclosure"><a class="header" href="#5-licensing-cratesio-packaging--repository-availability-disclosure">5. Licensing, <code>crates.io</code> Packaging &amp; Repository Availability Disclosure</a></h2>
+<ol>
+<li><strong>Complete Open-Source Workspace in <code>github.com/openIE-dev/jouledb</code> (<code>Apache-2.0 OR MIT</code>):</strong>
+All <strong>41 Rust workspace member crates</strong> (<code>crates/*</code>, <code>737,265</code> LOC across <code>986</code> <code>.rs</code> files, with <code>29 / 41</code> crates enforcing <code>#![cfg_attr(not(test), deny(clippy::unwrap_used))]</code>), Python bindings (<code>python/</code>), examples, and docs in this
+repository are dual-licensed under <strong><code>Apache-2.0 OR MIT</code></strong> (<a href="https://github.com/openIE-dev/jouledb/blob/main/LICENSE-APACHE"><code>LICENSE-APACHE</code></a>,
+<a href="https://github.com/openIE-dev/jouledb/blob/main/LICENSE-MIT"><code>LICENSE-MIT</code></a>,
+<a href="https://github.com/openIE-dev/jouledb/blob/main/COPYRIGHT"><code>COPYRIGHT</code></a>) with zero
+proprietary dependencies. Build and verify from source directly:
+<pre><code class="language-bash">cargo build --release --locked -p joule-db-server --bin jouledb
+cargo test --workspace --locked
+</code></pre>
+</li>
+<li><strong>What the <code>crates.io</code> <code>jouledb</code> Crate (<code>stubs/jouledb</code>) Does:</strong>
+Because the 41 internal workspace crates are not yet published individually on <code>crates.io</code>,
+the top-level <code>jouledb</code> package on <code>crates.io</code> (<a href="https://github.com/openIE-dev/jouledb/tree/main/stubs/jouledb"><code>stubs/jouledb/</code></a>,
+<code>v0.10.0</code>, <code>MIT OR Apache-2.0</code>; <code>1.0.0</code> yanked) is a <strong><code>cargo-binstall</code> binary-fetcher stub</strong>:
+<ul>
+<li><code>cargo binstall jouledb</code> downloads the signed release archive built from this repository
+by <a href="https://github.com/openIE-dev/jouledb/blob/main/.github/workflows/release.yml"><code>.github/workflows/release.yml</code></a>.</li>
+<li>Plain <code>cargo install jouledb</code> compiles <code>stubs/jouledb/src/main.rs</code>, which prints install
+instructions and exits with status <code>2</code>. For a pure-source build, clone this repository and
+run <code>cargo build --release --locked -p joule-db-server --bin jouledb</code>.</li>
+</ul>
+</li>
+<li><strong>Historical <code>v0.1</code> <code>BSL-1.1</code> &amp; Private-Mirror Transition:</strong>
+Prior to <code>v0.2.0</code> (November 23, 2026), <code>openIE-dev/jouledb</code> was an initial <code>v0.1</code> release-only
+surface synced from an internal mirror (<code>joulesperbit</code>), prebuilt binaries carried <code>BSL-1.1</code>
+notices, an early workflow built only <code>jouledb-cli</code>, and this page (<code>why.md</code>) was a 10-line
+placeholder. In <code>v0.2.0</code>, OpenIE relicensed the entire codebase to <strong><code>Apache-2.0 OR MIT</code></strong>
+and committed all 40 workspace crates to <code>crates/</code>. Stale <code>v0.1</code> mirror language in
+<code>CONTRIBUTING.md</code>, <code>install.md</code>, and <code>introduction.md</code> has been reconciled accordingly.</li>
+</ol>
+<hr>
+<h2 id="references"><a class="header" href="#references">References</a></h2>
+<ol>
+<li>Rivoire, S., Shah, M. A., Ranganathan, P., &amp; Kozyrakis, C. (2007). <em>JouleSort: A Balanced Energy-Efficiency Benchmark</em>. ACM SIGMOD, 365–376.</li>
+<li>Harizopoulos, S., Shah, M. A., Meza, J., &amp; Ranganathan, P. (2009). <em>Energy Efficiency: The New Holy Grail of Data Management Systems</em>. CIDR.</li>
+<li>Tsirogiannis, D., Harizopoulos, S., &amp; Shah, M. A. (2010). <em>Analyzing the Energy Efficiency of a Database Server</em>. ACM SIGMOD, 231–242.</li>
+<li>Bordes, A., Usunier, N., Garcia-Duran, A., Weston, J., &amp; Yakhnenko, O. (2013). <em>Translating Embeddings for Modeling Multi-relational Data</em>. NeurIPS.</li>
+<li>Raasveldt, M., &amp; Mühleisen, H. (2019). <em>DuckDB: An Embeddable Analytical Database</em>. ACM SIGMOD, 1981–1984.</li>
+<li>Ma, S., Wang, H., Ma, L., Wang, L., Wang, W., Huang, S., Dong, L., Wang, R., Xue, J., &amp; Wei, F. (2024). <em>The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits</em> (<code>BitNet b1.58</code>). arXiv:2402.17764.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="openie-ecosystem"><a class="header" href="#openie-ecosystem">OpenIE Ecosystem</a></h1>
+<p>JouleDB is part of Open Interface Engineering (<code>OpenIE</code>):</p>
+<ul>
+<li><strong><a href="https://jouledb.org">JouleDB (<code>jouledb.org</code>)</a>:</strong> Multi-model Rust database (<code>v0.12.0</code> pre-1.0 preview), PostgreSQL <code>pgwire</code> server, Claude/MCP App Studio (<code>ui://jouledb/studio.html</code> + <code>.mcpb</code>), multi-host WAN TCP Raft consensus, Amorphous VSA store, and experimental <code>.jsyn</code> low-bitwidth tensor runtime.</li>
+<li><strong><a href="https://research.openie.dev">OpenIE Research Hub (<code>research.openie.dev</code>)</a>:</strong> Empirical studies enforcing strict <code>measured_j ⊥ reported_j ⊥ est_j ⊥ unmetered</code> energy evidence labels (not journal peer-reviewed finals).</li>
+<li><strong><a href="https://huggingface.co/dcharlot65-openie">Hugging Face (<code>dcharlot65-openie</code>)</a>:</strong> Verified <a href="https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit"><code>all-MiniLM-L6-v2-LittleBit</code></a> sentence embedder (<code>cos = 0.9441</code>), rank-sweep fidelity trade-off explorer, and raw benchmark artifacts.</li>
+<li><strong><a href="https://joule-lang.dev">Joule Language (<code>joule-lang.dev</code>)</a></strong> &amp; <strong><a href="https://pattern-lang.ai">Pattern-lang (<code>pattern-lang.ai</code>)</a>:</strong> Sibling experimental language projects.</li>
+<li><strong><a href="https://openie.dev">OpenIE (<code>openie.dev</code>)</a>:</strong> Open Interface Engineering, Inc.</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>

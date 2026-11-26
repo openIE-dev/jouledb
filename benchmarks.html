@@ -1,0 +1,377 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Empirical Benchmarks: ClickBench, TPC-H, OLTP &amp; WAN Raft - JouleDB v1.0.0</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="JouleDB v1.0.0 — Global Thermodynamic Database, Amorphous Semantic Continuum, .jsyn Living Model Weights, 10-DB/7-AI Bridges, and Maker-to-Defense Sovereign Trust.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-23f6ef4b.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc-bf21e907.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">JouleDB v1.0.0</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/openIE-dev/jouledb" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/openIE-dev/jouledb/edit/main/docs/src/benchmarks.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="benchmarks-consensus-verification--subsystem-smoke-tests-v0120"><a class="header" href="#benchmarks-consensus-verification--subsystem-smoke-tests-v0120">Benchmarks, Consensus Verification &amp; Subsystem Smoke Tests (<code>v0.12.0</code>)</a></h1>
+<blockquote>
+<p><strong>Audit Remediation &amp; Evidence Standard (<code>v0.12.0</code>):</strong> Earlier <code>v0.2.8</code>–<code>v1.0.0</code> documentation presented 36 in-process micro-harnesses and synthetic simulations as <em>“36 / 36 Certified Global Benchmark Pillars”</em>, including synthetic frontier AI exam routes (<code>frontier_exam_routes.rs</code>). <strong>All synthetic frontier AI benchmark claims remain retracted and <code>frontier_exam_routes.rs</code> has been deleted.</strong></p>
+<p>Below we strictly separate <strong>(1) reproducible external dataset, multi-table <code>TPC-H</code> (<code>SF=0.1..10.0</code>), physical-NVMe multi-client <code>pgwire</code> OLTP, &amp; multi-host WAN consensus evaluations</strong> (with every win, loss, memory profile, and architectural bottleneck reported openly) from <strong>(2) fast in-process functional smoke checks</strong>, and tag every energy figure as <strong><code>reported_j</code></strong> (hardware RAPL / SMC counters) or <strong><code>est_j</code></strong> (analytical cost model).</p>
+</blockquote>
+<hr>
+<h2 id="1-full-official-clickbench-hitsparquet-99997497-rows-105-columns-43-queries-vs-duckdb-201"><a class="header" href="#1-full-official-clickbench-hitsparquet-99997497-rows-105-columns-43-queries-vs-duckdb-201">1. Full Official ClickBench (<code>hits.parquet</code>, <code>99,997,497</code> Rows, <code>105</code> Columns, <code>43</code> Queries) vs. DuckDB <code>2.0.1</code></a></h2>
+<ul>
+<li><strong>Harness &amp; Raw Artifacts:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/clickbench_official.py"><code>bench/clickbench_official.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_100k.json"><code>clickbench_official_100k.json</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_1m.json"><code>clickbench_official_1m.json</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_10m.json"><code>clickbench_official_10m.json</code></a>, <strong><a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_100m.json"><code>clickbench_official_100m.json</code></a></strong>.</li>
+<li><strong>Methodology:</strong> Streams the official <code>14.78 GB</code> (<code>99,997,497</code>-row, <code>105</code>-column) ClickBench <code>hits.parquet</code> file into DuckDB <code>2.0.1</code> (in-process) and JouleDB (over real TCP <code>pgwire</code> via <code>psycopg 3.3.9</code>, spilling immutable <code>262,144</code>-row <code>.jcol</code> segments to disk), then runs all <strong>43 official ClickBench SQL queries (<code>Q0..Q42</code>)</strong> unchanged on <code>framework-128gb-0000</code> (<code>AMD Ryzen AI Max+ 395</code>, 32 logical cores, <code>128 GB</code> UMA RAM, Linux <code>rapl-package</code> <strong><code>reported_j</code></strong>).</li>
+</ul>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Dataset Scale (<code>hits.parquet</code>)</th><th style="text-align: right">Parquet Load (<code>DuckDB</code> vs <code>JouleDB</code>)</th><th style="text-align: right">JouleDB Load RSS (<code>VmHWM</code> Peak)</th><th style="text-align: right">Queries Succeeded</th><th style="text-align: right">SQL-Valid Match (<code>Exact</code>)</th><th style="text-align: right">Faster (<code>JouleDB</code> / <code>DuckDB</code>)</th><th style="text-align: right">Geomean Latency (<code>JouleDB / DuckDB</code>)</th><th style="text-align: right">Geomean Energy (<code>reported_j</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td><strong><code>100,000</code> rows</strong> (<code>105</code> cols)</td><td style="text-align: right"><code>0.179 s</code> (<code>11.2 J</code>) vs <code>0.265 s</code> (<code>18.3 J</code>)</td><td style="text-align: right"><code>917.8 MB</code> (<code>2,651.5 MB</code>)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>34</code> exact)</td><td style="text-align: right"><strong><code>20</code></strong> / <code>23</code></td><td style="text-align: right"><strong><code>1.47×</code> slower</strong> (<code>median 1.19×</code>)</td><td style="text-align: right"><strong><code>1.97×</code> more J</strong></td></tr>
+<tr><td><strong><code>1,000,000</code> rows</strong> (<code>105</code> cols)</td><td style="text-align: right"><code>0.158 s</code> (<code>15.8 J</code>) vs <code>0.871 s</code> (<code>77.7 J</code>)</td><td style="text-align: right"><code>1,282.9 MB</code> (<code>1,922.8 MB</code>)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>29</code> exact)</td><td style="text-align: right"><strong><code>11</code></strong> / <code>32</code></td><td style="text-align: right"><strong><code>2.34×</code> slower</strong> (<code>median 2.95×</code>)</td><td style="text-align: right"><strong><code>2.50×</code> more J</strong></td></tr>
+<tr><td><strong><code>10,000,000</code> rows</strong> (<code>105</code> cols)</td><td style="text-align: right"><code>2.422 s</code> (<code>336.4 J</code>) vs <code>13.340 s</code> (<code>1,850.8 J</code>)</td><td style="text-align: right"><code>2,384.7 MB</code> (<strong><code>3,448.4 MB</code></strong>)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>31</code> exact)</td><td style="text-align: right"><strong><code>9</code></strong> / <code>34</code></td><td style="text-align: right"><strong><code>2.28×</code> slower</strong> (<code>median 2.63×</code>)</td><td style="text-align: right"><strong><code>2.22×</code> more J</strong></td></tr>
+<tr><td><strong><code>99,997,497</code> rows — FULL <code>14.78 GB</code></strong> (<code>is_full_100m_dataset: true</code>)</td><td style="text-align: right"><code>13.866 s</code> (<code>1,805.6 J</code>) vs <code>97.835 s</code> (<code>10,047.0 J</code>)</td><td style="text-align: right"><strong><code>5,901.8 MB</code> (<code>16,469.7 MB</code>)</strong></td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>0</code> err)</td><td style="text-align: right"><strong><code>43 / 43</code></strong> (<code>32</code> exact)</td><td style="text-align: right"><strong><code>7</code></strong> / <code>36</code></td><td style="text-align: right"><strong><code>2.11×</code> slower</strong> (<code>median 3.39×</code>)</td><td style="text-align: right"><strong><code>2.03×</code> more J</strong></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="selected-per-query-results-on-the-full-99997497-row-100m-dataset-reported_j"><a class="header" href="#selected-per-query-results-on-the-full-99997497-row-100m-dataset-reported_j">Selected Per-Query Results on the Full <code>99,997,497</code>-Row (<code>100M</code>) Dataset (<code>reported_j</code>)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Query</th><th>SQL Summary</th><th style="text-align: right">DuckDB <code>2.0.1</code></th><th style="text-align: right">JouleDB (<code>.jcol</code> + <code>pgwire</code>)</th><th>Outcome</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Q0</code></td><td><code>SELECT COUNT(*) FROM hits</code></td><td style="text-align: right"><code>5.67 ms</code></td><td style="text-align: right"><strong><code>1.91 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>2.98×</code> faster</strong> — segment metadata)</td></tr>
+<tr><td><code>Q1</code></td><td><code>SELECT COUNT(*) FROM hits WHERE AdvEngineID &lt;&gt; 0</code></td><td style="text-align: right"><code>41.65 ms</code></td><td style="text-align: right"><strong><code>20.23 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>2.06×</code> faster</strong> — <code>WordMask</code> bitpacked selection)</td></tr>
+<tr><td><code>Q2</code></td><td><code>SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits</code></td><td style="text-align: right"><code>61.55 ms</code></td><td style="text-align: right"><strong><code>2.41 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>25.5×</code> faster</strong> — zero-I/O <code>global_int_sum</code>)</td></tr>
+<tr><td><code>Q3</code></td><td><code>SELECT AVG(UserID) FROM hits</code></td><td style="text-align: right"><code>51.82 ms</code></td><td style="text-align: right"><strong><code>2.32 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>22.4×</code> faster</strong> — zero-I/O <code>global_int_sum</code>)</td></tr>
+<tr><td><code>Q6</code></td><td><code>SELECT MIN(EventDate), MAX(EventDate) FROM hits</code></td><td style="text-align: right"><code>22.07 ms</code></td><td style="text-align: right"><strong><code>1.58 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>14.0×</code> faster</strong> — segment ZoneMap)</td></tr>
+<tr><td><code>Q29</code></td><td><code>SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), ...</code> (<code>90</code> sums)</td><td style="text-align: right"><code>56.20 ms</code></td><td style="text-align: right"><strong><code>2.40 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>23.4×</code> faster</strong> — algebraic <code>global_int_sum</code>)</td></tr>
+<tr><td><code>Q42</code></td><td><code>SELECT DATE_TRUNC('minute', EventTime), COUNT(*) WHERE CounterID = 62 ...</code></td><td style="text-align: right"><code>34.83 ms</code></td><td style="text-align: right"><strong><code>22.78 ms</code></strong></td><td>Exact match (<strong>JouleDB <code>1.53×</code> faster</strong> — ZoneMap + <code>WHERE</code>-first skip)</td></tr>
+<tr><td><code>Q7</code></td><td><code>SELECT MIN(EventDate), MAX(EventDate) FROM hits WHERE CounterID = 62</code></td><td style="text-align: right"><code>33.75 ms</code></td><td style="text-align: right"><code>34.95 ms</code></td><td>Exact match (<code>1.04×</code> slower — filtered <code>MIN</code>/<code>MAX</code>)</td></tr>
+<tr><td><code>Q30</code></td><td><code>SELECT SUM(ResolutionWidth), ... FROM hits WHERE ResolutionWidth &gt; 0</code></td><td style="text-align: right"><code>234.50 ms</code></td><td style="text-align: right"><code>668.50 ms</code></td><td>Exact match (<code>2.85×</code> slower — <code>90</code>-sum SIMD slice batching)</td></tr>
+<tr><td><code>Q32</code></td><td><code>SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) GROUP BY ...</code></td><td style="text-align: right"><code>1,750.00 ms</code></td><td style="text-align: right"><code>5,933.50 ms</code></td><td>SQL-valid tie (<code>3.39×</code> slower — 256-partition <code>CompactI2Row</code> sort-reduce)</td></tr>
+<tr><td><code>Q39</code></td><td><code>SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN ... GROUP BY ...</code></td><td style="text-align: right"><code>61.10 ms</code></td><td style="text-align: right"><code>906.85 ms</code></td><td>Exact match (<code>14.84×</code> slower — widest <code>100M</code> ratio)</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="2-official-22-query-tpc-h-relational-suite-tpch_queries-8-tables-sf--01-10--100-vs-duckdb-201"><a class="header" href="#2-official-22-query-tpc-h-relational-suite-tpch_queries-8-tables-sf--01-10--100-vs-duckdb-201">2. Official 22-Query <code>TPC-H</code> Relational Suite (<code>tpch_queries()</code>, 8 Tables, <code>SF = 0.1</code>, <code>1.0</code> &amp; <code>10.0</code>) vs. DuckDB <code>2.0.1</code></a></h2>
+<ul>
+<li><strong>Harness &amp; Raw Artifacts:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/tpch_official.py"><code>bench/tpch_official.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf01.json"><code>tpch_official_sf01.json</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf1.json"><code>tpch_official_sf1.json</code></a>, <strong><a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf10.json"><code>tpch_official_sf10.json</code></a></strong>.</li>
+<li><strong>Methodology:</strong> Generates standard 8-table <code>TPC-H</code> Parquet fixtures via DuckDB <code>dbgen(sf=...)</code> on physical NVMe (<code>--work-dir /var/tmp</code>), loads them into JouleDB <code>0.12.0</code> over TCP <code>pgwire</code> (<code>COPY ... FROM</code> Parquet, spilling <code>.jcol</code> segments above <code>131,072</code> rows in disjoint <code>JCOL_ID_TAG</code> ID space), and runs all <strong>22 official <code>tpch_queries()</code> (<code>Q01..Q22</code>)</strong> unmodified via <code>columnar_join.rs</code> with row-by-row verification against DuckDB <code>2.0.1</code> (<code>rapl-package</code> <strong><code>reported_j</code></strong>).</li>
+</ul>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>TPC-H</code> Scale</th><th style="text-align: right">Total Rows (8 Tables)</th><th style="text-align: right">Parquet Load (<code>DuckDB</code> vs <code>JouleDB</code>)</th><th style="text-align: right">Post-Load RSS (<code>VmHWM</code> Peak)</th><th style="text-align: right">Verified Exact (<code>Faster</code>)</th><th style="text-align: right">Total 22-Query Time (<code>DuckDB</code> vs <code>JouleDB</code>)</th><th style="text-align: right">Geomean Latency (<code>JouleDB / DuckDB</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td><strong><code>SF = 0.1</code></strong></td><td style="text-align: right"><code>866,602</code> rows</td><td style="text-align: right"><code>0.430 s</code> (<code>12.2 J</code>) vs <code>1.380 s</code> (<code>54.5 J</code>)</td><td style="text-align: right"><strong><code>780.8 MB</code></strong> (<code>939.3 MB</code>)</td><td style="text-align: right"><strong><code>22 / 22</code> (<code>5</code> wins)</strong></td><td style="text-align: right"><code>88.2 ms</code> vs <strong><code>253.0 ms</code></strong></td><td style="text-align: right"><strong><code>1.99×</code> slower</strong> (<code>median 2.16×</code>, vs <code>125.5×</code> in <code>v0.10.0</code>)</td></tr>
+<tr><td><strong><code>SF = 1.0</code></strong></td><td style="text-align: right"><code>8,661,245</code> rows (<code>6.0M</code> <code>lineitem</code>)</td><td style="text-align: right"><code>1.142 s</code> (<code>64.6 J</code>) vs <code>5.504 s</code> (<code>288.5 J</code>)</td><td style="text-align: right"><strong><code>201.4 MB</code></strong> (<code>1,561.8 MB</code>)</td><td style="text-align: right"><strong><code>22 / 22</code> (<code>0</code> err)</strong></td><td style="text-align: right"><code>253.0 ms</code> vs <strong><code>1,779.0 ms</code></strong> (<code>1.57×</code> vs <code>v0.11.0</code>)</td><td style="text-align: right"><strong><code>4.33×</code> slower</strong> (<code>median 3.60×</code>, down from <code>6.18×</code>)</td></tr>
+<tr><td><strong><code>SF = 10.0</code></strong></td><td style="text-align: right"><strong><code>86,586,082</code> rows (<code>60.0M</code> <code>lineitem</code>)</strong></td><td style="text-align: right"><code>5.434 s</code> (<code>506.5 J</code>) vs <code>38.059 s</code> (<code>1,242.5 J</code>)</td><td style="text-align: right"><strong><code>755.3 MB</code></strong> (<code>15,586.4 MB</code>)</td><td style="text-align: right"><strong><code>22 / 22</code> (<code>0</code> err)</strong></td><td style="text-align: right"><code>1,001.4 ms</code> vs <strong><code>15,464.6 ms</code></strong> (<strong><code>2.20×</code> vs <code>v0.11.0</code></strong>)</td><td style="text-align: right"><strong><code>8.49×</code> slower</strong> (<code>median 8.38×</code>, <code>20/22 &lt; 1.2 s</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="selected-per-query-tpc-h-latencies-sf--01-sf--10--sf--100-reported_j"><a class="header" href="#selected-per-query-tpc-h-latencies-sf--01-sf--10--sf--100-reported_j">Selected Per-Query <code>TPC-H</code> Latencies (<code>SF = 0.1</code>, <code>SF = 1.0</code> &amp; <code>SF = 10.0</code>, <code>reported_j</code>)</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Query</th><th>Relational Pattern</th><th><code>SF = 0.1</code> (<code>JDB</code> vs <code>DuckDB</code>)</th><th><code>SF = 1.0</code> (<code>JDB</code> vs <code>DuckDB</code>)</th><th><code>SF = 10.0</code> (<code>JDB</code> vs <code>DuckDB</code>)</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Q22</code></td><td><code>NOT EXISTS</code> + <code>AVG</code> scalar subquery + <code>SUBSTRING</code></td><td><strong><code>1.97 ms</code></strong> vs <code>3.73 ms</code> (<strong><code>0.53×</code> win</strong>)</td><td><code>33.08 ms</code> vs <code>16.55 ms</code> (<code>2.00×</code>)</td><td><strong><code>65.48 ms</code></strong> vs <code>37.07 ms</code> (<code>1.77×</code>)</td></tr>
+<tr><td><code>Q11</code></td><td>3-table join + <code>HAVING SUM &gt; scalar subquery</code></td><td><strong><code>2.51 ms</code></strong> vs <code>4.72 ms</code> (<strong><code>0.53×</code> win</strong>)</td><td><code>20.41 ms</code> vs <code>6.92 ms</code> (<code>2.95×</code>)</td><td><code>173.4 ms</code> vs <code>10.4 ms</code> (<code>16.6×</code>)</td></tr>
+<tr><td><code>Q02</code></td><td>5-table join + correlated <code>MIN(ps_supplycost)</code></td><td><strong><code>2.39 ms</code></strong> vs <code>2.99 ms</code> (<strong><code>0.80×</code> win</strong>)</td><td><code>15.53 ms</code> vs <code>5.57 ms</code> (<code>2.79×</code>)</td><td><code>572.1 ms</code> vs <code>21.8 ms</code> (<code>26.3×</code>)</td></tr>
+<tr><td><code>Q20</code></td><td>Nested <code>IN</code> + correlated <code>0.5 * SUM(l_quantity)</code></td><td><strong><code>3.03 ms</code></strong> vs <code>3.66 ms</code> (<strong><code>0.83×</code> win</strong>)</td><td><strong><code>16.99 ms</code></strong> vs <code>10.41 ms</code> (<code>1.63×</code>)</td><td><strong><code>99.73 ms</code></strong> vs <code>34.4 ms</code> (<code>2.90×</code>, <code>6.59×</code> vs <code>v0.11</code>)</td></tr>
+<tr><td><code>Q16</code></td><td><code>partsupp ⋈ part</code> + <code>NOT IN (SELECT s_suppkey ...)</code></td><td><strong><code>5.07 ms</code></strong> vs <code>5.24 ms</code> (<strong><code>0.97×</code> win</strong>)</td><td><code>61.71 ms</code> vs <code>17.97 ms</code> (<code>3.43×</code>)</td><td><code>333.6 ms</code> vs <code>43.8 ms</code> (<code>7.61×</code>)</td></tr>
+<tr><td><code>Q04</code></td><td><code>orders</code> quarter filter + <code>EXISTS (lineitem)</code></td><td><code>3.80 ms</code> vs <code>2.23 ms</code> (<code>1.70×</code>)</td><td><strong><code>11.09 ms</code></strong> vs <code>6.43 ms</code> (<code>1.73×</code>)</td><td><strong><code>65.07 ms</code></strong> vs <code>41.7 ms</code> (<code>1.56×</code>, <code>3.47×</code> vs <code>v0.11</code>)</td></tr>
+<tr><td><code>Q17</code></td><td><code>lineitem ⋈ part</code> correlated <code>0.2 * AVG(l_quantity)</code></td><td><code>3.86 ms</code> vs <code>3.20 ms</code> (<code>1.21×</code>)</td><td><code>21.63 ms</code> vs <code>8.36 ms</code> (<code>2.59×</code>)</td><td><strong><code>88.65 ms</code></strong> vs <code>32.0 ms</code> (<code>2.77×</code>, <strong><code>17.2×</code> vs <code>v0.11</code></strong>)</td></tr>
+<tr><td><code>Q05</code></td><td>6-table cyclic <code>region..lineitem</code> join</td><td><code>8.86 ms</code> vs <code>4.46 ms</code> (<code>1.99×</code>)</td><td><code>37.43 ms</code> vs <code>8.76 ms</code> (<code>4.27×</code>)</td><td><code>470.2 ms</code> vs <code>41.6 ms</code> (<code>11.3×</code>)</td></tr>
+<tr><td><code>Q08</code></td><td>8-table Snowflake join + <code>CASE</code> market share</td><td><code>8.14 ms</code> vs <code>3.87 ms</code> (<code>2.10×</code>)</td><td><code>35.11 ms</code> vs <code>9.30 ms</code> (<code>3.77×</code>)</td><td><code>363.2 ms</code> vs <code>45.2 ms</code> (<code>8.03×</code>)</td></tr>
+<tr><td><code>Q21</code></td><td>4-table <code>EXISTS</code> + <code>NOT EXISTS</code> (<code>NeqSummary</code>)</td><td><code>44.45 ms</code> vs <code>5.14 ms</code> (<code>8.65×</code>)</td><td><code>196.55 ms</code> vs <code>16.52 ms</code> (<code>11.9×</code>)</td><td><code>1,187.4 ms</code> vs <code>72.4 ms</code> (<code>16.4×</code>, <code>2.32×</code> vs <code>v0.11</code>)</td></tr>
+<tr><td><code>Q18</code></td><td><code>IN (SELECT l_orderkey GROUP BY HAVING SUM &gt; 300)</code></td><td><code>34.69 ms</code> vs <code>4.53 ms</code> (<code>7.65×</code>)</td><td><code>260.34 ms</code> vs <code>14.93 ms</code> (<code>17.4×</code>)</td><td><code>1,799.8 ms</code> vs <code>99.1 ms</code> (<code>18.2×</code>, <strong><code>6.29×</code> vs <code>v0.11</code></strong>)</td></tr>
+<tr><td><code>Q10</code></td><td>4-table quarter return revenue (<code>20</code>-row Top-K, widest tail)</td><td><code>24.75 ms</code> vs <code>6.00 ms</code> (<code>4.13×</code>)</td><td><code>546.87 ms</code> vs <code>25.49 ms</code> (<code>21.5×</code>)</td><td><code>5,230.7 ms</code> vs <code>80.7 ms</code> (<code>64.8×</code>, <code>1.74×</code> vs <code>v0.11</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="3-head-to-head-100-warehouse-physical-nvme-tcp-pgwire-oltp-vs-postgresql-1616--sqlite-3531"><a class="header" href="#3-head-to-head-100-warehouse-physical-nvme-tcp-pgwire-oltp-vs-postgresql-1616--sqlite-3531">3. Head-to-Head <code>100</code>-Warehouse Physical-NVMe TCP <code>pgwire</code> OLTP vs. <code>PostgreSQL 16.16</code> &amp; <code>SQLite 3.53.1</code></a></h2>
+<ul>
+<li><strong>Harness &amp; Raw Artifact:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/oltp_pgwire.py"><code>bench/oltp_pgwire.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/oltp_pgwire_100wh.json"><code>oltp_pgwire_100wh.json</code></a>.</li>
+<li><strong>Workload:</strong> <code>100,000</code> accounts (<code>100</code> warehouses × <code>1,000</code> accounts, initial <code>SUM(balance) = 100,000,000</code>), physical NVMe storage (<code>--work-dir /var/tmp</code>), <code>1, 4, 8, 16</code> concurrent worker threads (<code>8.0 s</code> per level), <code>50%</code> <code>SELECT ... WHERE id = $1</code>, <code>30%</code> <code>BEGIN; UPDATE accounts SET balance = balance + $1 WHERE id = $2; INSERT INTO history ...; COMMIT</code> (<code>fsync=on</code>, <code>synchronous_commit=on</code>), <code>20%</code> <code>SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = $1</code> (<code>rapl-package</code> <strong><code>reported_j</code></strong>, quiet host <code>idle_watts = 10.68 W</code>).</li>
+</ul>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Engine &amp; Wire Mode (<code>invariant_verified = true</code>, <code>0</code> errors on all 5)</th><th style="text-align: right"><code>c = 1</code> TPS (<code>p50</code>)</th><th style="text-align: right"><code>c = 4</code> TPS (<code>p50</code>)</th><th style="text-align: right"><code>c = 8</code> TPS (<code>p50</code>)</th><th style="text-align: right"><code>c = 16</code> TPS (<code>p50</code>, <code>mJ/txn</code>)</th><th style="text-align: right">Committed Writes</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>JouleDB <code>0.12.0</code> (<code>pgwire</code> Simple Query, 4-RTT + NVMe <code>fdatasync</code>)</strong></td><td style="text-align: right"><strong><code>1,950.53</code></strong> (<code>0.148 ms</code>)</td><td style="text-align: right"><code>1,005.03</code> (<code>0.666 ms</code>)</td><td style="text-align: right"><code>2,617.89</code> (<code>0.640 ms</code>)</td><td style="text-align: right"><strong><code>5,154.08</code></strong> (<code>0.718 ms</code>, <code>10.34 mJ</code>)</td><td style="text-align: right"><code>25,677</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>JouleDB <code>0.12.0</code> (<code>pgwire</code> Extended Pipeline, 1-RTT + NVMe <code>fdatasync</code>)</strong></td><td style="text-align: right"><code>620.92</code> (<code>0.169 ms</code>)</td><td style="text-align: right"><code>1,149.02</code> (<code>0.616 ms</code>)</td><td style="text-align: right"><code>2,730.90</code> (<code>0.633 ms</code>)</td><td style="text-align: right"><strong><code>5,159.73</code></strong> (<code>0.773 ms</code>, <code>11.71 mJ</code>)</td><td style="text-align: right"><code>23,158</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>PostgreSQL <code>16.16</code> (<code>pgwire</code> Simple Query, 4-RTT + NVMe <code>fsync</code>)</strong></td><td style="text-align: right"><code>1,199.69</code> (<code>0.100 ms</code>)</td><td style="text-align: right"><code>2,813.01</code> (<code>0.142 ms</code>)</td><td style="text-align: right"><code>5,571.65</code> (<code>0.111 ms</code>)</td><td style="text-align: right"><strong><code>10,419.39</code></strong> (<code>0.273 ms</code>, <code>4.14 mJ</code>)</td><td style="text-align: right"><code>47,846</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>PostgreSQL <code>16.16</code> (<code>pgwire</code> Extended Pipeline, 1-RTT + NVMe <code>fsync</code>)</strong></td><td style="text-align: right"><code>1,171.69</code> (<code>0.071 ms</code>)</td><td style="text-align: right"><code>2,555.25</code> (<code>0.100 ms</code>)</td><td style="text-align: right"><code>5,046.95</code> (<code>0.167 ms</code>)</td><td style="text-align: right"><strong><code>9,635.60</code></strong> (<code>0.231 ms</code>, <code>3.67 mJ</code>)</td><td style="text-align: right"><code>44,020</code> (<code>0</code> conflicts)</td></tr>
+<tr><td><strong>SQLite <code>3.53.1</code> (Embedded in-proc C API, NVMe <code>WAL</code>, <code>NORMAL</code>)</strong></td><td style="text-align: right"><code>42,194.70</code> (<code>0.005 ms</code>)</td><td style="text-align: right"><code>86,523.31</code> (<code>0.006 ms</code>)</td><td style="text-align: right"><code>97,425.32</code> (<code>0.007 ms</code>)</td><td style="text-align: right"><strong><code>109,483.53</code></strong> (<code>0.007 ms</code>, <code>0.36 mJ</code>)</td><td style="text-align: right"><code>830,955</code> (in-proc)</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><strong>Candid Physical-NVMe OLTP Findings:</strong>
+<ol>
+<li><strong>JouleDB Beats <code>PostgreSQL 16.16</code> <code>1.63×</code> at <code>c=1</code> Simple (<code>1,950.5</code> vs <code>1,199.7 TPS</code>) &amp; Scales to <code>5,159.7 TPS</code> at <code>c=16</code>:</strong> On real NVMe <code>fdatasync</code> (<code>--work-dir /var/tmp</code>, vs <code>/tmp</code> <code>tmpfs</code> in <code>v0.11.0</code>), binary <code>JWU1</code> delta <code>UPDATE</code>s, deferred-hologram updates, and <code>GroupSync</code> narrow the <code>c=16</code> gap vs <code>PostgreSQL 16.16</code> from <code>2.91× / 2.61×</code> (<code>v0.11.0</code>) to <strong><code>2.02×</code> Simple / <code>1.87×</code> Pipelined</strong>.</li>
+<li><strong>Remaining Bottlenecks (<code>c=4..16</code> &amp; <code>c=1</code> Pipelined):</strong> <code>PostgreSQL 16.16</code> wins <code>1.87×–2.80×</code> at <code>c=4..16</code> via shared-buffer page locks vs JouleDB’s store-wide apply lock, and <code>GroupSync</code>’s batch coalescing window adds <code>~1.5 ms</code> wait when only 1 pipelined client is active (<code>620.9 TPS</code>).</li>
+</ol>
+</li>
+</ul>
+<hr>
+<h2 id="4-5-node-multi-host-cross-machine-wantailscale-tcp-raft-readindex--official-clojure-elle-028"><a class="header" href="#4-5-node-multi-host-cross-machine-wantailscale-tcp-raft-readindex--official-clojure-elle-028">4. 5-Node Multi-Host Cross-Machine WAN/Tailscale TCP Raft (<code>ReadIndex</code>) + Official Clojure <code>elle 0.2.8</code></a></h2>
+<ul>
+<li><strong>Harnesses &amp; Verifier:</strong> <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/raft_multihost_wan.py"><code>bench/raft_multihost_wan.py</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/crates/joule-db-server/examples/raft_wan_node.rs"><code>examples/raft_wan_node.rs</code></a>, <a href="https://github.com/openIE-dev/jouledb/blob/main/crates/joule-db-server/tests/raft_tcp_elle_fault_injection.rs"><code>tests/raft_tcp_elle_fault_injection.rs</code></a>, and <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/elle_check.clj"><code>bench/elle_check.clj</code></a>.</li>
+<li><strong>Cross-Machine WAN Run &amp; Official <code>jepsen/elle 0.2.8</code> Verdict:</strong> 5 independent OS <code>raft_wan_node</code> processes across <strong>2 distinct physical Linux machines</strong> (<code>framework-128gb-0000</code> bare-metal + <code>openie-core-1</code> Cloud Debian 12 VM, <strong><code>27.58 ms</code> median Tailscale WAN TCP RTT</strong>) survive cross-WAN <code>2/5</code> minority leader isolation, stale write &amp; <code>ReadIndex</code> rejection, majority leader failover (<code>n3</code> term <code>2</code>), real OS <strong><code>SIGKILL</code> (<code>kill -9</code>)</strong> on <code>n5</code>, and <code>raft.wal</code> convergence (<code>commit=68, applied=68, x=68, y=39</code>) -&gt; <strong><code>{:valid? true}</code></strong> (<code>270</code> events, <code>:strict-serializable</code>, <a href="https://github.com/openIE-dev/jouledb/blob/main/bench/results/raft_wan_multihost_elle_verdict.txt"><code>raft_wan_multihost_elle_verdict.txt</code></a>).</li>
+<li><strong>Note:</strong> The separate HTTP endpoint <code>POST /api/v1/certify/geo_raft_jepsen</code> (<code>distributed_jepsen_consensus.rs</code>) is an <strong>in-memory 5-struct simulation</strong> (<code>simulation_only: true</code>, <code>est_j</code>), not a multi-process Jepsen run.</li>
+</ul>
+<hr>
+<h2 id="5-jsyn-jsyn-v1-sub-1-bit-weights-measured-quality-vs-compression"><a class="header" href="#5-jsyn-jsyn-v1-sub-1-bit-weights-measured-quality-vs-compression">5. <code>.jsyn</code> (<code>JSYN-v1</code>) Sub-1-Bit Weights: Measured Quality vs. Compression</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Checkpoint / Layer</th><th style="text-align: right"><code>BPW</code></th><th style="text-align: right">Shrink vs <code>FP16</code></th><th>Measured Fidelity vs Upstream</th><th>Status in <code>v0.12.0</code></th></tr>
+</thead>
+<tbody>
+<tr><td><strong><a href="https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit"><code>dcharlot65-openie/all-MiniLM-L6-v2-LittleBit</code></a></strong> (<code>6L</code> Encoder)</td><td style="text-align: right"><code>0.4378</code></td><td style="text-align: right"><code>22.23×</code> (<code>1.95 MB</code>)</td><td><strong><code>0.9441</code> sentence-embedding cosine</strong> vs <code>FP32</code></td><td><strong>Published &amp; Verified on Hugging Face</strong> (<code>Apache-2.0</code>)</td></tr>
+<tr><td><code>Gemma-4-E2B</code> <code>q_proj</code> (<code>r = 8 -&gt; 128</code> rank sweep)</td><td style="text-align: right"><code>0.028–0.166</code></td><td style="text-align: right"><code>564× -&gt; 96.6×</code></td><td><code>0.271 -&gt; 0.455</code> output cosine (<code>KL 3.87 -&gt; 2.72</code>, <code>65.6%</code> Top-5)</td><td><strong>Retracted from HF</strong> (not drop-in LLM fidelity)</td></tr>
+<tr><td><code>Inkling-2-Mini</code> <code>w13</code> (<code>128</code>-Exp MoE slice, <code>r = 8 -&gt; 128</code>)</td><td style="text-align: right"><code>0.023–0.134</code></td><td style="text-align: right"><code>701× -&gt; 120×</code></td><td><code>0.113 -&gt; 0.350</code> output cosine (<code>KL 2.91 -&gt; 2.59</code>)</td><td><strong>Retracted from HF</strong> (not drop-in LLM fidelity)</td></tr>
+</tbody>
+</table>
+</div>
+<hr>
+<h2 id="6-in-process-subsystem-smoke-tests-jouledb-self-check-est_j"><a class="header" href="#6-in-process-subsystem-smoke-tests-jouledb-self-check-est_j">6. In-Process Subsystem Smoke Tests (<code>jouledb self-check</code>, <code>est_j</code>)</a></h2>
+<p>The fast HTTP/CLI self-checks (<code>jouledb self-check</code>, <code>POST /api/v1/bench/industry_suite</code>, <code>POST /api/v1/bench/analytic_suite</code>) execute in <code>5–40 ms</code> over small synthetic inputs and report analytical energy estimates (<strong><code>energy_evidence: "est_j"</code></strong>). They verify internal data-structure invariants during development and <strong>must not</strong> be cited as official TPC-C, ClickBench, TPC-H, JOB, STAC-M3, or Jepsen benchmark results.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="cookbook/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="design/why.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="cookbook/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="design/why.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
+
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>
