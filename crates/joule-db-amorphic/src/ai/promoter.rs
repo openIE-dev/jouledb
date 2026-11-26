@@ -616,7 +616,9 @@ impl AwarenessPromoter {
         }
 
         let oldest = &self.centroid_history[0];
-        let newest = self.centroid_history.last().unwrap();
+        let Some(newest) = self.centroid_history.last() else {
+            return;
+        };
 
         // Drift = XOR of old and new centroid. Bits that changed = the direction of drift.
         let drift = oldest.hologram.bind(&newest.hologram);

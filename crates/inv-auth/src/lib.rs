@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod apikey;
 pub mod attestation_auth;
 pub mod audit;

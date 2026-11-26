@@ -84,13 +84,13 @@ impl BrowserHolographicStore {
 
         // Initialize backend if needed
         {
-            let backend_guard = backend.read().unwrap();
+            let backend_guard = backend.read().unwrap_or_else(|e| e.into_inner());
             if !backend_guard.is_initialized() {
                 drop(backend_guard); // Release read lock
-                let backend_write = backend.write().unwrap();
+                let backend_write = backend.write().unwrap_or_else(|e| e.into_inner());
                 // Get init future and drop the lock before awaiting
                 drop(backend_write);
-                let backend_ref = backend.read().unwrap();
+                let backend_ref = backend.read().unwrap_or_else(|e| e.into_inner());
                 let init_future = backend_ref.init();
                 // drop(backend_ref); // Removed to keep borrowing valid
                 init_future.await.map_err(|e| {
@@ -102,7 +102,7 @@ impl BrowserHolographicStore {
         // Try to load existing data
         use crate::persistence::AsyncPersistenceBackend;
         let (store, cache) = {
-            let backend_guard = backend.read().unwrap();
+            let backend_guard = backend.read().unwrap_or_else(|e| e.into_inner());
             let read_future = backend_guard.read_page(1);
             drop(backend_guard); // Release lock before awaiting
 
@@ -148,19 +148,25 @@ impl BrowserHolographicStore {
 
     /// Store a key-value pair
     pub fn put(&self, key: &[u8], value: &[u8]) {
-        let mut store = self.store.write().unwrap();
+        let mut store = self.store.write().unwrap_or_else(|e| e.into_inner());
         store.put(key, value);
 
         // Update cache for serialization
-        let mut cache = self.key_value_cache.write().unwrap();
+        let mut cache = self
+            .key_value_cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         cache.insert(key.to_vec(), value.to_vec());
     }
 
     /// Persist changes to OPFS (async, call periodically or on close)
     pub async fn persist(&self) -> Result<(), JsValue> {
         if let Some(ref backend) = self.backend {
-            let store = self.store.read().unwrap();
-            let cache = self.key_value_cache.read().unwrap();
+            let store = self.store.read().unwrap_or_else(|e| e.into_inner());
+            let cache = self
+                .key_value_cache
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
 
             // Convert HashMap to Vec for serialization
             let pairs: Vec<(Vec<u8>, Vec<u8>)> =
@@ -171,7 +177,7 @@ impl BrowserHolographicStore {
 
             // Write to OPFS using AsyncPersistenceBackend trait
             use crate::persistence::AsyncPersistenceBackend;
-            let backend_guard = backend.read().unwrap();
+            let backend_guard = backend.read().unwrap_or_else(|e| e.into_inner());
             let write_future = backend_guard.write_page(self.persistence_page_id, &serialized);
             drop(backend_guard); // Release lock before awaiting
 
@@ -184,7 +190,7 @@ impl BrowserHolographicStore {
 
     /// Retrieve a value by key (approximate)
     pub fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
-        let store = self.store.read().unwrap();
+        let store = self.store.read().unwrap_or_else(|e| e.into_inner());
         store.get(key)
     }
 
@@ -195,7 +201,7 @@ impl BrowserHolographicStore {
 
     /// Get number of items stored
     pub fn len(&self) -> usize {
-        let store = self.store.read().unwrap();
+        let store = self.store.read().unwrap_or_else(|e| e.into_inner());
         store.len()
     }
 

@@ -119,7 +119,7 @@ impl HybridPublicKey {
         }
 
         let classical = ClassicalPublicKey {
-            data: bytes[..32].try_into().unwrap(),
+            data: bytes[..32].try_into().map_err(|_| PqcError::InvalidKey)?,
         };
 
         let pq = MlKemEncapsulationKey::from_bytes(&bytes[32..], MlKem768::PARAMS)?;
@@ -198,7 +198,9 @@ impl HybridCiphertext {
         }
 
         let classical = ClassicalCiphertext {
-            data: bytes[..32].try_into().unwrap(),
+            data: bytes[..32]
+                .try_into()
+                .map_err(|_| PqcError::InvalidCiphertext)?,
         };
 
         let pq = MlKemCiphertext::from_bytes(&bytes[32..], MlKem768::PARAMS)?;

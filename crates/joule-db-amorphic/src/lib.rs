@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 //! # Amorphic Database
 //!
 //! A database without fixed structure. Data exists in a hyperdimensional hologram
@@ -805,8 +807,84 @@ const VI_SHARDS: usize = 64;
 /// shards in parallel.
 /// Ids per (field, value) key. Most keys of a bulk load hold one or two
 /// ids (ids, timestamps, measurements), so they stay inline: no heap
-/// allocation per distinct value (was the bulk of value-index build time).
-pub(crate) type ValueIds = smallvec::SmallVec<[RecordId; 2]>;
+/// allocation per distinct value. High-cardinality buckets touched by
+/// OLTP `UPDATE`/`DELETE` lazily promote once to a `BTreeSet` for `O(log n)`
+/// removal instead of `O(n)` memmove.
+#[derive(Debug, Clone)]
+pub(crate) enum ValueIds {
+    Small(smallvec::SmallVec<[RecordId; 2]>),
+    Tree(Box<std::collections::BTreeSet<RecordId>>),
+}
+
+impl Default for ValueIds {
+    #[inline]
+    fn default() -> Self {
+        Self::Small(smallvec::SmallVec::new())
+    }
+}
+
+pub(crate) enum ValueIdsIter<'a> {
+    Slice(std::slice::Iter<'a, RecordId>),
+    Tree(std::collections::btree_set::Iter<'a, RecordId>),
+}
+
+impl<'a> Iterator for ValueIdsIter<'a> {
+    type Item = &'a RecordId;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Slice(it) => it.next(),
+            Self::Tree(it) => it.next(),
+        }
+    }
+}
+
+impl ValueIds {
+    #[inline]
+    pub(crate) fn push(&mut self, id: RecordId) {
+        match self {
+            Self::Small(sv) => sv.push(id),
+            Self::Tree(bt) => {
+                bt.insert(id);
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn remove_one(&mut self, id: RecordId) {
+        match self {
+            Self::Small(sv) => {
+                if sv.len() > 64 {
+                    let bt: std::collections::BTreeSet<RecordId> =
+                        sv.drain(..).filter(|&x| x != id).collect();
+                    *self = Self::Tree(Box::new(bt));
+                } else {
+                    sv.retain(|x| *x != id);
+                }
+            }
+            Self::Tree(bt) => {
+                bt.remove(&id);
+            }
+        }
+    }
+
+    #[inline]
+    pub(crate) fn retain<F: FnMut(&RecordId) -> bool>(&mut self, mut f: F) {
+        match self {
+            Self::Small(sv) => sv.retain(|x| f(&*x)),
+            Self::Tree(bt) => bt.retain(|x| f(x)),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn iter(&self) -> ValueIdsIter<'_> {
+        match self {
+            Self::Small(sv) => ValueIdsIter::Slice(sv.iter()),
+            Self::Tree(bt) => ValueIdsIter::Tree(bt.iter()),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 
@@ -858,6 +936,9 @@ pub struct AmorphicStore {
     /// global hologram, LSH, HNSW, hologram array) is still to be built by
     /// `catch_up_holograms`, in ingest order.
     deferred: std::collections::VecDeque<RecordId>,
+    /// O(1) membership companion to `deferred` so OLTP `update_fields` / `delete`
+    /// never scan `deferred` linearly.
+    deferred_set: rustc_hash::FxHashSet<RecordId>,
 
     /// Bumped whenever primary data changes without touching the hologram
     /// (deferred bulk ingest), so `generation()` still moves.
@@ -990,6 +1071,7 @@ impl AmorphicStore {
         Self {
             hologram: SegmentedHologram::new(),
             deferred: std::collections::VecDeque::new(),
+            deferred_set: Default::default(),
             data_generation: 0,
             catchup_generation: 0,
             records: Default::default(),
@@ -1484,8 +1566,10 @@ impl AmorphicStore {
             })
             .collect();
         let t_ins = std::time::Instant::now();
+        self.deferred_set.reserve(recs.len());
         for rec in recs {
             self.deferred.push_back(rec.id);
+            self.deferred_set.insert(rec.id);
             self.records.insert(rec.id, rec);
         }
         if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
@@ -1519,11 +1603,13 @@ impl AmorphicStore {
             return 0;
         }
         let n = max.min(self.deferred.len());
-        let ids: Vec<RecordId> = self
-            .deferred
-            .drain(..n)
-            .filter(|id| self.records.contains_key(id))
-            .collect();
+        let mut ids: Vec<RecordId> = Vec::with_capacity(n);
+        for id in self.deferred.drain(..n) {
+            self.deferred_set.remove(&id);
+            if self.records.contains_key(&id) {
+                ids.push(id);
+            }
+        }
         for id in &ids {
             let keys: Vec<String> = self.records[id]
                 .fields
@@ -1617,7 +1703,9 @@ impl AmorphicStore {
         if ids.is_empty() || !self.deferred.iter().take(ids.len()).eq(ids.iter()) {
             return false;
         }
-        self.deferred.drain(..ids.len());
+        for id in self.deferred.drain(..ids.len()) {
+            self.deferred_set.remove(&id);
+        }
         let (ids, holos): (Vec<_>, Vec<_>) = ids
             .into_iter()
             .zip(holos)
@@ -2171,6 +2259,53 @@ impl AmorphicStore {
         Ok(())
     }
 
+    /// Apply a prepared ingest operation immediately to primary storage and all SQL
+    /// secondary/columnar indexes while deferring hypervector/LSH/HNSW construction
+    /// to background catch-up (so OLTP `INSERT` commits never stall on HDC encoding).
+    #[cfg(feature = "durable")]
+    pub fn apply_prepared_ingest_deferred_holo(
+        &mut self,
+        id: RecordId,
+        fields: HashMap<String, Value>,
+    ) -> AmorphicResult<()> {
+        for (field, value) in &fields {
+            self.field_index.entry(field.clone()).or_default().push(id);
+
+            let value_hash = Self::hash_value(field, value);
+            self.value_index.entry(value_hash).or_default().push(id);
+
+            if (field == "name" || field == "_name")
+                && let Value::String(name) = value
+            {
+                self.name_to_id.insert(name.clone(), id);
+            }
+
+            if let Some(num) = value.as_f64() {
+                self.numeric_index
+                    .entry(field.clone())
+                    .or_default()
+                    .entry(OrderedFloat(num))
+                    .or_default()
+                    .push(id);
+            }
+
+            self.columnar.record_value(field, id, value);
+        }
+
+        let record = AmorphicRecord {
+            id,
+            hologram: BinaryHV::zeros(DIMENSION),
+            fields,
+            edges: vec![],
+            timestamp: None,
+        };
+        self.deferred.push_back(id);
+        self.deferred_set.insert(id);
+        self.records.insert(id, record);
+        self.data_generation = self.data_generation.wrapping_add(1);
+        Ok(())
+    }
+
     /// Apply a recovered record from WAL replay
     ///
     /// Similar to apply_prepared_ingest but allows setting edges and timestamp.
@@ -2299,23 +2434,18 @@ impl AmorphicStore {
     /// Query by exact field-value match
     pub fn query_equals(&self, field: &str, value: &Value) -> QueryResult {
         let value_hash = Self::hash_value(field, value);
-        let candidate_ids: &[RecordId] = self
+        let records: Vec<AmorphicRecord> = self
             .value_index
             .get(&value_hash)
-            .map(|v| v.as_slice())
-            .unwrap_or(&[]);
-
-        let records: Vec<AmorphicRecord> = candidate_ids
-            .iter()
-            .filter_map(|id| {
-                let record = self.records.get(id)?;
-                if record.fields.get(field) == Some(value) {
-                    Some(record.clone())
-                } else {
-                    None
-                }
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| {
+                        let record = self.records.get(id)?;
+                        (record.fields.get(field) == Some(value)).then(|| record.clone())
+                    })
+                    .collect()
             })
-            .collect();
+            .unwrap_or_default();
 
         QueryResult { records }
     }
@@ -3152,7 +3282,7 @@ impl AmorphicStore {
     /// Note: This removes from indices but cannot "subtract" from the global hologram.
     /// The global hologram retains traces of deleted records until rebuild.
     pub fn delete(&mut self, id: RecordId) -> AmorphicResult<()> {
-        self.catch_up_holograms(usize::MAX);
+        let is_deferred = self.deferred_set.remove(&id);
         let record = self
             .records
             .remove(&id)
@@ -3169,7 +3299,7 @@ impl AmorphicStore {
         for (field, value) in record.fields.iter() {
             let hash = Self::hash_value(field, value);
             if let Some(ids) = self.value_index.get_mut(&hash) {
-                ids.retain(|x| *x != id);
+                ids.remove_one(id);
             }
         }
 
@@ -3178,27 +3308,31 @@ impl AmorphicStore {
             if let Some(num) = value.as_f64() {
                 if let Some(btree) = self.numeric_index.get_mut(field) {
                     if let Some(ids) = btree.get_mut(&OrderedFloat(num)) {
-                        ids.retain(|x| *x != id);
+                        ids.remove_one(id);
                     }
                 }
             }
         }
 
-        // Remove from LSH tables
-        for table in &mut self.lsh_tables {
-            for ids in table.values_mut() {
-                ids.retain(|&x| x != id);
+        if !is_deferred {
+            // Remove from LSH tables
+            for table in &mut self.lsh_tables {
+                for ids in table.values_mut() {
+                    ids.retain(|&x| x != id);
+                }
             }
         }
 
         // Remove from graph indices
-        self.graph_index.remove(&id);
-        for edges in self.graph_index.values_mut() {
-            edges.retain(|(_, target)| *target != id);
-        }
-        self.reverse_graph_index.remove(&id);
-        for edges in self.reverse_graph_index.values_mut() {
-            edges.retain(|(_, source)| *source != id);
+        if !self.graph_index.is_empty() || !self.reverse_graph_index.is_empty() {
+            self.graph_index.remove(&id);
+            for edges in self.graph_index.values_mut() {
+                edges.retain(|(_, target)| *target != id);
+            }
+            self.reverse_graph_index.remove(&id);
+            for edges in self.reverse_graph_index.values_mut() {
+                edges.retain(|(_, source)| *source != id);
+            }
         }
 
         // Remove from name index
@@ -3209,13 +3343,17 @@ impl AmorphicStore {
             self.name_to_id.remove(name);
         }
 
-        // Clear from hologram array (set to zeros)
-        if (id as usize) <= self.hologram_array.len() {
-            self.hologram_array[(id - 1) as usize] = BinaryHV::zeros(DIMENSION);
-        }
+        if is_deferred {
+            self.data_generation = self.data_generation.wrapping_add(1);
+        } else {
+            // Clear from hologram array (set to zeros)
+            if (id as usize) <= self.hologram_array.len() {
+                self.hologram_array[(id - 1) as usize] = BinaryHV::zeros(DIMENSION);
+            }
 
-        // The record's segment subtracts it exactly (bundle counters are signed sums).
-        self.hologram.remove(id, &record.hologram);
+            // The record's segment subtracts it exactly (bundle counters are signed sums).
+            self.hologram.remove(id, &record.hologram);
+        }
 
         Ok(())
     }
@@ -3235,16 +3373,18 @@ impl AmorphicStore {
         if gone.is_empty() {
             return 0;
         }
-        let pending: FxHashSet<RecordId> = if self.deferred.is_empty() {
+        let pending: FxHashSet<RecordId> = if self.deferred_set.is_empty() {
             FxHashSet::default()
         } else {
-            let p = self
-                .deferred
-                .iter()
-                .copied()
-                .filter(|id| gone.contains(id))
-                .collect();
-            self.deferred.retain(|id| !gone.contains(id));
+            let mut p = FxHashSet::default();
+            for &id in &gone {
+                if self.deferred_set.remove(&id) {
+                    p.insert(id);
+                }
+            }
+            if !p.is_empty() {
+                self.deferred.retain(|id| !p.contains(id));
+            }
             p
         };
         let mut fields_touched: FxHashSet<String> = FxHashSet::default();
@@ -3374,7 +3514,7 @@ impl AmorphicStore {
         id: RecordId,
         updates: HashMap<String, Value>,
     ) -> AmorphicResult<()> {
-        let is_deferred = self.deferred.contains(&id);
+        let is_deferred = self.deferred_set.contains(&id);
         // First, extract what we need from the record to avoid borrow conflicts
         let (old_values, updated_fields, old_hologram) = {
             let record = self
@@ -3448,14 +3588,14 @@ impl AmorphicStore {
                 // Remove from value index
                 let old_hash = Self::hash_value(field, old_value);
                 if let Some(ids) = self.value_index.get_mut(&old_hash) {
-                    ids.retain(|x| *x != id);
+                    ids.remove_one(id);
                 }
 
                 // Remove from numeric index
                 if let Some(old_num) = old_value.as_f64() {
                     if let Some(btree) = self.numeric_index.get_mut(field) {
                         if let Some(ids) = btree.get_mut(&OrderedFloat(old_num)) {
-                            ids.retain(|x| *x != id);
+                            ids.remove_one(id);
                         }
                     }
                 }

@@ -120,6 +120,7 @@ impl AmorphicTableStorage {
         store
             .ingest_json(&schema_json.to_string())
             .map_err(amorphic_error)?;
+        self.invalidate_schema_cache(table);
 
         Ok(())
     }
@@ -166,6 +167,7 @@ impl AmorphicTableStorage {
         store
             .ingest_json(&schema_json.to_string())
             .map_err(amorphic_error)?;
+        self.invalidate_schema_cache(name);
 
         Ok(())
     }
@@ -248,17 +250,39 @@ impl AmorphicTableStorage {
         store
             .ingest_json(&schema_json.to_string())
             .map_err(amorphic_error)?;
+        self.invalidate_schema_cache(name);
 
         Ok(())
     }
 
-    /// Get full column definitions for a table (returns empty vec if not stored)
+    /// Get full column definitions for a table (O(1) cached; returns empty vec if not stored)
     pub fn get_column_defs(&self, table: &str) -> QueryResult<Vec<ColumnDefInfo>> {
+        if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            return Ok(hit.defs.as_ref().clone());
+        }
         let store = self.store.read_columns().map_err(lock_error)?;
         self.get_column_defs_from_store(&store, table)
     }
 
     pub(super) fn get_column_defs_from_store(
+        &self,
+        store: &DurableAmorphicStore,
+        table: &str,
+    ) -> QueryResult<Vec<ColumnDefInfo>> {
+        if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            return Ok(hit.defs.as_ref().clone());
+        }
+        if let Ok(entry) = self.cached_schema_with_store(store, table) {
+            return Ok(entry.defs.as_ref().clone());
+        }
+        self.load_column_defs_uncached(store, table)
+    }
+
+    pub(super) fn load_column_defs_uncached(
         &self,
         store: &DurableAmorphicStore,
         table: &str,
@@ -461,6 +485,7 @@ impl AmorphicTableStorage {
             .delete_batch(&data_ids)
             .map_err(|e| QueryError::ExecutionError(e.to_string()))?;
         drop(store);
+        self.invalidate_schema_cache(name);
         if let Ok(mut c) = self.col_cache.lock() {
             c.remove(name);
         }
@@ -689,6 +714,7 @@ impl AmorphicTableStorage {
 
         let schema_json = serde_json::Value::Object(schema_map).to_string();
         store.ingest_json(&schema_json).map_err(amorphic_error)?;
+        self.invalidate_schema_cache(table);
         Ok(())
     }
 

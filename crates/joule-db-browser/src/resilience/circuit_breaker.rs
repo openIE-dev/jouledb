@@ -34,15 +34,17 @@ impl CircuitBreaker {
 
     /// Check if request should be allowed
     pub fn allow_request(&self) -> bool {
-        let state = *self.state.read().unwrap();
+        let state = *self.state.read().unwrap_or_else(|e| e.into_inner());
         match state {
             CircuitState::Closed => true,
             CircuitState::Open => {
                 // Check if timeout has passed
-                if let Some(last_fail) = *self.last_failure.read().unwrap() {
+                if let Some(last_fail) = *self.last_failure.read().unwrap_or_else(|e| e.into_inner())
+                {
                     if last_fail.elapsed() >= self.timeout {
                         // Transition to half-open
-                        *self.state.write().unwrap() = CircuitState::HalfOpen;
+                        *self.state.write().unwrap_or_else(|e| e.into_inner()) =
+                            CircuitState::HalfOpen;
                         return true;
                     }
                 }
@@ -54,26 +56,35 @@ impl CircuitBreaker {
 
     /// Record success
     pub fn record_success(&self) {
-        let mut state = self.state.write().unwrap();
+        let mut state = self.state.write().unwrap_or_else(|e| e.into_inner());
         if *state == CircuitState::HalfOpen {
             *state = CircuitState::Closed;
-            *self.failure_count.write().unwrap() = 0;
+            *self
+                .failure_count
+                .write()
+                .unwrap_or_else(|e| e.into_inner()) = 0;
         }
     }
 
     /// Record failure
     pub fn record_failure(&self) {
-        let mut failure_count = self.failure_count.write().unwrap();
+        let mut failure_count = self
+            .failure_count
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         *failure_count += 1;
-        *self.last_failure.write().unwrap() = Some(Instant::now());
+        *self
+            .last_failure
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
 
         if *failure_count >= self.failure_threshold {
-            *self.state.write().unwrap() = CircuitState::Open;
+            *self.state.write().unwrap_or_else(|e| e.into_inner()) = CircuitState::Open;
         }
     }
 
     /// Get current state
     pub fn state(&self) -> CircuitState {
-        *self.state.read().unwrap()
+        *self.state.read().unwrap_or_else(|e| e.into_inner())
     }
 }

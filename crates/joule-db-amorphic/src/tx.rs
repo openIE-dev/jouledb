@@ -93,14 +93,20 @@ impl VersionStore {
     /// Register a new transaction with a read timestamp
     pub fn begin_transaction(&self, tx_id: TxId) -> Timestamp {
         let read_ts = self.current_timestamp();
-        let mut active = self.active_transactions.write().unwrap();
+        let mut active = self
+            .active_transactions
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         active.insert(tx_id, read_ts);
         read_ts
     }
 
     /// Get the read timestamp for a transaction
     pub fn get_read_timestamp(&self, tx_id: TxId) -> Option<Timestamp> {
-        let active = self.active_transactions.read().unwrap();
+        let active = self
+            .active_transactions
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         active.get(&tx_id).copied()
     }
 
@@ -111,7 +117,7 @@ impl VersionStore {
         ts: Timestamp,
         tx_id: Option<TxId>,
     ) -> Option<RecordVersion> {
-        let versions = self.versions.read().unwrap();
+        let versions = self.versions.read().unwrap_or_else(|e| e.into_inner());
         if let Some(record_versions) = versions.get(&record_id) {
             // Find the latest version visible at this timestamp
             // Also include our own uncommitted writes
@@ -127,7 +133,7 @@ impl VersionStore {
 
     /// Try to acquire a write lock on a record
     pub fn try_lock(&self, record_id: RecordId, tx_id: TxId) -> Result<(), TransactionError> {
-        let mut locks = self.write_locks.write().unwrap();
+        let mut locks = self.write_locks.write().unwrap_or_else(|e| e.into_inner());
         if let Some(&holder) = locks.get(&record_id) {
             if holder != tx_id {
                 return Err(TransactionError::WriteConflict {
@@ -142,19 +148,19 @@ impl VersionStore {
 
     /// Release all write locks held by a transaction
     pub fn release_locks(&self, tx_id: TxId) {
-        let mut locks = self.write_locks.write().unwrap();
+        let mut locks = self.write_locks.write().unwrap_or_else(|e| e.into_inner());
         locks.retain(|_, &mut holder| holder != tx_id);
     }
 
     /// Add a new version (for commits)
     pub fn add_version(&self, record_id: RecordId, version: RecordVersion) {
-        let mut versions = self.versions.write().unwrap();
+        let mut versions = self.versions.write().unwrap_or_else(|e| e.into_inner());
         versions.entry(record_id).or_default().push(version);
     }
 
     /// Mark a record as deleted at a given timestamp
     pub fn mark_deleted(&self, record_id: RecordId, delete_ts: Timestamp) {
-        let mut versions = self.versions.write().unwrap();
+        let mut versions = self.versions.write().unwrap_or_else(|e| e.into_inner());
         if let Some(record_versions) = versions.get_mut(&record_id) {
             // Mark the latest version as deleted
             if let Some(latest) = record_versions.last_mut() {
@@ -167,13 +173,19 @@ impl VersionStore {
 
     /// Remove a transaction from active set
     pub fn end_transaction(&self, tx_id: TxId) {
-        let mut active = self.active_transactions.write().unwrap();
+        let mut active = self
+            .active_transactions
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         active.remove(&tx_id);
     }
 
     /// Get the minimum active read timestamp (for garbage collection)
     pub fn min_active_read_ts(&self) -> Option<Timestamp> {
-        let active = self.active_transactions.read().unwrap();
+        let active = self
+            .active_transactions
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         active.values().min().copied()
     }
 
@@ -184,7 +196,7 @@ impl VersionStore {
             None => self.current_timestamp(), // No active transactions, can clean everything old
         };
 
-        let mut versions = self.versions.write().unwrap();
+        let mut versions = self.versions.write().unwrap_or_else(|e| e.into_inner());
         for record_versions in versions.values_mut() {
             // Keep versions that might still be visible
             // A version can be garbage collected if:
@@ -289,7 +301,7 @@ impl PredicateLockManager {
 
     /// Record a predicate lock (range read or write)
     pub fn record_lock(&self, lock: PredicateLock) {
-        let mut locks = self.locks.write().unwrap();
+        let mut locks = self.locks.write().unwrap_or_else(|e| e.into_inner());
         locks.push(lock);
     }
 
@@ -339,7 +351,7 @@ impl PredicateLockManager {
     ///
     /// Returns list of conflicting transaction IDs
     pub fn check_conflicts(&self, tx_id: TxId) -> Vec<(TxId, String)> {
-        let locks = self.locks.read().unwrap();
+        let locks = self.locks.read().unwrap_or_else(|e| e.into_inner());
 
         let my_locks: Vec<&PredicateLock> = locks.iter().filter(|l| l.tx_id == tx_id).collect();
 
@@ -369,19 +381,19 @@ impl PredicateLockManager {
 
     /// Remove all locks for a transaction
     pub fn release_locks(&self, tx_id: TxId) {
-        let mut locks = self.locks.write().unwrap();
+        let mut locks = self.locks.write().unwrap_or_else(|e| e.into_inner());
         locks.retain(|l| l.tx_id != tx_id);
     }
 
     /// Clean up old locks (older than min_active_ts can be removed)
     pub fn cleanup_old_locks(&self, min_active_ts: Timestamp) {
-        let mut locks = self.locks.write().unwrap();
+        let mut locks = self.locks.write().unwrap_or_else(|e| e.into_inner());
         locks.retain(|l| l.timestamp >= min_active_ts);
     }
 
     /// Get count of active locks
     pub fn lock_count(&self) -> usize {
-        self.locks.read().unwrap().len()
+        self.locks.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 }
 
@@ -651,10 +663,10 @@ impl Transaction for AmorphicTransaction {
 
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, TransactionError> {
         // Convert key to RecordId (assuming it's a u64)
-        if key.len() != 8 {
+        let Ok(bytes) = <[u8; 8]>::try_from(key) else {
             return Ok(None);
-        }
-        let record_id = u64::from_le_bytes(key.try_into().unwrap());
+        };
+        let record_id = u64::from_le_bytes(bytes);
 
         // Get the record data
         let data = self.get_record(record_id)?;
@@ -664,12 +676,12 @@ impl Transaction for AmorphicTransaction {
     }
 
     fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), TransactionError> {
-        if key.len() != 8 {
+        let Ok(bytes) = <[u8; 8]>::try_from(key) else {
             return Err(TransactionError::SerializationFailure {
                 reason: "Key must be 8 bytes (RecordId)".to_string(),
             });
-        }
-        let record_id = u64::from_le_bytes(key.try_into().unwrap());
+        };
+        let record_id = u64::from_le_bytes(bytes);
 
         // Deserialize value as JSON fields
         let data: HashMap<String, Value> =
@@ -681,10 +693,10 @@ impl Transaction for AmorphicTransaction {
     }
 
     fn delete(&mut self, key: &[u8]) -> Result<bool, TransactionError> {
-        if key.len() != 8 {
+        let Ok(bytes) = <[u8; 8]>::try_from(key) else {
             return Ok(false);
-        }
-        let record_id = u64::from_le_bytes(key.try_into().unwrap());
+        };
+        let record_id = u64::from_le_bytes(bytes);
         self.delete_record(record_id)
     }
 
@@ -745,7 +757,11 @@ impl AmorphicTransactionManager {
 
     /// Get the number of active transactions
     pub fn active_transaction_count(&self) -> usize {
-        let active = self.version_store.active_transactions.read().unwrap();
+        let active = self
+            .version_store
+            .active_transactions
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         active.len()
     }
 }

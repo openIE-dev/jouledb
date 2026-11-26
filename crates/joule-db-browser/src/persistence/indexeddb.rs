@@ -57,7 +57,7 @@ impl IndexedDBBackend {
 
     /// Check if initialized
     pub fn is_initialized(&self) -> bool {
-        *self.initialized.read().unwrap()
+        *self.initialized.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Initialize IndexedDB asynchronously
@@ -66,7 +66,7 @@ impl IndexedDBBackend {
         use js_sys::Promise;
         use wasm_bindgen_futures::JsFuture;
 
-        if *self.initialized.read().unwrap() {
+        if *self.initialized.read().unwrap_or_else(|e| e.into_inner()) {
             return Ok(());
         }
 
@@ -115,15 +115,15 @@ impl IndexedDBBackend {
             .dyn_into()
             .map_err(|_| PersistenceError::InitError("Invalid database object".to_string()))?;
 
-        *self.db.write().unwrap() = Some(db);
-        *self.initialized.write().unwrap() = true;
+        *self.db.write().unwrap_or_else(|e| e.into_inner()) = Some(db);
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
 
         Ok(())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn init(&self) -> Result<(), PersistenceError> {
-        *self.initialized.write().unwrap() = true;
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
         Ok(())
     }
 
@@ -160,7 +160,7 @@ impl IndexedDBBackend {
     /// Read page (sync version for non-wasm)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn read_page_sync(&self, page_id: PageId) -> Result<Vec<u8>, PersistenceError> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
         cache
             .get(&page_id)
             .cloned()
@@ -170,7 +170,7 @@ impl IndexedDBBackend {
     /// Write page (sync version for non-wasm)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write_page_sync(&self, page_id: PageId, data: &[u8]) -> Result<(), PersistenceError> {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
         cache.insert(page_id, data.to_vec());
         Ok(())
     }
@@ -182,15 +182,15 @@ impl IndexedDBBackend {
 
         // Check cache first
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
             if let Some(data) = cache.get(&page_id) {
-                self.stats.write().unwrap().cache_hits += 1;
+                self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_hits += 1;
                 return Ok(data.clone());
             }
         }
-        self.stats.write().unwrap().cache_misses += 1;
+        self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
 
-        let db_guard = self.db.read().unwrap();
+        let db_guard = self.db.read().unwrap_or_else(|e| e.into_inner());
         let db = db_guard.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Database not initialized".to_string())
         })?;
@@ -246,11 +246,11 @@ impl IndexedDBBackend {
 
         // Update cache
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(page_id, data.clone());
         }
 
-        self.stats.write().unwrap().read_ops += 1;
+        self.stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
         Ok(data)
     }
 
@@ -264,7 +264,7 @@ impl IndexedDBBackend {
         use wasm_bindgen_futures::JsFuture;
         use web_sys::IdbTransactionMode;
 
-        let db_guard = self.db.read().unwrap();
+        let db_guard = self.db.read().unwrap_or_else(|e| e.into_inner());
         let db = db_guard.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Database not initialized".to_string())
         })?;
@@ -310,11 +310,11 @@ impl IndexedDBBackend {
 
         // Update cache
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(page_id, data.to_vec());
         }
 
-        self.stats.write().unwrap().write_ops += 1;
+        self.stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
         Ok(())
     }
 }
@@ -334,15 +334,15 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
 
         Box::pin(async move {
             {
-                let cache_guard = cache.read().unwrap();
+                let cache_guard = cache.read().unwrap_or_else(|e| e.into_inner());
                 if let Some(data) = cache_guard.get(&page_id) {
-                    stats.write().unwrap().cache_hits += 1;
+                    stats.write().unwrap_or_else(|e| e.into_inner()).cache_hits += 1;
                     return Ok(data.clone());
                 }
             }
-            stats.write().unwrap().cache_misses += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
 
-            let db_guard = db_arc.read().unwrap();
+            let db_guard = db_arc.read().unwrap_or_else(|e| e.into_inner());
             let db = db_guard.as_ref().ok_or_else(|| {
                 PersistenceError::NotAvailable("Database not initialized".to_string())
             })?;
@@ -394,10 +394,10 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
                 .map_err(|e| PersistenceError::IoError(format!("Deserialize error: {:?}", e)))?;
 
             {
-                let mut cache_guard = cache.write().unwrap();
+                let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
                 cache_guard.insert(page_id, data.clone());
             }
-            stats.write().unwrap().read_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
 
             Ok(data)
         })
@@ -412,7 +412,7 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
     > {
         let cache = Arc::clone(&self.cache);
         Box::pin(async move {
-            let cache_guard = cache.read().unwrap();
+            let cache_guard = cache.read().unwrap_or_else(|e| e.into_inner());
             cache_guard
                 .get(&page_id)
                 .cloned()
@@ -434,7 +434,7 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
         let db_arc = Arc::clone(&self.db);
 
         Box::pin(async move {
-            let db_guard = db_arc.read().unwrap();
+            let db_guard = db_arc.read().unwrap_or_else(|e| e.into_inner());
             let db_val = db_guard.as_ref().ok_or_else(|| {
                 PersistenceError::NotAvailable("Database not initialized".to_string())
             })?;
@@ -489,10 +489,10 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
                 .map_err(|e| PersistenceError::IoError(format!("{:?}", e)))?;
 
             {
-                let mut cache_guard = cache.write().unwrap();
+                let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
                 cache_guard.insert(page_id, data);
             }
-            stats.write().unwrap().write_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
 
             Ok(())
         })
@@ -510,9 +510,9 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
         let cache = Arc::clone(&self.cache);
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            let mut cache_guard = cache.write().unwrap();
+            let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
             cache_guard.insert(page_id, data);
-            stats.write().unwrap().write_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
             Ok(())
         })
     }
@@ -524,7 +524,7 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
     {
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            stats.write().unwrap().sync_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).sync_ops += 1;
             Ok(())
         })
     }
@@ -537,13 +537,13 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
     > {
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            stats.write().unwrap().sync_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).sync_ops += 1;
             Ok(())
         })
     }
 
     fn stats(&self) -> StorageStats {
-        self.stats.read().unwrap().clone()
+        self.stats.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 

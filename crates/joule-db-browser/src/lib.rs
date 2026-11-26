@@ -22,6 +22,8 @@
 //! const value = await db.get('key');
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod apis;
 #[path = "engine.rs"]
 mod engine_impl;

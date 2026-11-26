@@ -209,7 +209,10 @@ impl SymbolicReasoner {
 
     /// Add a rule
     pub fn add_rule(&self, rule: Rule) {
-        self.rules.write().unwrap().push(rule);
+        self.rules
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(rule);
     }
 
     /// Add a rule from string
@@ -221,7 +224,10 @@ impl SymbolicReasoner {
 
     /// Add a fact
     pub fn add_fact(&self, fact: Fact) {
-        self.facts.write().unwrap().insert(fact);
+        self.facts
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(fact);
     }
 
     /// Add a fact from string
@@ -238,12 +244,12 @@ impl SymbolicReasoner {
 
     /// Get number of facts
     pub fn fact_count(&self) -> usize {
-        self.facts.read().unwrap().len()
+        self.facts.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Get number of rules
     pub fn rule_count(&self) -> usize {
-        self.rules.read().unwrap().len()
+        self.rules.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Forward chaining inference
@@ -255,12 +261,12 @@ impl SymbolicReasoner {
 
         while changed {
             changed = false;
-            let rules = self.rules.read().unwrap().clone();
+            let rules = self.rules.read().unwrap_or_else(|e| e.into_inner()).clone();
 
             for rule in &rules {
                 let new_facts = self.apply_rule(rule);
                 for fact in new_facts {
-                    let mut facts = self.facts.write().unwrap();
+                    let mut facts = self.facts.write().unwrap_or_else(|e| e.into_inner());
                     if !facts.contains(&fact) {
                         facts.insert(fact);
                         new_facts_count += 1;
@@ -275,7 +281,7 @@ impl SymbolicReasoner {
 
     /// Apply a rule to derive new facts
     fn apply_rule(&self, rule: &Rule) -> Vec<Fact> {
-        let facts = self.facts.read().unwrap();
+        let facts = self.facts.read().unwrap_or_else(|e| e.into_inner());
 
         if rule.conditions.is_empty() {
             // Rule with no conditions - always applies
@@ -372,7 +378,7 @@ impl SymbolicReasoner {
 
     /// Query for facts matching a pattern
     pub fn query(&self, pattern: &Predicate) -> Vec<(Fact, Binding)> {
-        let facts = self.facts.read().unwrap();
+        let facts = self.facts.read().unwrap_or_else(|e| e.into_inner());
         let mut results = Vec::new();
 
         for fact in facts.iter() {
@@ -400,8 +406,12 @@ impl Default for SymbolicReasoner {
 impl Clone for SymbolicReasoner {
     fn clone(&self) -> Self {
         Self {
-            rules: Arc::new(RwLock::new(self.rules.read().unwrap().clone())),
-            facts: Arc::new(RwLock::new(self.facts.read().unwrap().clone())),
+            rules: Arc::new(RwLock::new(
+                self.rules.read().unwrap_or_else(|e| e.into_inner()).clone(),
+            )),
+            facts: Arc::new(RwLock::new(
+                self.facts.read().unwrap_or_else(|e| e.into_inner()).clone(),
+            )),
         }
     }
 }

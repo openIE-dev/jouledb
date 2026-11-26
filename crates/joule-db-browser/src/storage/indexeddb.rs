@@ -26,21 +26,26 @@ fn request_to_promise(request: &IdbRequest) -> Promise {
         let reject_clone = reject.clone();
 
         let success_cb = Closure::once(Box::new(move |event: Event| {
-            let target = event.target().unwrap();
-            let req: IdbRequest = target.unchecked_into();
-            let result = req.result().unwrap_or(JsValue::UNDEFINED);
-            resolve_clone.call1(&JsValue::UNDEFINED, &result).unwrap();
+            if let Some(target) = event.target() {
+                let req: IdbRequest = target.unchecked_into();
+                let result = req.result().unwrap_or(JsValue::UNDEFINED);
+                let _ = resolve_clone.call1(&JsValue::UNDEFINED, &result);
+            } else {
+                let _ = resolve_clone.call1(&JsValue::UNDEFINED, &JsValue::UNDEFINED);
+            }
         }) as Box<dyn FnOnce(Event)>);
 
         let error_cb = Closure::once(Box::new(move |event: Event| {
-            let target = event.target().unwrap();
-            let req: IdbRequest = target.unchecked_into();
-            let error = req.error().unwrap_or(None);
-            let error_val = match error {
-                Some(e) => JsValue::from(e),
-                None => JsValue::from_str("Unknown error"),
+            let error_val = if let Some(target) = event.target() {
+                let req: IdbRequest = target.unchecked_into();
+                match req.error().unwrap_or(None) {
+                    Some(e) => JsValue::from(e),
+                    None => JsValue::from_str("Unknown error"),
+                }
+            } else {
+                JsValue::from_str("Unknown error")
             };
-            reject_clone.call1(&JsValue::UNDEFINED, &error_val).unwrap();
+            let _ = reject_clone.call1(&JsValue::UNDEFINED, &error_val);
         }) as Box<dyn FnOnce(Event)>);
 
         request.set_onsuccess(Some(success_cb.as_ref().unchecked_ref()));
@@ -59,31 +64,39 @@ fn open_request_to_promise(request: &IdbOpenDbRequest, store_name: String) -> Pr
         let store_name_clone = store_name.clone();
 
         let upgrade_cb = Closure::once(Box::new(move |event: Event| {
-            let target = event.target().unwrap();
-            let req: IdbOpenDbRequest = target.unchecked_into();
-            let db: IdbDatabase = req.result().unwrap().unchecked_into();
+            if let Some(target) = event.target() {
+                let req: IdbOpenDbRequest = target.unchecked_into();
+                if let Ok(res) = req.result() {
+                    let db: IdbDatabase = res.unchecked_into();
 
-            if !db.object_store_names().contains(&store_name_clone) {
-                let _ = db.create_object_store(&store_name_clone);
+                    if !db.object_store_names().contains(&store_name_clone) {
+                        let _ = db.create_object_store(&store_name_clone);
+                    }
+                }
             }
         }) as Box<dyn FnOnce(Event)>);
 
         let success_cb = Closure::once(Box::new(move |event: Event| {
-            let target = event.target().unwrap();
-            let req: IdbOpenDbRequest = target.unchecked_into();
-            let result = req.result().unwrap_or(JsValue::UNDEFINED);
-            resolve_clone.call1(&JsValue::UNDEFINED, &result).unwrap();
+            if let Some(target) = event.target() {
+                let req: IdbOpenDbRequest = target.unchecked_into();
+                let result = req.result().unwrap_or(JsValue::UNDEFINED);
+                let _ = resolve_clone.call1(&JsValue::UNDEFINED, &result);
+            } else {
+                let _ = resolve_clone.call1(&JsValue::UNDEFINED, &JsValue::UNDEFINED);
+            }
         }) as Box<dyn FnOnce(Event)>);
 
         let error_cb = Closure::once(Box::new(move |event: Event| {
-            let target = event.target().unwrap();
-            let req: IdbOpenDbRequest = target.unchecked_into();
-            let error = req.error().unwrap_or(None);
-            let error_val = match error {
-                Some(e) => JsValue::from(e),
-                None => JsValue::from_str("Unknown error"),
+            let error_val = if let Some(target) = event.target() {
+                let req: IdbOpenDbRequest = target.unchecked_into();
+                match req.error().unwrap_or(None) {
+                    Some(e) => JsValue::from(e),
+                    None => JsValue::from_str("Unknown error"),
+                }
+            } else {
+                JsValue::from_str("Unknown error")
             };
-            reject_clone.call1(&JsValue::UNDEFINED, &error_val).unwrap();
+            let _ = reject_clone.call1(&JsValue::UNDEFINED, &error_val);
         }) as Box<dyn FnOnce(Event)>);
 
         request.set_onupgradeneeded(Some(upgrade_cb.as_ref().unchecked_ref()));
@@ -126,7 +139,7 @@ impl IndexedDbBackend {
         let db: IdbDatabase = JsFuture::from(promise).await?.unchecked_into();
 
         // Store the database handle
-        let mut db_lock = self.db.write().unwrap();
+        let mut db_lock = self.db.write().unwrap_or_else(|e| e.into_inner());
         *db_lock = Some(db);
 
         Ok(())
@@ -136,7 +149,7 @@ impl IndexedDbBackend {
     fn get_db(&self) -> Result<IdbDatabase, StorageError> {
         self.db
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| StorageError::Backend("Database not opened".to_string()))
     }
@@ -145,7 +158,7 @@ impl IndexedDbBackend {
     pub async fn read_page_async(&self, page_id: PageId) -> Result<Option<Page>, StorageError> {
         // Check cache first
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
             if let Some(page) = cache.get(&page_id) {
                 return Ok(Some(page.clone()));
             }
@@ -183,7 +196,7 @@ impl IndexedDbBackend {
 
         // Cache it
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(page_id, page.clone());
         }
 
@@ -222,7 +235,7 @@ impl IndexedDbBackend {
 
         // Update cache
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(page_id, page);
         }
 
@@ -231,7 +244,7 @@ impl IndexedDbBackend {
 
     /// Allocate a new page
     pub fn allocate_page(&self) -> Result<PageId, StorageError> {
-        let mut next_id = self.next_page_id.write().unwrap();
+        let mut next_id = self.next_page_id.write().unwrap_or_else(|e| e.into_inner());
         let page_id = *next_id;
         *next_id += 1;
         Ok(page_id)
@@ -241,7 +254,7 @@ impl IndexedDbBackend {
     pub async fn free_page_async(&self, page_id: PageId) -> Result<(), StorageError> {
         // Remove from cache
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
             cache.remove(&page_id);
         }
 

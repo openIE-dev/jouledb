@@ -44,14 +44,16 @@ impl PushManager {
             .ok_or_else(|| JsValue::from_str("ready not found"))?;
 
         let registration = wasm_bindgen_futures::JsFuture::from(ready).await?;
-        let reg_obj = registration.dyn_into::<js_sys::Object>().unwrap();
+        let reg_obj = registration
+            .dyn_into::<js_sys::Object>()
+            .map_err(|_| JsValue::from_str("Invalid registration object"))?;
 
         let push_manager = js_sys::Reflect::get(&reg_obj, &JsValue::from_str("pushManager"))
             .ok()
             .and_then(|v| v.dyn_into::<js_sys::Object>().ok())
             .ok_or_else(|| JsValue::from_str("pushManager not found"))?;
 
-        *self.push_manager.write().unwrap() = Some(push_manager);
+        *self.push_manager.write().unwrap_or_else(|e| e.into_inner()) = Some(push_manager);
         Ok(())
     }
 
@@ -71,7 +73,7 @@ impl PushManager {
         let push_manager = self
             .push_manager
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Push manager not initialized"))?;
 
@@ -107,8 +109,11 @@ impl PushManager {
         )
         .await?;
 
-        let subscription_obj = subscription.dyn_into::<js_sys::Object>().unwrap();
-        *self.subscription.write().unwrap() = Some(subscription_obj.clone());
+        let subscription_obj = subscription
+            .dyn_into::<js_sys::Object>()
+            .map_err(|_| JsValue::from_str("Invalid subscription object"))?;
+        *self.subscription.write().unwrap_or_else(|e| e.into_inner()) =
+            Some(subscription_obj.clone());
 
         Ok(subscription_obj)
     }
@@ -129,7 +134,7 @@ impl PushManager {
         let push_manager = self
             .push_manager
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Push manager not initialized"))?;
 
@@ -153,7 +158,11 @@ impl PushManager {
         if result.is_null() || result.is_undefined() {
             Ok(None)
         } else {
-            Ok(Some(result.dyn_into::<js_sys::Object>().unwrap()))
+            Ok(Some(
+                result
+                    .dyn_into::<js_sys::Object>()
+                    .map_err(|_| JsValue::from_str("Invalid subscription object"))?,
+            ))
         }
     }
 
@@ -166,7 +175,12 @@ impl PushManager {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn unsubscribe(&self) -> Result<bool, JsValue> {
-        if let Some(subscription) = self.subscription.read().unwrap().clone() {
+        if let Some(subscription) = self
+            .subscription
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+        {
             let unsubscribe_func =
                 js_sys::Reflect::get(&subscription, &JsValue::from_str("unsubscribe"))
                     .ok()
@@ -184,7 +198,7 @@ impl PushManager {
             )
             .await?;
 
-            *self.subscription.write().unwrap() = None;
+            *self.subscription.write().unwrap_or_else(|e| e.into_inner()) = None;
             Ok(result.as_bool().unwrap_or(false))
         } else {
             Ok(false)

@@ -258,8 +258,8 @@ impl LoadForecaster {
         let hv = self.encoder.encode_meter_reading(reading, consumer_type);
         self.high_load_patterns.add(&hv);
         self.reading_history
-            .get_mut(&consumer_type)
-            .unwrap()
+            .entry(consumer_type)
+            .or_insert_with(|| BundleAccumulator::new(DIMENSION))
             .add(&hv);
     }
 
@@ -267,8 +267,8 @@ impl LoadForecaster {
         let hv = self.encoder.encode_meter_reading(reading, consumer_type);
         self.low_load_patterns.add(&hv);
         self.reading_history
-            .get_mut(&consumer_type)
-            .unwrap()
+            .entry(consumer_type)
+            .or_insert_with(|| BundleAccumulator::new(DIMENSION))
             .add(&hv);
     }
 

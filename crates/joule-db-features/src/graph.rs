@@ -296,14 +296,26 @@ impl GraphStore {
 
     /// Create a node
     pub fn create_node(&self) -> NodeId {
-        let mut id = self.next_node_id.write().unwrap();
+        let mut id = self
+            .next_node_id
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let node_id = *id;
         *id += 1;
 
         let node = Node::new(node_id);
-        self.nodes.write().unwrap().insert(node_id, node);
-        self.outgoing.write().unwrap().insert(node_id, Vec::new());
-        self.incoming.write().unwrap().insert(node_id, Vec::new());
+        self.nodes
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(node_id, node);
+        self.outgoing
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(node_id, Vec::new());
+        self.incoming
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(node_id, Vec::new());
 
         node_id
     }
@@ -331,12 +343,21 @@ impl GraphStore {
 
     /// Get node by ID
     pub fn get_node(&self, id: NodeId) -> Option<Node> {
-        self.nodes.read().unwrap().get(&id).cloned()
+        self.nodes
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&id)
+            .cloned()
     }
 
     /// Add label to node
     pub fn add_label(&self, node_id: NodeId, label: &str) {
-        if let Some(node) = self.nodes.write().unwrap().get_mut(&node_id) {
+        if let Some(node) = self
+            .nodes
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(&node_id)
+        {
             if !node.labels.contains(&label.to_string()) {
                 node.labels.push(label.to_string());
 
@@ -344,7 +365,7 @@ impl GraphStore {
                 if self.config.index_labels {
                     self.label_index
                         .write()
-                        .unwrap()
+                        .unwrap_or_else(|e| e.into_inner())
                         .entry(label.to_string())
                         .or_insert_with(HashSet::new)
                         .insert(node_id);
@@ -355,7 +376,12 @@ impl GraphStore {
 
     /// Set node property
     pub fn set_property(&self, node_id: NodeId, key: &str, value: serde_json::Value) {
-        if let Some(node) = self.nodes.write().unwrap().get_mut(&node_id) {
+        if let Some(node) = self
+            .nodes
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(&node_id)
+        {
             node.properties.insert(key.to_string(), value);
         }
     }
@@ -364,8 +390,8 @@ impl GraphStore {
     pub fn delete_node(&self, node_id: NodeId) -> bool {
         // First remove all connected edges
         let edge_ids: Vec<EdgeId> = {
-            let outgoing = self.outgoing.read().unwrap();
-            let incoming = self.incoming.read().unwrap();
+            let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+            let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
             let mut edges = Vec::new();
             if let Some(out) = outgoing.get(&node_id) {
                 edges.extend(out.iter().copied());
@@ -381,18 +407,37 @@ impl GraphStore {
         }
 
         // Remove from label index
-        if let Some(node) = self.nodes.read().unwrap().get(&node_id) {
+        if let Some(node) = self
+            .nodes
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&node_id)
+        {
             for label in &node.labels {
-                if let Some(set) = self.label_index.write().unwrap().get_mut(label) {
+                if let Some(set) = self
+                    .label_index
+                    .write()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .get_mut(label)
+                {
                     set.remove(&node_id);
                 }
             }
         }
 
         // Remove node
-        self.nodes.write().unwrap().remove(&node_id);
-        self.outgoing.write().unwrap().remove(&node_id);
-        self.incoming.write().unwrap().remove(&node_id);
+        self.nodes
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&node_id);
+        self.outgoing
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&node_id);
+        self.incoming
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&node_id);
 
         true
     }
@@ -400,30 +445,36 @@ impl GraphStore {
     /// Create an edge
     pub fn create_edge(&self, from: NodeId, to: NodeId, edge_type: &str) -> Option<EdgeId> {
         // Verify nodes exist
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         if !nodes.contains_key(&from) || !nodes.contains_key(&to) {
             return None;
         }
         drop(nodes);
 
-        let mut id = self.next_edge_id.write().unwrap();
+        let mut id = self
+            .next_edge_id
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let edge_id = *id;
         *id += 1;
 
         let edge = Edge::new(edge_id, from, to, edge_type);
-        self.edges.write().unwrap().insert(edge_id, edge);
+        self.edges
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(edge_id, edge);
 
         // Update indices
         self.outgoing
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .entry(from)
             .or_insert_with(Vec::new)
             .push(edge_id);
 
         self.incoming
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .entry(to)
             .or_insert_with(Vec::new)
             .push(edge_id);
@@ -431,7 +482,7 @@ impl GraphStore {
         if self.config.index_edge_types {
             self.edge_type_index
                 .write()
-                .unwrap()
+                .unwrap_or_else(|e| e.into_inner())
                 .entry(edge_type.to_string())
                 .or_insert_with(HashSet::new)
                 .insert(edge_id);
@@ -442,34 +493,58 @@ impl GraphStore {
 
     /// Get edge by ID
     pub fn get_edge(&self, id: EdgeId) -> Option<Edge> {
-        self.edges.read().unwrap().get(&id).cloned()
+        self.edges
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&id)
+            .cloned()
     }
 
     /// Set edge property
     pub fn set_edge_property(&self, edge_id: EdgeId, key: &str, value: serde_json::Value) {
-        if let Some(edge) = self.edges.write().unwrap().get_mut(&edge_id) {
+        if let Some(edge) = self
+            .edges
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(&edge_id)
+        {
             edge.properties.insert(key.to_string(), value);
         }
     }
 
     /// Delete edge
     pub fn delete_edge(&self, edge_id: EdgeId) -> bool {
-        let edge = match self.edges.write().unwrap().remove(&edge_id) {
+        let edge = match self
+            .edges
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&edge_id)
+        {
             Some(e) => e,
             None => return false,
         };
 
         // Update indices
-        if let Some(out) = self.outgoing.write().unwrap().get_mut(&edge.from) {
+        if let Some(out) = self
+            .outgoing
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(&edge.from)
+        {
             out.retain(|&id| id != edge_id);
         }
-        if let Some(inc) = self.incoming.write().unwrap().get_mut(&edge.to) {
+        if let Some(inc) = self
+            .incoming
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(&edge.to)
+        {
             inc.retain(|&id| id != edge_id);
         }
         if let Some(set) = self
             .edge_type_index
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get_mut(&edge.edge_type)
         {
             set.remove(&edge_id);
@@ -483,21 +558,21 @@ impl GraphStore {
         let node_ids: Vec<NodeId> = if self.config.index_labels {
             self.label_index
                 .read()
-                .unwrap()
+                .unwrap_or_else(|e| e.into_inner())
                 .get(label)
                 .map(|set| set.iter().copied().collect())
                 .unwrap_or_default()
         } else {
             self.nodes
                 .read()
-                .unwrap()
+                .unwrap_or_else(|e| e.into_inner())
                 .iter()
                 .filter(|(_, node)| node.has_label(label))
                 .map(|(id, _)| *id)
                 .collect()
         };
 
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         node_ids
             .iter()
             .filter_map(|id| nodes.get(id).cloned())
@@ -509,12 +584,12 @@ impl GraphStore {
         let edge_ids = self
             .outgoing
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(&node_id)
             .cloned()
             .unwrap_or_default();
 
-        let edges = self.edges.read().unwrap();
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
         edge_ids
             .iter()
             .filter_map(|id| edges.get(id).cloned())
@@ -526,12 +601,12 @@ impl GraphStore {
         let edge_ids = self
             .incoming
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(&node_id)
             .cloned()
             .unwrap_or_default();
 
-        let edges = self.edges.read().unwrap();
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
         edge_ids
             .iter()
             .filter_map(|id| edges.get(id).cloned())
@@ -541,7 +616,7 @@ impl GraphStore {
     /// Get neighbors (outgoing)
     pub fn get_neighbors(&self, node_id: NodeId, edge_type: Option<&str>) -> Vec<Node> {
         let edges = self.get_outgoing_edges(node_id);
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
 
         edges
             .iter()
@@ -564,9 +639,9 @@ impl GraphStore {
             match step {
                 TraversalStep::Edge(edge_type, direction) => {
                     let mut next_nodes = HashSet::new();
-                    let edges = self.edges.read().unwrap();
-                    let outgoing = self.outgoing.read().unwrap();
-                    let incoming = self.incoming.read().unwrap();
+                    let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
+                    let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+                    let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
 
                     for node_id in &current_nodes {
                         let edge_ids = match direction {
@@ -607,12 +682,12 @@ impl GraphStore {
                     depth += 1;
                 }
                 TraversalStep::HasLabel(label) => {
-                    let nodes = self.nodes.read().unwrap();
+                    let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
                     current_nodes
                         .retain(|id| nodes.get(id).map(|n| n.has_label(label)).unwrap_or(false));
                 }
                 TraversalStep::HasProperty(key, value) => {
-                    let nodes = self.nodes.read().unwrap();
+                    let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
                     current_nodes.retain(|id| {
                         nodes
                             .get(id)
@@ -630,7 +705,7 @@ impl GraphStore {
             }
         }
 
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         current_nodes
             .iter()
             .filter_map(|id| nodes.get(id).cloned())
@@ -672,7 +747,7 @@ impl GraphStore {
                 if edge.to == to {
                     // Found path
                     let mut nodes_vec: Vec<Node> = Vec::new();
-                    let nodes = self.nodes.read().unwrap();
+                    let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
                     for node_id in &path_nodes {
                         if let Some(node) = nodes.get(node_id) {
                             nodes_vec.push(node.clone());
@@ -683,7 +758,7 @@ impl GraphStore {
                     }
 
                     let mut edges_vec: Vec<Edge> = Vec::new();
-                    let edges_store = self.edges.read().unwrap();
+                    let edges_store = self.edges.read().unwrap_or_else(|e| e.into_inner());
                     for edge_id in &path_edges {
                         if let Some(e) = edges_store.get(edge_id) {
                             edges_vec.push(e.clone());
@@ -715,12 +790,12 @@ impl GraphStore {
 
     /// Get node count
     pub fn node_count(&self) -> usize {
-        self.nodes.read().unwrap().len()
+        self.nodes.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Get edge count
     pub fn edge_count(&self) -> usize {
-        self.edges.read().unwrap().len()
+        self.edges.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 }
 

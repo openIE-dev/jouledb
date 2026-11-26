@@ -36,7 +36,7 @@ impl NavigatorStorageManager {
             .and_then(|v| v.dyn_into::<js_sys::Object>().ok())
             .ok_or_else(|| JsValue::from_str("Storage API not supported"))?;
 
-        *self.storage.write().unwrap() = Some(storage);
+        *self.storage.write().unwrap_or_else(|e| e.into_inner()) = Some(storage);
         Ok(())
     }
 
@@ -54,7 +54,7 @@ impl NavigatorStorageManager {
         let storage = self
             .storage
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Storage manager not initialized"))?;
 
@@ -74,7 +74,9 @@ impl NavigatorStorageManager {
         )
         .await?;
 
-        Ok(result.dyn_into::<js_sys::Object>().unwrap())
+        result
+            .dyn_into::<js_sys::Object>()
+            .map_err(|_| JsValue::from_str("Invalid estimate result"))
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -91,7 +93,7 @@ impl NavigatorStorageManager {
         let storage = self
             .storage
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Storage manager not initialized"))?;
 
@@ -126,7 +128,7 @@ impl NavigatorStorageManager {
         let storage = self
             .storage
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Storage manager not initialized"))?;
 
@@ -161,7 +163,7 @@ impl NavigatorStorageManager {
         let storage = self
             .storage
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Storage manager not initialized"))?;
 
@@ -181,7 +183,9 @@ impl NavigatorStorageManager {
         )
         .await?;
 
-        Ok(result.dyn_into::<js_sys::Object>().unwrap())
+        result
+            .dyn_into::<js_sys::Object>()
+            .map_err(|_| JsValue::from_str("Invalid directory handle"))
     }
 
     #[cfg(not(target_arch = "wasm32"))]

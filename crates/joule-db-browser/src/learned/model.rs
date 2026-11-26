@@ -464,7 +464,7 @@ impl LearnedModel {
         let page_id = hasher.finish() as u64;
         let model_data = backend_arc
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .read_page(page_id)
             .await
             .map_err(|e| format!("Failed to read model: {}", e))?;
@@ -535,7 +535,7 @@ impl LearnedModel {
         let page_id = hasher.finish() as u64;
         backend_arc
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .write_page(page_id, &model_data)
             .await
             .map_err(|e| format!("Failed to write model: {}", e))?;

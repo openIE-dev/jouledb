@@ -98,13 +98,13 @@ impl AcmeClient {
         cert_path: &Path,
         key_path: &Path,
     ) -> Result<(), AcmeError> {
-        if !self.is_configured() {
+        let (Some(email), Some(cf_token), Some(cf_zone_id)) = (
+            self.email.as_deref(),
+            self.cf_token.as_deref(),
+            self.cf_zone_id.as_deref(),
+        ) else {
             return Err(AcmeError::NotConfigured);
-        }
-
-        let email = self.email.as_deref().unwrap();
-        let cf_token = self.cf_token.as_deref().unwrap();
-        let cf_zone_id = self.cf_zone_id.as_deref().unwrap();
+        };
 
         info!(domains = ?domains, "Provisioning Let's Encrypt certificate");
 
@@ -384,8 +384,6 @@ impl AcmeClient {
         );
 
         // Cleanup DNS records
-        let cf_token = self.cf_token.as_deref().unwrap();
-        let cf_zone_id = self.cf_zone_id.as_deref().unwrap();
         for record_id in &dns_records_to_cleanup {
             if let Err(e) = self
                 .cf_delete_txt_record(cf_token, cf_zone_id, record_id)
@@ -487,13 +485,17 @@ impl AcmeClient {
         } else {
             protected["jwk"] = jwk.clone();
         }
-        let protected_b64 = b64.encode(serde_json::to_vec(&protected).unwrap());
+        let protected_bytes =
+            serde_json::to_vec(&protected).map_err(|e| AcmeError::Protocol(e.to_string()))?;
+        let protected_b64 = b64.encode(protected_bytes);
 
         // Payload (empty string = POST-as-GET)
         let payload_b64 = if payload.is_string() && payload.as_str() == Some("") {
             String::new()
         } else {
-            b64.encode(serde_json::to_vec(payload).unwrap())
+            let payload_bytes =
+                serde_json::to_vec(payload).map_err(|e| AcmeError::Protocol(e.to_string()))?;
+            b64.encode(payload_bytes)
         };
 
         // Sign using aws-lc-rs ECDSA (rcgen's sign() is private)

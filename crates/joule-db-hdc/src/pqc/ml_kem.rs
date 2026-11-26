@@ -702,8 +702,9 @@ impl MlKemCore {
 
         // G(d) = (ρ, σ)
         let g_input = Sha3_512::hash(d);
-        let (rho, sigma) = g_input.split_at(32);
-        let rho: [u8; 32] = rho.try_into().unwrap();
+        let (rho_slice, sigma) = g_input.split_at(32);
+        let mut rho = [0u8; 32];
+        rho.copy_from_slice(rho_slice);
 
         // Generate matrix A in NTT domain
         let a_hat = PolyMatrix::generate_a(&rho, k);
@@ -778,8 +779,12 @@ impl MlKemCore {
         let k = params.k;
 
         // Parse encapsulation key
-        let t_bytes = &ek.data[..384 * k];
-        let rho: [u8; 32] = ek.data[384 * k..].try_into().unwrap();
+        let t_bytes = ek.data.get(..384 * k).ok_or(PqcError::InvalidKey)?;
+        let rho: [u8; 32] = ek
+            .data
+            .get(384 * k..)
+            .and_then(|s| s.try_into().ok())
+            .ok_or(PqcError::InvalidKey)?;
 
         let t_hat = PolyVec::from_bytes(t_bytes, k);
 

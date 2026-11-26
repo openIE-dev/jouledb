@@ -96,7 +96,7 @@ impl OPFSVirtualBlockDevice {
 
     /// Check if initialized
     pub fn is_initialized(&self) -> bool {
-        *self.initialized.read().unwrap()
+        *self.initialized.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Initialize OPFS Virtual Block Device
@@ -104,7 +104,7 @@ impl OPFSVirtualBlockDevice {
     pub async fn init(&self) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        if *self.initialized.read().unwrap() {
+        if *self.initialized.read().unwrap_or_else(|e| e.into_inner()) {
             return Ok(());
         }
 
@@ -212,25 +212,25 @@ impl OPFSVirtualBlockDevice {
 
         // Store handles
         {
-            let mut data_handle = self.data_file_handle.write().unwrap();
+            let mut data_handle = self.data_file_handle.write().unwrap_or_else(|e| e.into_inner());
             *data_handle = Some(data_file.clone());
         }
 
         {
-            let mut meta_handle = self.meta_file_handle.write().unwrap();
+            let mut meta_handle = self.meta_file_handle.write().unwrap_or_else(|e| e.into_inner());
             *meta_handle = Some(meta_file);
         }
 
         // Try to get sync access handle (for workers)
         if let Ok(sync_handle) = self.try_get_sync_handle(&data_file).await {
-            let mut sync = self.sync_handle.write().unwrap();
+            let mut sync = self.sync_handle.write().unwrap_or_else(|e| e.into_inner());
             *sync = Some(sync_handle);
         }
 
         // Load page table from metadata file
         self.load_page_table().await?;
 
-        *self.initialized.write().unwrap() = true;
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
 
         Ok(())
     }
@@ -275,7 +275,7 @@ impl OPFSVirtualBlockDevice {
     async fn load_page_table(&self) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        let meta_handle = self.meta_file_handle.read().unwrap();
+        let meta_handle = self.meta_file_handle.read().unwrap_or_else(|e| e.into_inner());
         let meta_handle = meta_handle.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Meta file not initialized".to_string())
         })?;
@@ -331,7 +331,7 @@ impl OPFSVirtualBlockDevice {
         let data = uint8_array.to_vec();
 
         // Deserialize page table
-        let mut page_table = self.page_table.write().unwrap();
+        let mut page_table = self.page_table.write().unwrap_or_else(|e| e.into_inner());
         let mut offset = 0;
 
         // Read next_block_id
@@ -428,13 +428,13 @@ impl OPFSVirtualBlockDevice {
     pub async fn save_page_table(&self) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        let meta_handle = self.meta_file_handle.read().unwrap();
+        let meta_handle = self.meta_file_handle.read().unwrap_or_else(|e| e.into_inner());
         let meta_handle = meta_handle.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Meta file not initialized".to_string())
         })?;
 
         // Serialize page table
-        let page_table = self.page_table.read().unwrap();
+        let page_table = self.page_table.read().unwrap_or_else(|e| e.into_inner());
         let next_block_id = self.next_block_id.load(Ordering::SeqCst);
 
         let mut data = Vec::new();
@@ -519,13 +519,13 @@ impl OPFSVirtualBlockDevice {
     ) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        let meta_handle = meta_file_handle.read().unwrap();
+        let meta_handle = meta_file_handle.read().unwrap_or_else(|e| e.into_inner());
         let meta_handle = meta_handle.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Meta file not initialized".to_string())
         })?;
 
         // Serialize page table
-        let page_table_guard = page_table.read().unwrap();
+        let page_table_guard = page_table.read().unwrap_or_else(|e| e.into_inner());
         let next_block = next_block_id.load(Ordering::SeqCst);
 
         let mut data = Vec::new();
@@ -610,7 +610,7 @@ impl OPFSVirtualBlockDevice {
     /// Allocate a new block
     fn allocate_block(&self) -> u64 {
         // Try to reuse a free block first
-        let mut free = self.free_blocks.write().unwrap();
+        let mut free = self.free_blocks.write().unwrap_or_else(|e| e.into_inner());
         if let Some(block_id) = free.pop() {
             return block_id;
         }
@@ -622,7 +622,7 @@ impl OPFSVirtualBlockDevice {
 
     /// Free a block (mark for reuse)
     fn free_block(&self, block_id: u64) {
-        let mut free = self.free_blocks.write().unwrap();
+        let mut free = self.free_blocks.write().unwrap_or_else(|e| e.into_inner());
         free.push(block_id);
     }
 
@@ -631,7 +631,7 @@ impl OPFSVirtualBlockDevice {
     /// Evicts random entries when cache exceeds config.cache_size limit.
     fn cache_insert_with_eviction(&self, page_id: PageId, data: Vec<u8>) {
         let max_size = self.config.cache_size;
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
 
         // Evict entries if cache is full
         while cache.len() >= max_size && max_size > 0 {
@@ -656,7 +656,7 @@ fn cache_insert_with_eviction_fn(
     page_id: PageId,
     data: Vec<u8>,
 ) {
-    let mut cache_guard = cache.write().unwrap();
+    let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
 
     // Evict entries if cache is full
     while cache_guard.len() >= max_size && max_size > 0 {
@@ -688,17 +688,17 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
         Box::pin(async move {
             // Check cache first
             {
-                let cache_guard = cache.read().unwrap();
+                let cache_guard = cache.read().unwrap_or_else(|e| e.into_inner());
                 if let Some(data) = cache_guard.get(&page_id) {
-                    stats.write().unwrap().cache_hits += 1;
+                    stats.write().unwrap_or_else(|e| e.into_inner()).cache_hits += 1;
                     return Ok(data.clone());
                 }
             }
-            stats.write().unwrap().cache_misses += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
 
             // Look up block address
             let addr = {
-                let page_table_guard = page_table.read().unwrap();
+                let page_table_guard = page_table.read().unwrap_or_else(|e| e.into_inner());
                 *page_table_guard
                     .get(&page_id)
                     .ok_or_else(|| PersistenceError::PageNotFound(page_id))?
@@ -709,7 +709,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
                 |addr: BlockAddress| -> u64 { addr.block_id * BLOCK_SIZE + addr.offset };
 
             // Check if we have sync handle (worker context)
-            let sync_handle_guard = sync_handle.read().unwrap();
+            let sync_handle_guard = sync_handle.read().unwrap_or_else(|e| e.into_inner());
             if let Some(sync) = sync_handle_guard.as_ref() {
                 // Fast synchronous read
                 let offset = block_to_offset(addr);
@@ -738,14 +738,14 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
                 // Update cache with eviction
                 cache_insert_with_eviction_fn(&cache, max_cache_size, page_id, buffer.clone());
 
-                stats.write().unwrap().read_ops += 1;
+                stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
                 return Ok(buffer);
             }
 
             // Fallback to async read (main thread)
             use wasm_bindgen_futures::JsFuture;
 
-            let data_handle_guard = data_file_handle.read().unwrap();
+            let data_handle_guard = data_file_handle.read().unwrap_or_else(|e| e.into_inner());
             let data_handle_val = data_handle_guard.as_ref().ok_or_else(|| {
                 PersistenceError::NotAvailable("Data file not initialized".to_string())
             })?;
@@ -822,11 +822,11 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
 
             // Update cache
             {
-                let mut cache_guard = cache.write().unwrap();
+                let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
                 cache_guard.insert(page_id, data.clone());
             }
 
-            stats.write().unwrap().read_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
             Ok(data)
         })
     }
@@ -840,7 +840,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
     > {
         let cache = Arc::clone(&self.cache);
         Box::pin(async move {
-            let cache_guard = cache.read().unwrap();
+            let cache_guard = cache.read().unwrap_or_else(|e| e.into_inner());
             cache_guard
                 .get(&page_id)
                 .cloned()
@@ -868,13 +868,13 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
         Box::pin(async move {
             // Allocate or get block address
             let addr = {
-                let mut page_table_guard = page_table.write().unwrap();
+                let mut page_table_guard = page_table.write().unwrap_or_else(|e| e.into_inner());
                 if let Some(existing) = page_table_guard.get(&page_id) {
                     *existing // Reuse existing block
                 } else {
                     // Allocate new block
                     let block_id = {
-                        let mut free = free_blocks.write().unwrap();
+                        let mut free = free_blocks.write().unwrap_or_else(|e| e.into_inner());
                         if let Some(id) = free.pop() {
                             id
                         } else {
@@ -894,7 +894,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
             let offset = addr.block_id * BLOCK_SIZE as u64 + addr.offset;
 
             // Check if we have sync handle (worker context)
-            let sync_handle_guard = sync_handle.read().unwrap();
+            let sync_handle_guard = sync_handle.read().unwrap_or_else(|e| e.into_inner());
             if let Some(sync) = sync_handle_guard.as_ref() {
                 // Fast synchronous write
                 let write_func =
@@ -920,13 +920,13 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
 
                 // Update cache
                 {
-                    let mut cache_guard = cache.write().unwrap();
+                    let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
                     cache_guard.insert(page_id, data.clone());
                 }
 
                 // Save page table periodically (every 100 writes or on sync)
                 {
-                    let mut stats_guard = stats.write().unwrap();
+                    let mut stats_guard = stats.write().unwrap_or_else(|e| e.into_inner());
                     stats_guard.write_ops += 1;
                     let should_save = stats_guard.write_ops % 100 == 0;
                     drop(stats_guard);
@@ -947,7 +947,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
             // Fallback to async write (main thread)
             use wasm_bindgen_futures::JsFuture;
 
-            let data_handle_guard = data_file_handle.read().unwrap();
+            let data_handle_guard = data_file_handle.read().unwrap_or_else(|e| e.into_inner());
             let data_handle = data_handle_guard.as_ref().ok_or_else(|| {
                 PersistenceError::NotAvailable("Data file not initialized".to_string())
             })?;
@@ -1022,13 +1022,13 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
 
             // Update cache
             {
-                let mut cache_guard = cache.write().unwrap();
+                let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
                 cache_guard.insert(page_id, data.clone());
             }
 
             // Save page table periodically
             {
-                let mut stats_guard = stats.write().unwrap();
+                let mut stats_guard = stats.write().unwrap_or_else(|e| e.into_inner());
                 stats_guard.write_ops += 1;
                 let should_save = stats_guard.write_ops % 100 == 0;
                 drop(stats_guard);
@@ -1059,9 +1059,9 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
         let cache = Arc::clone(&self.cache);
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            let mut cache_guard = cache.write().unwrap();
+            let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
             cache_guard.insert(page_id, data.clone());
-            stats.write().unwrap().write_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
             Ok(())
         })
     }
@@ -1084,7 +1084,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
                 use wasm_bindgen_futures::JsFuture;
 
                 // Serialize page table
-                let page_table_guard = page_table.read().unwrap();
+                let page_table_guard = page_table.read().unwrap_or_else(|e| e.into_inner());
                 let mut data = Vec::new();
 
                 // Write next_block_id (8 bytes)
@@ -1104,7 +1104,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
                 drop(page_table_guard);
 
                 // Write to metadata file
-                let meta_handle_guard = meta_file_handle.read().unwrap();
+                let meta_handle_guard = meta_file_handle.read().unwrap_or_else(|e| e.into_inner());
                 if let Some(meta_handle) = meta_handle_guard.as_ref() {
                     let create_writable =
                         js_sys::Reflect::get(meta_handle, &JsValue::from_str("createWritable"))
@@ -1160,7 +1160,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
 
             // Sync data file if sync handle available
             {
-                let sync_handle_guard = sync_handle.read().unwrap();
+                let sync_handle_guard = sync_handle.read().unwrap_or_else(|e| e.into_inner());
                 if let Some(sync) = sync_handle_guard.as_ref() {
                     let flush_func =
                         js_sys::Reflect::get(sync, &wasm_bindgen::JsValue::from_str("flush"))
@@ -1173,7 +1173,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
                 }
             }
 
-            stats.write().unwrap().sync_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).sync_ops += 1;
             Ok(())
         })
     }
@@ -1188,8 +1188,8 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
     }
 
     fn stats(&self) -> StorageStats {
-        let page_table = self.page_table.read().unwrap();
-        let mut stats = self.stats.read().unwrap().clone();
+        let page_table = self.page_table.read().unwrap_or_else(|e| e.into_inner());
+        let mut stats = self.stats.read().unwrap_or_else(|e| e.into_inner()).clone();
         stats.total_pages = page_table.len() as u64;
         stats
     }
@@ -1197,7 +1197,7 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
 #[cfg(not(target_arch = "wasm32"))]
 impl OPFSVirtualBlockDevice {
     pub async fn init(&self) -> Result<(), PersistenceError> {
-        *self.initialized.write().unwrap() = true;
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
         Ok(())
     }
 }

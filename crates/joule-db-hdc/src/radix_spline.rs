@@ -647,26 +647,32 @@ impl LearnedBTreeHybrid {
                 (Some(&(bk, _)), Some(&(uk, _))) => {
                     if bk == uk {
                         // Buffer value wins; skip bulk entry.
-                        merged_keys.push(*uk);
-                        merged_values.push(buf_iter.next().unwrap().1.clone());
+                        if let Some((k, v)) = buf_iter.next() {
+                            merged_keys.push(*k);
+                            merged_values.push(v.clone());
+                        }
                         bulk_iter.next();
                     } else if bk < uk {
-                        merged_keys.push(*bk);
-                        merged_values.push(bulk_iter.next().unwrap().1.clone());
-                    } else {
-                        merged_keys.push(*uk);
-                        merged_values.push(buf_iter.next().unwrap().1.clone());
+                        if let Some((k, v)) = bulk_iter.next() {
+                            merged_keys.push(*k);
+                            merged_values.push(v.clone());
+                        }
+                    } else if let Some((k, v)) = buf_iter.next() {
+                        merged_keys.push(*k);
+                        merged_values.push(v.clone());
                     }
                 }
                 (Some(_), None) => {
-                    let (k, v) = bulk_iter.next().unwrap();
-                    merged_keys.push(*k);
-                    merged_values.push(v.clone());
+                    if let Some((k, v)) = bulk_iter.next() {
+                        merged_keys.push(*k);
+                        merged_values.push(v.clone());
+                    }
                 }
                 (None, Some(_)) => {
-                    let (k, v) = buf_iter.next().unwrap();
-                    merged_keys.push(*k);
-                    merged_values.push(v.clone());
+                    if let Some((k, v)) = buf_iter.next() {
+                        merged_keys.push(*k);
+                        merged_values.push(v.clone());
+                    }
                 }
                 (None, None) => break,
             }

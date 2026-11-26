@@ -467,11 +467,25 @@ pub struct ActiveSession {
     savepoints: Vec<SavepointSnapshot>,
 }
 
-/// MVCC-backed table storage with session management and lazy Amorphic synchronization.
+const SESSION_SHARDS: usize = 64;
+
+#[inline]
+fn session_shard_idx(session_id: &str) -> usize {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &b in session_id.as_bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    (h as usize) & (SESSION_SHARDS - 1)
+}
+
+/// MVCC-backed table storage with 64-way sharded session management and lazy Amorphic synchronization.
 pub struct MvccTableStorage {
     tx_manager: MvccTransactionManager,
     amorphic: Arc<AmorphicTableStorage>,
-    sessions: Mutex<HashMap<String, Mutex<ActiveSession>>>,
+    session_shards: Box<[Mutex<HashMap<String, Arc<Mutex<ActiveSession>>>>; SESSION_SHARDS]>,
+    next_session_seq: AtomicU64,
+    active_session_counter: AtomicU64,
     next_temp_id: AtomicU64,
     /// Per-table mapping `amorphic_record_id -> mvcc_record_id` for all records seeded into MVCC.
     table_id_map: Mutex<HashMap<String, HashMap<u64, u64>>>,
@@ -484,10 +498,15 @@ pub struct MvccTableStorage {
 impl MvccTableStorage {
     /// Create a new MVCC adapter wrapping the given amorphic storage.
     pub fn new(amorphic: Arc<AmorphicTableStorage>) -> Self {
+        let session_shards: Box<
+            [Mutex<HashMap<String, Arc<Mutex<ActiveSession>>>>; SESSION_SHARDS],
+        > = Box::new(std::array::from_fn(|_| Mutex::new(HashMap::new())));
         Self {
             tx_manager: MvccTransactionManager::new(),
             amorphic,
-            sessions: Mutex::new(HashMap::new()),
+            session_shards,
+            next_session_seq: AtomicU64::new(1),
+            active_session_counter: AtomicU64::new(0),
             next_temp_id: AtomicU64::new(NEW_RECORD_ID_BASE),
             table_id_map: Mutex::new(HashMap::new()),
             mvcc_deleted_ids: Mutex::new(HashMap::new()),
@@ -736,17 +755,21 @@ impl MvccTableStorage {
 
     // ==================== Session management ====================
 
-    /// Begin a new transaction, returning a UUID session ID.
+    /// Begin a new transaction, returning a compact monotonic session ID (`s1`, `s2`, ...).
     pub fn begin_transaction(&self) -> String {
-        let session_id = uuid::Uuid::new_v4().to_string();
+        let seq = self.next_session_seq.fetch_add(1, Ordering::Relaxed);
+        let session_id = format!("s{seq:x}");
         let tx = self.tx_manager.begin();
-        let session = ActiveSession {
+        let session = Arc::new(Mutex::new(ActiveSession {
             tx: Some(tx),
             created_at: Instant::now(),
             savepoints: Vec::new(),
-        };
-        let mut sessions = crate::lock_util::mutex_lock(&self.sessions);
-        sessions.insert(session_id.clone(), Mutex::new(session));
+        }));
+        let shard = &self.session_shards[session_shard_idx(&session_id)];
+        let mut sessions = crate::lock_util::mutex_lock(shard);
+        if sessions.insert(session_id.clone(), session).is_none() {
+            self.active_session_counter.fetch_add(1, Ordering::Relaxed);
+        }
         session_id
     }
 
@@ -759,13 +782,16 @@ impl MvccTableStorage {
     ///    publishes `commit_ts`, drops `commit_lock`, and waits on shared `GroupSync` `fsync`.
     pub fn commit_transaction(&self, session_id: &str) -> QueryResult<()> {
         let session_mutex = {
-            let mut sessions = crate::lock_util::mutex_lock(&self.sessions);
-            sessions.remove(session_id).ok_or_else(|| {
+            let shard = &self.session_shards[session_shard_idx(session_id)];
+            let mut sessions = crate::lock_util::mutex_lock(shard);
+            let removed = sessions.remove(session_id).ok_or_else(|| {
                 QueryError::ExecutionError(format!(
                     "No active transaction for session '{}'",
                     session_id,
                 ))
-            })?
+            })?;
+            self.active_session_counter.fetch_sub(1, Ordering::Relaxed);
+            removed
         };
 
         let mut session = crate::lock_util::mutex_lock(&session_mutex);
@@ -924,13 +950,16 @@ impl MvccTableStorage {
     /// to match PostgreSQL `ROLLBACK` semantics.
     pub fn rollback_transaction(&self, session_id: &str) -> QueryResult<()> {
         let session_mutex = {
-            let mut sessions = crate::lock_util::mutex_lock(&self.sessions);
-            sessions.remove(session_id).ok_or_else(|| {
+            let shard = &self.session_shards[session_shard_idx(session_id)];
+            let mut sessions = crate::lock_util::mutex_lock(shard);
+            let removed = sessions.remove(session_id).ok_or_else(|| {
                 QueryError::ExecutionError(format!(
                     "No active transaction for session '{}'",
                     session_id,
                 ))
-            })?
+            })?;
+            self.active_session_counter.fetch_sub(1, Ordering::Relaxed);
+            removed
         };
 
         let mut session = crate::lock_util::mutex_lock(&session_mutex);
@@ -951,9 +980,14 @@ impl MvccTableStorage {
 
     /// Create a savepoint — snapshot the current write_set.
     pub fn create_savepoint(&self, session_id: &str, name: &str) -> Result<(), String> {
-        let sessions = crate::lock_util::mutex_lock(&self.sessions);
-        if let Some(session_mutex) = sessions.get(session_id) {
-            let mut session = crate::lock_util::mutex_lock(session_mutex);
+        let session_opt = {
+            let shard = &self.session_shards[session_shard_idx(session_id)];
+            crate::lock_util::mutex_lock(shard)
+                .get(session_id)
+                .cloned()
+        };
+        if let Some(session_mutex) = session_opt {
+            let mut session = crate::lock_util::mutex_lock(&session_mutex);
             if let Some(ref tx) = session.tx {
                 let snapshot = SavepointSnapshot {
                     name: name.to_string(),
@@ -971,9 +1005,14 @@ impl MvccTableStorage {
 
     /// Rollback to a savepoint — restore the write_set from snapshot.
     pub fn rollback_to_savepoint(&self, session_id: &str, name: &str) -> Result<(), String> {
-        let sessions = crate::lock_util::mutex_lock(&self.sessions);
-        if let Some(session_mutex) = sessions.get(session_id) {
-            let mut session = crate::lock_util::mutex_lock(session_mutex);
+        let session_opt = {
+            let shard = &self.session_shards[session_shard_idx(session_id)];
+            crate::lock_util::mutex_lock(shard)
+                .get(session_id)
+                .cloned()
+        };
+        if let Some(session_mutex) = session_opt {
+            let mut session = crate::lock_util::mutex_lock(&session_mutex);
             let idx = session
                 .savepoints
                 .iter()
@@ -992,9 +1031,14 @@ impl MvccTableStorage {
 
     /// Release a savepoint — discard the snapshot.
     pub fn release_savepoint(&self, session_id: &str, name: &str) -> Result<(), String> {
-        let sessions = crate::lock_util::mutex_lock(&self.sessions);
-        if let Some(session_mutex) = sessions.get(session_id) {
-            let mut session = crate::lock_util::mutex_lock(session_mutex);
+        let session_opt = {
+            let shard = &self.session_shards[session_shard_idx(session_id)];
+            crate::lock_util::mutex_lock(shard)
+                .get(session_id)
+                .cloned()
+        };
+        if let Some(session_mutex) = session_opt {
+            let mut session = crate::lock_util::mutex_lock(&session_mutex);
             let idx = session
                 .savepoints
                 .iter()
@@ -1369,35 +1413,40 @@ impl MvccTableStorage {
 
     /// Clean up sessions that have been idle longer than `timeout`.
     pub fn cleanup_stale_sessions(&self, timeout: std::time::Duration) -> usize {
-        let mut sessions = crate::lock_util::mutex_lock(&self.sessions);
-        let stale: Vec<String> = sessions
-            .iter()
-            .filter_map(|(id, mutex)| {
-                let session = mutex.lock().ok()?;
-                if session.created_at.elapsed() > timeout {
-                    Some(id.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let mut total_cleaned = 0usize;
+        for shard in self.session_shards.iter() {
+            let mut sessions = crate::lock_util::mutex_lock(shard);
+            let stale: Vec<String> = sessions
+                .iter()
+                .filter_map(|(id, mutex)| {
+                    let session = mutex.lock().ok()?;
+                    if session.created_at.elapsed() > timeout {
+                        Some(id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-        let count = stale.len();
-        for id in stale {
-            if let Some(session_mutex) = sessions.remove(&id) {
-                if let Ok(mut session) = session_mutex.lock() {
-                    if let Some(tx) = session.tx.take() {
+            for id in stale {
+                if let Some(session_mutex) = sessions.remove(&id) {
+                    self.active_session_counter.fetch_sub(1, Ordering::Relaxed);
+                    total_cleaned += 1;
+                    if let Ok(mut session) = session_mutex.lock()
+                        && let Some(tx) = session.tx.take()
+                    {
                         let _ = tx.rollback();
                     }
                 }
             }
         }
-        count
+        total_cleaned
     }
 
-    /// Number of active sessions.
+    /// Number of active sessions (lock-free atomic read).
+    #[inline]
     pub fn active_session_count(&self) -> usize {
-        crate::lock_util::mutex_lock(&self.sessions).len()
+        self.active_session_counter.load(Ordering::Relaxed) as usize
     }
 
     // ==================== Internal helpers ====================
@@ -1407,19 +1456,22 @@ impl MvccTableStorage {
         self.tx_manager.get(key)
     }
 
-    /// Execute a closure with the MVCC transaction for a session.
+    /// Execute a closure with the MVCC transaction for a session (releasing shard map lock first).
     fn with_session<F, T>(&self, session_id: &str, f: F) -> QueryResult<T>
     where
         F: FnOnce(&mut MvccTransaction) -> QueryResult<T>,
     {
-        let sessions = crate::lock_util::mutex_lock(&self.sessions);
-        let session_mutex = sessions.get(session_id).ok_or_else(|| {
-            QueryError::ExecutionError(format!(
-                "No active transaction for session '{}'",
-                session_id,
-            ))
-        })?;
-        let mut session = crate::lock_util::mutex_lock(session_mutex);
+        let session_mutex = {
+            let shard = &self.session_shards[session_shard_idx(session_id)];
+            let sessions = crate::lock_util::mutex_lock(shard);
+            sessions.get(session_id).cloned().ok_or_else(|| {
+                QueryError::ExecutionError(format!(
+                    "No active transaction for session '{}'",
+                    session_id,
+                ))
+            })?
+        };
+        let mut session = crate::lock_util::mutex_lock(&session_mutex);
         let tx = session.tx.as_mut().ok_or_else(|| {
             QueryError::ExecutionError("Transaction already consumed".to_string())
         })?;

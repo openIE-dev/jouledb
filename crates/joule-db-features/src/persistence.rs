@@ -457,8 +457,8 @@ impl<S: StorageEngine> GraphPersistence<S> {
 
         let mut edges = Vec::new();
         for (_, value) in entries {
-            if value.len() >= 8 {
-                let edge_id = u64::from_le_bytes(value[..8].try_into().unwrap());
+            if let Some(bytes) = value.get(..8).and_then(|s| s.try_into().ok()) {
+                let edge_id = u64::from_le_bytes(bytes);
                 if let Some(edge) = self.get_edge(edge_id)? {
                     edges.push(edge);
                 }
@@ -475,8 +475,8 @@ impl<S: StorageEngine> GraphPersistence<S> {
 
         let mut edges = Vec::new();
         for (_, value) in entries {
-            if value.len() >= 8 {
-                let edge_id = u64::from_le_bytes(value[..8].try_into().unwrap());
+            if let Some(bytes) = value.get(..8).and_then(|s| s.try_into().ok()) {
+                let edge_id = u64::from_le_bytes(bytes);
                 if let Some(edge) = self.get_edge(edge_id)? {
                     edges.push(edge);
                 }
@@ -493,8 +493,8 @@ impl<S: StorageEngine> GraphPersistence<S> {
 
         let mut nodes = Vec::new();
         for (_, value) in entries {
-            if value.len() >= 8 {
-                let node_id = u64::from_le_bytes(value[..8].try_into().unwrap());
+            if let Some(bytes) = value.get(..8).and_then(|s| s.try_into().ok()) {
+                let node_id = u64::from_le_bytes(bytes);
                 if let Some(node) = self.get_node(node_id)? {
                     nodes.push(node);
                 }

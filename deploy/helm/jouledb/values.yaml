@@ -2,7 +2,7 @@ replicaCount: 3
 
 image:
   repository: ghcr.io/openie-dev/jouledb
-  tag: "0.10.0"
+  tag: "0.11.0"
   pullPolicy: IfNotPresent
 
 # Progressive Trust Tier: maker | consumer | soc2 | regulated | industrial | sovereign-mls

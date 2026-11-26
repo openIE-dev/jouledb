@@ -673,9 +673,18 @@ impl HoloLock {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct CachedTableSchema {
+    pub columns: std::sync::Arc<Vec<String>>,
+    pub defs: std::sync::Arc<Vec<ColumnDefInfo>>,
+    pub has_computed: bool,
+}
+
 pub struct AmorphicTableStorage {
     store: HoloLock,
     db_path: std::path::PathBuf,
+    /// Cached `(columns, column_defs, has_computed)` per table, invalidated only on DDL/schema mutation.
+    pub(crate) schema_cache: std::sync::RwLock<HashMap<String, CachedTableSchema>>,
     /// Columnar snapshots per table, keyed by the store generation they were built at
     col_cache: std::sync::Mutex<
         HashMap<
@@ -715,9 +724,60 @@ impl AmorphicTableStorage {
         Self {
             store: HoloLock::new(store),
             db_path,
+            schema_cache: std::sync::RwLock::new(HashMap::new()),
             col_cache: std::sync::Mutex::new(HashMap::new()),
             disk_cols: std::sync::RwLock::new(recovered_disk),
         }
+    }
+
+    #[inline]
+    pub(crate) fn invalidate_schema_cache(&self, table: &str) {
+        if let Ok(mut sc) = self.schema_cache.write() {
+            sc.remove(table);
+        }
+    }
+
+    pub(crate) fn cached_schema_with_store(
+        &self,
+        store: &DurableAmorphicStore,
+        table: &str,
+    ) -> QueryResult<CachedTableSchema> {
+        if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            return Ok(hit.clone());
+        }
+        let cols = self.load_schema_columns_uncached(store, table)?;
+        let defs = self
+            .load_column_defs_uncached(store, table)
+            .unwrap_or_default();
+        let has_computed = defs.iter().any(|d| d.computed_expr.is_some());
+        let entry = CachedTableSchema {
+            columns: std::sync::Arc::new(cols),
+            defs: std::sync::Arc::new(defs),
+            has_computed,
+        };
+        if let Ok(mut sc) = self.schema_cache.write() {
+            if sc.len() > 512 {
+                sc.clear();
+            }
+            sc.insert(table.to_string(), entry.clone());
+        }
+        Ok(entry)
+    }
+
+    #[inline]
+    pub fn has_computed_columns(&self, table: &str) -> bool {
+        if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            return hit.has_computed;
+        }
+        let Ok(store) = self.store.read_columns() else {
+            return false;
+        };
+        self.cached_schema_with_store(&store, table)
+            .is_ok_and(|c| c.has_computed)
     }
 
     /// Return the out-of-core `.jcol` segmented handle for `table` if spilled to disk.
@@ -963,8 +1023,25 @@ impl AmorphicTableStorage {
         RowData::new(columns.to_vec(), values)
     }
 
-    /// Get schema columns for a table
+    /// Get schema columns for a table (O(1) cached; falls back to `__schemas__` lookup on first touch).
     pub(super) fn get_schema_columns(
+        &self,
+        store: &DurableAmorphicStore,
+        table: &str,
+    ) -> QueryResult<Vec<String>> {
+        if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            return Ok(hit.columns.as_ref().clone());
+        }
+        Ok(self
+            .cached_schema_with_store(store, table)?
+            .columns
+            .as_ref()
+            .clone())
+    }
+
+    pub(super) fn load_schema_columns_uncached(
         &self,
         store: &DurableAmorphicStore,
         table: &str,
@@ -988,6 +1065,337 @@ impl AmorphicTableStorage {
             "Table '{}' does not exist",
             table
         )))
+    }
+
+    /// Direct O(1)/O(k) indexed equality `SELECT` fast-path for OLTP point reads and
+    /// indexed aggregate probes (`SELECT c1, c2 FROM t WHERE k = lit` or
+    /// `SELECT COUNT(*), SUM(c) FROM t WHERE k = lit`) when `col_cache` is invalidated
+    /// by concurrent writes — avoiding `TableColumns::build` allocations inside `store.read()`.
+    pub fn try_direct_indexed_eq_query(
+        &self,
+        query: &joule_db_query::sql::SqlQuery,
+        request_limit: Option<usize>,
+    ) -> Option<(Vec<String>, Vec<Vec<serde_json::Value>>, bool)> {
+        if !query.joins.is_empty()
+            || !query.ctes.is_empty()
+            || !query.group_by.is_empty()
+            || query.having.is_some()
+            || !query.order_by.is_empty()
+            || query.distinct
+            || query.set_op.is_some()
+            || query.as_of_timestamp.is_some()
+        {
+            return None;
+        }
+        let table = query.from.as_ref()?.table_name()?;
+        if self.get_view(table).is_some() || self.disk_column_table(table).is_some() {
+            return None;
+        }
+        let where_expr = query.where_clause.as_ref()?;
+        // Must be a single exact `col = lit` predicate (not a multi-conjunct filter)
+        let (eq_col, eq_val) = conversions::extract_eq_predicate(where_expr)?;
+        if !matches!(
+            eq_val,
+            AstValue::Int(_) | AstValue::String(_) | AstValue::Bool(_)
+        ) {
+            return None;
+        }
+
+        // Resolve cached schema without holding `store.read()` if already cached
+        let schema = if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            hit.clone()
+        } else {
+            let store = self.store.read_columns().ok()?;
+            self.cached_schema_with_store(&store, table).ok()?
+        };
+        if schema.has_computed || !schema.columns.iter().any(|c| c == &eq_col) {
+            return None;
+        }
+        if let Some(def) = schema.defs.iter().find(|d| d.name == eq_col) {
+            let dt = def.data_type.to_uppercase();
+            let type_ok = match eq_val {
+                AstValue::Int(_) => matches!(
+                    dt.as_str(),
+                    "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
+                ),
+                AstValue::String(_) => {
+                    matches!(dt.as_str(), "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID")
+                }
+                AstValue::Bool(_) => matches!(dt.as_str(), "BOOL" | "BOOLEAN"),
+                _ => false,
+            };
+            if !type_ok && !dt.is_empty() {
+                return None;
+            }
+        } else if matches!(eq_val, AstValue::Int(_)) {
+            return None;
+        }
+
+        // Classify SELECT list: either pure simple column projections (`c1, c2` / `*`)
+        // OR pure simple aggregates (`COUNT(*)`, `COUNT(c)`, `SUM(c)`, `AVG(c)`, `MIN(c)`, `MAX(c)`)
+        enum DirectAggKind {
+            CountStar,
+            Count(String),
+            Sum(String),
+            Avg(String),
+            Min(String),
+            Max(String),
+        }
+
+        let mut proj_cols: Vec<(String, String)> = Vec::new(); // (src_col, out_name)
+        let mut agg_specs: Vec<(DirectAggKind, String)> = Vec::new();
+        let mut saw_col = false;
+        let mut saw_agg = false;
+
+        for sc in &query.columns {
+            match &sc.expr {
+                Expression::Wildcard => {
+                    saw_col = true;
+                    for c in schema.columns.iter() {
+                        proj_cols.push((c.clone(), c.clone()));
+                    }
+                }
+                Expression::Column(c) => {
+                    let real = schema.columns.iter().find(|x| x.eq_ignore_ascii_case(c))?;
+                    saw_col = true;
+                    proj_cols.push((
+                        real.clone(),
+                        sc.alias.clone().unwrap_or_else(|| real.clone()),
+                    ));
+                }
+                Expression::QualifiedColumn { column, .. } => {
+                    let real = schema
+                        .columns
+                        .iter()
+                        .find(|x| x.eq_ignore_ascii_case(column))?;
+                    saw_col = true;
+                    proj_cols.push((
+                        real.clone(),
+                        sc.alias.clone().unwrap_or_else(|| real.clone()),
+                    ));
+                }
+                Expression::Function { name, args } => {
+                    saw_agg = true;
+                    let up = name.to_ascii_uppercase();
+                    if up == "COUNT" && args.len() == 1 && matches!(args[0], Expression::Wildcard) {
+                        let out_name = sc.alias.clone().unwrap_or_else(|| format!("{name}(*)"));
+                        agg_specs.push((DirectAggKind::CountStar, out_name));
+                    } else if args.len() == 1 {
+                        let c_raw = match &args[0] {
+                            Expression::Column(c) => c.as_str(),
+                            Expression::QualifiedColumn { column, .. } => column.as_str(),
+                            _ => return None,
+                        };
+                        let real = schema
+                            .columns
+                            .iter()
+                            .find(|x| x.eq_ignore_ascii_case(c_raw))?
+                            .clone();
+                        let out_name = sc
+                            .alias
+                            .clone()
+                            .unwrap_or_else(|| format!("{name}({real})"));
+                        let kind = match up.as_str() {
+                            "COUNT" => DirectAggKind::Count(real),
+                            "SUM" => DirectAggKind::Sum(real),
+                            "AVG" => DirectAggKind::Avg(real),
+                            "MIN" => DirectAggKind::Min(real),
+                            "MAX" => DirectAggKind::Max(real),
+                            _ => return None,
+                        };
+                        agg_specs.push((kind, out_name));
+                    } else {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
+        }
+        if saw_col == saw_agg {
+            return None;
+        }
+
+        let amorphic_val = conversions::ast_to_amorphic(&eq_val);
+        let table_tag = AmorphicValue::String(table.to_string());
+
+        if saw_col {
+            let off = query.offset.unwrap_or(0);
+            let sql_lim = query.limit;
+            let store = self.store.read_primary().ok()?;
+            let matches = store.records_equal(&eq_col, &amorphic_val);
+            if matches.len() > 256 && sql_lim.is_none() {
+                return None;
+            }
+            let out_names: Vec<String> = proj_cols.iter().map(|(_, o)| o.clone()).collect();
+            let mut rows = Vec::with_capacity(matches.len().min(16));
+            let mut skipped = 0usize;
+            let mut truncated = false;
+            for r in matches {
+                if r.get(TABLE_FIELD) != Some(&table_tag) {
+                    continue;
+                }
+                if skipped < off {
+                    skipped += 1;
+                    continue;
+                }
+                if let Some(lim) = sql_lim
+                    && rows.len() >= lim
+                {
+                    break;
+                }
+                if sql_lim.is_none()
+                    && let Some(rlim) = request_limit
+                    && rows.len() >= rlim
+                {
+                    truncated = true;
+                    break;
+                }
+                let mut row = Vec::with_capacity(proj_cols.len());
+                for (src_c, _) in &proj_cols {
+                    let jv = r
+                        .get(src_c)
+                        .map(conversions::amorphic_value_to_json)
+                        .unwrap_or(serde_json::Value::Null);
+                    row.push(jv);
+                }
+                rows.push(row);
+            }
+            Some((out_names, rows, truncated))
+        } else {
+            #[derive(Default)]
+            struct RegAcc {
+                cnt: u64,
+                isum: i128,
+                fsum: f64,
+                saw_float: bool,
+                imin: i64,
+                imax: i64,
+                fmin: f64,
+                fmax: f64,
+            }
+            let mut accs: Vec<RegAcc> = (0..agg_specs.len())
+                .map(|_| RegAcc {
+                    cnt: 0,
+                    isum: 0,
+                    fsum: 0.0,
+                    saw_float: false,
+                    imin: i64::MAX,
+                    imax: i64::MIN,
+                    fmin: f64::INFINITY,
+                    fmax: f64::NEG_INFINITY,
+                })
+                .collect();
+
+            let store = self.store.read_primary().ok()?;
+            for r in store.records_equal(&eq_col, &amorphic_val) {
+                if r.get(TABLE_FIELD) != Some(&table_tag) {
+                    continue;
+                }
+                for (ai, (kind, _)) in agg_specs.iter().enumerate() {
+                    let acc = &mut accs[ai];
+                    match kind {
+                        DirectAggKind::CountStar => acc.cnt += 1,
+                        DirectAggKind::Count(c) => {
+                            if !matches!(r.get(c), None | Some(AmorphicValue::Null)) {
+                                acc.cnt += 1;
+                            }
+                        }
+                        DirectAggKind::Sum(c)
+                        | DirectAggKind::Avg(c)
+                        | DirectAggKind::Min(c)
+                        | DirectAggKind::Max(c) => match r.get(c) {
+                            None | Some(AmorphicValue::Null) => {}
+                            Some(AmorphicValue::Int(v)) => {
+                                acc.cnt += 1;
+                                acc.isum += *v as i128;
+                                acc.imin = acc.imin.min(*v);
+                                acc.imax = acc.imax.max(*v);
+                                let fv = *v as f64;
+                                acc.fmin = acc.fmin.min(fv);
+                                acc.fmax = acc.fmax.max(fv);
+                            }
+                            Some(AmorphicValue::Float(fv)) => {
+                                acc.cnt += 1;
+                                acc.saw_float = true;
+                                acc.fsum += *fv;
+                                acc.fmin = acc.fmin.min(*fv);
+                                acc.fmax = acc.fmax.max(*fv);
+                            }
+                            _ => return None,
+                        },
+                    }
+                }
+            }
+            drop(store);
+
+            let out_names: Vec<String> = agg_specs.iter().map(|(_, o)| o.clone()).collect();
+            let mut out_row = Vec::with_capacity(agg_specs.len());
+            for ((kind, _), acc) in agg_specs.iter().zip(accs.iter()) {
+                let v = match kind {
+                    DirectAggKind::CountStar | DirectAggKind::Count(_) => {
+                        serde_json::Value::Number(serde_json::Number::from(acc.cnt))
+                    }
+                    DirectAggKind::Sum(_) => {
+                        if acc.cnt == 0 {
+                            serde_json::Value::Null
+                        } else if acc.saw_float {
+                            let tot = acc.fsum + (acc.isum as f64);
+                            serde_json::Number::from_f64(tot)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        } else if let Ok(i) = i64::try_from(acc.isum) {
+                            serde_json::Value::Number(serde_json::Number::from(i))
+                        } else {
+                            serde_json::Number::from_f64(acc.isum as f64)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        }
+                    }
+                    DirectAggKind::Avg(_) => {
+                        if acc.cnt == 0 {
+                            serde_json::Value::Null
+                        } else {
+                            let tot = acc.fsum + (acc.isum as f64);
+                            serde_json::Number::from_f64(tot / (acc.cnt as f64))
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        }
+                    }
+                    DirectAggKind::Min(_) => {
+                        if acc.cnt == 0 {
+                            serde_json::Value::Null
+                        } else if acc.saw_float {
+                            serde_json::Number::from_f64(acc.fmin)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        } else {
+                            serde_json::Value::Number(serde_json::Number::from(acc.imin))
+                        }
+                    }
+                    DirectAggKind::Max(_) => {
+                        if acc.cnt == 0 {
+                            serde_json::Value::Null
+                        } else if acc.saw_float {
+                            serde_json::Number::from_f64(acc.fmax)
+                                .map(serde_json::Value::Number)
+                                .unwrap_or(serde_json::Value::Null)
+                        } else {
+                            serde_json::Value::Number(serde_json::Number::from(acc.imax))
+                        }
+                    }
+                };
+                out_row.push(v);
+            }
+            let off = query.offset.unwrap_or(0);
+            let rows = if off > 0 || query.limit == Some(0) {
+                Vec::new()
+            } else {
+                vec![out_row]
+            };
+            Some((out_names, rows, false))
+        }
     }
 }
 
@@ -1019,6 +1427,11 @@ impl TableStorage for AmorphicTableStorage {
     }
 
     fn columns(&self, table: &str) -> QueryResult<Vec<String>> {
+        if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            return Ok(hit.columns.as_ref().clone());
+        }
         let store = self.store.read_columns().map_err(conversions::lock_error)?;
         self.get_schema_columns(&store, table)
     }

@@ -82,7 +82,10 @@ impl MarketPredictor {
 
             // Register token for decoding
             {
-                let mut registry = self.token_registry.write().unwrap();
+                let mut registry = self
+                    .token_registry
+                    .write()
+                    .unwrap_or_else(|e| e.into_inner());
                 registry.entry(hash).or_insert(token.clone());
             }
 
@@ -94,7 +97,10 @@ impl MarketPredictor {
     /// Predict the next likely market events
     pub fn predict_next(&self, top_k: usize) -> Vec<(String, f64)> {
         let predictions = self.predictor.predict(top_k);
-        let registry = self.token_registry.read().unwrap();
+        let registry = self
+            .token_registry
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
 
         predictions
             .into_iter()
@@ -109,7 +115,7 @@ impl MarketPredictor {
     /// Convert a continuous trade into discrete events
     fn tokenize(&self, trade: &Trade) -> Vec<MarketEvent> {
         let mut events = Vec::new();
-        let mut prices = self.last_prices.write().unwrap();
+        let mut prices = self.last_prices.write().unwrap_or_else(|e| e.into_inner());
         let last_price = prices.get(&trade.symbol).cloned();
 
         // 1. Price Direction

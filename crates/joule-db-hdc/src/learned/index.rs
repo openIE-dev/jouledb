@@ -120,19 +120,19 @@ impl LearnedIndex {
         self.num_records = data.len();
 
         // Train model
-        let mut model = self.model.write().unwrap();
+        let mut model = self.model.write().unwrap_or_else(|e| e.into_inner());
         model.train(data)
     }
 
     /// Check if the index has been trained
     pub fn is_trained(&self) -> bool {
-        let model = self.model.read().unwrap();
+        let model = self.model.read().unwrap_or_else(|e| e.into_inner());
         model.is_trained()
     }
 
     /// Lookup a key and return predicted position with bounds
     pub fn lookup(&self, key: f64) -> LearnedResult<LookupResult> {
-        let model = self.model.read().unwrap();
+        let model = self.model.read().unwrap_or_else(|e| e.into_inner());
 
         if !model.is_trained() {
             return Err(LearnedError::NotTrained);
@@ -173,7 +173,7 @@ impl LearnedIndex {
 
     /// Get statistics about the index
     pub fn stats(&self) -> LearnedIndexStats {
-        let model = self.model.read().unwrap();
+        let model = self.model.read().unwrap_or_else(|e| e.into_inner());
         LearnedIndexStats {
             is_trained: model.is_trained(),
             num_records: model.num_records(),
@@ -195,13 +195,13 @@ impl LearnedIndex {
 
     /// Get mean absolute error from training
     pub fn mean_absolute_error(&self) -> f64 {
-        let model = self.model.read().unwrap();
+        let model = self.model.read().unwrap_or_else(|e| e.into_inner());
         model.mean_absolute_error()
     }
 
     /// Get maximum absolute error from training
     pub fn max_absolute_error(&self) -> f64 {
-        let model = self.model.read().unwrap();
+        let model = self.model.read().unwrap_or_else(|e| e.into_inner());
         model.max_absolute_error()
     }
 
@@ -211,13 +211,13 @@ impl LearnedIndex {
         self.min_key = min_key;
         self.max_key = max_key;
         self.num_records = model.num_records();
-        *self.model.write().unwrap() = model;
+        *self.model.write().unwrap_or_else(|e| e.into_inner()) = model;
     }
 }
 
 impl Clone for LearnedIndex {
     fn clone(&self) -> Self {
-        let model = self.model.read().unwrap();
+        let model = self.model.read().unwrap_or_else(|e| e.into_inner());
         Self {
             model: Arc::new(RwLock::new(model.clone())),
             error_multiplier: self.error_multiplier,

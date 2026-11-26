@@ -120,10 +120,9 @@ impl Oracle {
         let normalized = concept.to_lowercase().replace(' ', "_");
 
         // Cache check
-        if self.cache.contains_key(&normalized) {
+        if let Some(mut result) = self.cache.get(&normalized).cloned() {
             self.cache_hits += 1;
             self.touch_cache(&normalized);
-            let mut result = self.cache.get(&normalized).unwrap().clone();
             result.cached = true;
             result.source = OracleSource::Cache;
             return result;

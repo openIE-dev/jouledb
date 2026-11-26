@@ -16,6 +16,7 @@ pub mod auth;
 pub mod backup;
 pub mod binary_protocol;
 pub mod columnar_exec;
+pub mod columnar_join;
 pub mod config;
 pub mod disk_col_segments;
 pub mod cost_model;

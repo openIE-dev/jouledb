@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # JouleDB GPU
 //!
 //! GPU compute backend for JouleDB using wgpu (WebGPU).

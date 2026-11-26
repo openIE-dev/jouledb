@@ -168,10 +168,32 @@ jobs:
           path: python/dist/*
           if-no-files-found: error
 
+  npm_sdk:
+    name: TypeScript SDK (@openie/jouledb tarball + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - name: Pack @openie/jouledb tarball
+        working-directory: sdks/typescript
+        run: |
+          mkdir -p ../../npm-dist
+          npm pack --pack-destination ../../npm-dist
+          ls -la ../../npm-dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jouledb-npm-sdk
+          path: npm-dist/*.tgz
+          if-no-files-found: error
+
   release:
     name: Publish GitHub Release (tags only)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, wheels]
+    needs: [build, wheels, npm_sdk]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -186,12 +208,18 @@ jobs:
         with:
           path: wheel-artifacts
           pattern: jouledb-wheel-*
+      - uses: actions/download-artifact@v4
+        with:
+          path: npm-artifacts
+          pattern: jouledb-npm-sdk
       - run: |
-          mkdir -p dist pypi-dist
+          mkdir -p dist pypi-dist npm-dist
           find bin-artifacts -type f -exec cp {} dist/ \;
           find wheel-artifacts -type f -exec cp {} pypi-dist/ \;
+          find npm-artifacts -type f -exec cp {} npm-dist/ \;
           cp pypi-dist/* dist/
-          ls -la dist pypi-dist
+          cp npm-dist/* dist/
+          ls -la dist pypi-dist npm-dist
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*
@@ -202,3 +230,18 @@ jobs:
         with:
           packages-dir: pypi-dist/
           skip-existing: true
+      - name: Publish @openie/jouledb to npm (OIDC provenance / NPM_TOKEN when configured)
+        continue-on-error: true
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - name: npm publish tarball
+        if: env.NODE_AUTH_TOKEN != ''
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for tgz in npm-dist/*.tgz; do
+            npm publish "$tgz" --access public --provenance || true
+          done

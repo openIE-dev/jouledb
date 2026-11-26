@@ -42,7 +42,9 @@ impl BackgroundSyncManager {
             .ok_or_else(|| JsValue::from_str("ready not found"))?;
 
         let registration = wasm_bindgen_futures::JsFuture::from(ready).await?;
-        let reg_obj = registration.dyn_into::<js_sys::Object>().unwrap();
+        let reg_obj = registration
+            .dyn_into::<js_sys::Object>()
+            .map_err(|_| JsValue::from_str("Invalid registration object"))?;
 
         let sync = js_sys::Reflect::get(&reg_obj, &JsValue::from_str("sync"))
             .ok()
@@ -65,7 +67,10 @@ impl BackgroundSyncManager {
         )
         .await?;
 
-        *self.sync_registration.write().unwrap() = Some(sync);
+        *self
+            .sync_registration
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = Some(sync);
         Ok(())
     }
 
@@ -120,7 +125,9 @@ impl PeriodicBackgroundSyncManager {
             .ok_or_else(|| JsValue::from_str("ready not found"))?;
 
         let registration = wasm_bindgen_futures::JsFuture::from(ready).await?;
-        let reg_obj = registration.dyn_into::<js_sys::Object>().unwrap();
+        let reg_obj = registration
+            .dyn_into::<js_sys::Object>()
+            .map_err(|_| JsValue::from_str("Invalid registration object"))?;
 
         let periodic_sync = js_sys::Reflect::get(&reg_obj, &JsValue::from_str("periodicSync"))
             .ok()
@@ -151,7 +158,10 @@ impl PeriodicBackgroundSyncManager {
         )
         .await?;
 
-        *self.sync_registration.write().unwrap() = Some(periodic_sync);
+        *self
+            .sync_registration
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = Some(periodic_sync);
         Ok(())
     }
 
@@ -166,7 +176,12 @@ impl PeriodicBackgroundSyncManager {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn unregister(&self, tag: &str) -> Result<(), JsValue> {
-        if let Some(periodic_sync) = self.sync_registration.read().unwrap().clone() {
+        if let Some(periodic_sync) = self
+            .sync_registration
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+        {
             let unregister_func =
                 js_sys::Reflect::get(&periodic_sync, &JsValue::from_str("unregister"))
                     .ok()
@@ -196,7 +211,12 @@ impl PeriodicBackgroundSyncManager {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn get_tags(&self) -> Result<js_sys::Array, JsValue> {
-        if let Some(periodic_sync) = self.sync_registration.read().unwrap().clone() {
+        if let Some(periodic_sync) = self
+            .sync_registration
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+        {
             let get_tags_func = js_sys::Reflect::get(&periodic_sync, &JsValue::from_str("getTags"))
                 .ok()
                 .and_then(|f| f.dyn_into::<js_sys::Function>().ok())

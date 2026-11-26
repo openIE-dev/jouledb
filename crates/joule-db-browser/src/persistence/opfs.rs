@@ -68,7 +68,7 @@ impl OPFSBackend {
 
     /// Check if initialized
     pub fn is_initialized(&self) -> bool {
-        *self.initialized.read().unwrap()
+        *self.initialized.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Get file path for a page
@@ -81,7 +81,7 @@ impl OPFSBackend {
     pub async fn init(&self) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        if *self.initialized.read().unwrap() {
+        if *self.initialized.read().unwrap_or_else(|e| e.into_inner()) {
             return Ok(());
         }
 
@@ -143,15 +143,15 @@ impl OPFSBackend {
         .await
         .map_err(|_| PersistenceError::InitError("Failed to create directory".to_string()))?;
 
-        *self.dir_handle.write().unwrap() = Some(dir_handle);
-        *self.initialized.write().unwrap() = true;
+        *self.dir_handle.write().unwrap_or_else(|e| e.into_inner()) = Some(dir_handle);
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
 
         Ok(())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn init(&self) -> Result<(), PersistenceError> {
-        *self.initialized.write().unwrap() = true;
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
         Ok(())
     }
 
@@ -162,15 +162,15 @@ impl OPFSBackend {
 
         // Check cache first
         {
-            let cache = self.cache.read().unwrap();
+            let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
             if let Some(data) = cache.get(&page_id) {
-                self.stats.write().unwrap().cache_hits += 1;
+                self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_hits += 1;
                 return Ok(data.clone());
             }
         }
-        self.stats.write().unwrap().cache_misses += 1;
+        self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
 
-        let dir_handle = self.dir_handle.read().unwrap();
+        let dir_handle = self.dir_handle.read().unwrap_or_else(|e| e.into_inner());
         let dir_handle = dir_handle.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Directory not initialized".to_string())
         })?;
@@ -236,11 +236,11 @@ impl OPFSBackend {
         let mut data = vec![0u8; uint8_array.length() as usize];
         uint8_array.copy_to(&mut data);
 
-        self.stats.write().unwrap().read_ops += 1;
+        self.stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
 
         // Update cache
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(page_id, data.clone());
         }
 
@@ -249,7 +249,7 @@ impl OPFSBackend {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn read_page_async(&self, page_id: PageId) -> Result<Vec<u8>, PersistenceError> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
         cache
             .get(&page_id)
             .cloned()
@@ -265,7 +265,7 @@ impl OPFSBackend {
     ) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        let dir_handle = self.dir_handle.read().unwrap();
+        let dir_handle = self.dir_handle.read().unwrap_or_else(|e| e.into_inner());
         let dir_handle = dir_handle.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Directory not initialized".to_string())
         })?;
@@ -362,15 +362,15 @@ impl OPFSBackend {
 
         // Update cache
         {
-            let mut cache = self.cache.write().unwrap();
+            let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(page_id, data.to_vec());
         }
 
         // Update stats
         {
-            let mut stats = self.stats.write().unwrap();
+            let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
             stats.write_ops += 1;
-            stats.total_pages = self.cache.read().unwrap().len() as u64;
+            stats.total_pages = self.cache.read().unwrap_or_else(|e| e.into_inner()).len() as u64;
         }
 
         Ok(())
@@ -382,16 +382,16 @@ impl OPFSBackend {
         page_id: PageId,
         data: &[u8],
     ) -> Result<(), PersistenceError> {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
         cache.insert(page_id, data.to_vec());
-        self.stats.write().unwrap().write_ops += 1;
+        self.stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
         Ok(())
     }
 
     /// Read page (sync version for non-wasm)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn read_page_sync(&self, page_id: PageId) -> Result<Vec<u8>, PersistenceError> {
-        let cache = self.cache.read().unwrap();
+        let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
         cache
             .get(&page_id)
             .cloned()
@@ -401,7 +401,7 @@ impl OPFSBackend {
     /// Write page (sync version for non-wasm)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write_page_sync(&self, page_id: PageId, data: &[u8]) -> Result<(), PersistenceError> {
-        let mut cache = self.cache.write().unwrap();
+        let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
         cache.insert(page_id, data.to_vec());
         Ok(())
     }
@@ -447,15 +447,15 @@ impl AsyncPersistenceBackend for OPFSBackend {
         Box::pin(async move {
             // Check cache first
             {
-                let cache_guard = cache.read().unwrap();
+                let cache_guard = cache.read().unwrap_or_else(|e| e.into_inner());
                 if let Some(data) = cache_guard.get(&page_id) {
-                    stats.write().unwrap().cache_hits += 1;
+                    stats.write().unwrap_or_else(|e| e.into_inner()).cache_hits += 1;
                     return Ok(data.clone());
                 }
             }
-            stats.write().unwrap().cache_misses += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
 
-            let dir_handle_guard = dir_handle.read().unwrap();
+            let dir_handle_guard = dir_handle.read().unwrap_or_else(|e| e.into_inner());
             let dir_handle_val = dir_handle_guard.as_ref().ok_or_else(|| {
                 PersistenceError::NotAvailable("Directory not initialized".to_string())
             })?;
@@ -526,10 +526,10 @@ impl AsyncPersistenceBackend for OPFSBackend {
 
             // Update cache
             {
-                let mut cache_guard = cache.write().unwrap();
+                let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
                 cache_guard.insert(page_id, data.clone());
             }
-            stats.write().unwrap().read_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
 
             Ok(data)
         })
@@ -544,7 +544,7 @@ impl AsyncPersistenceBackend for OPFSBackend {
     > {
         let cache = Arc::clone(&self.cache);
         Box::pin(async move {
-            let cache_guard = cache.read().unwrap();
+            let cache_guard = cache.read().unwrap_or_else(|e| e.into_inner());
             cache_guard
                 .get(&page_id)
                 .cloned()
@@ -566,7 +566,7 @@ impl AsyncPersistenceBackend for OPFSBackend {
         let _root_dir = self.root_dir.clone();
 
         Box::pin(async move {
-            let dir_handle_guard = dir_handle.read().unwrap();
+            let dir_handle_guard = dir_handle.read().unwrap_or_else(|e| e.into_inner());
             let dir_handle_val = dir_handle_guard.as_ref().ok_or_else(|| {
                 PersistenceError::NotAvailable("Directory not initialized".to_string())
             })?;
@@ -675,10 +675,10 @@ impl AsyncPersistenceBackend for OPFSBackend {
 
             // Update cache
             {
-                let mut cache_guard = cache.write().unwrap();
+                let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
                 cache_guard.insert(page_id, data);
             }
-            stats.write().unwrap().write_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
 
             Ok(())
         })
@@ -696,9 +696,9 @@ impl AsyncPersistenceBackend for OPFSBackend {
         let cache = Arc::clone(&self.cache);
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            let mut cache_guard = cache.write().unwrap();
+            let mut cache_guard = cache.write().unwrap_or_else(|e| e.into_inner());
             cache_guard.insert(page_id, data);
-            stats.write().unwrap().write_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
             Ok(())
         })
     }
@@ -710,7 +710,7 @@ impl AsyncPersistenceBackend for OPFSBackend {
     {
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            stats.write().unwrap().sync_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).sync_ops += 1;
             Ok(())
         })
     }
@@ -723,13 +723,13 @@ impl AsyncPersistenceBackend for OPFSBackend {
     > {
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            stats.write().unwrap().sync_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).sync_ops += 1;
             Ok(())
         })
     }
 
     fn stats(&self) -> StorageStats {
-        self.stats.read().unwrap().clone()
+        self.stats.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 

@@ -83,8 +83,10 @@ impl IVFIndex {
         let mut centroids: Vec<Vec<f32>> = vectors.iter().take(k).map(|(_, v)| v.clone()).collect();
 
         // If fewer vectors than clusters, pad with copies of the last vector
-        while centroids.len() < self.n_clusters {
-            centroids.push(centroids.last().unwrap().clone());
+        if let Some(last) = centroids.last().cloned() {
+            while centroids.len() < self.n_clusters {
+                centroids.push(last.clone());
+            }
         }
 
         // Lloyd's algorithm — 20 iterations

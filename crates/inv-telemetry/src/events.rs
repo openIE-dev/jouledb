@@ -111,7 +111,7 @@ impl EventStream {
 
     /// Emit (record) an event into the stream.
     pub fn emit(&self, event: Event) {
-        let mut events = self.events.write().unwrap();
+        let mut events = self.events.write().unwrap_or_else(|e| e.into_inner());
         if events.len() >= self.max_events {
             events.remove(0);
         }
@@ -120,21 +120,21 @@ impl EventStream {
 
     /// Retrieve the most recent `limit` events (newest last).
     pub fn recent(&self, limit: usize) -> Vec<Event> {
-        let events = self.events.read().unwrap();
+        let events = self.events.read().unwrap_or_else(|e| e.into_inner());
         let start = events.len().saturating_sub(limit);
         events[start..].to_vec()
     }
 
     /// Retrieve all events.
     pub fn all(&self) -> Vec<Event> {
-        self.events.read().unwrap().clone()
+        self.events.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Filter events by kind.
     pub fn filter_by_kind(&self, kind: EventKind) -> Vec<Event> {
         self.events
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|e| e.kind == kind)
             .cloned()
@@ -145,7 +145,7 @@ impl EventStream {
     pub fn filter_by_severity(&self, min_severity: Severity) -> Vec<Event> {
         self.events
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|e| e.severity >= min_severity)
             .cloned()
@@ -156,7 +156,7 @@ impl EventStream {
     pub fn filter_by_source(&self, source: &str) -> Vec<Event> {
         self.events
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|e| e.source == source)
             .cloned()
@@ -165,12 +165,12 @@ impl EventStream {
 
     /// Total number of events currently in the stream.
     pub fn count(&self) -> usize {
-        self.events.read().unwrap().len()
+        self.events.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Clear all events from the stream.
     pub fn clear(&self) {
-        self.events.write().unwrap().clear();
+        self.events.write().unwrap_or_else(|e| e.into_inner()).clear();
     }
 
     /// Maximum capacity of the stream.

@@ -110,7 +110,10 @@ impl MultiTenantStore {
                 let store = self.stores.get(tenant_id).ok_or_else(|| {
                     AmorphicError::QueryError(format!("Tenant '{}' not found", tenant_id))
                 })?;
-                let current = store.read().unwrap().record_count();
+                let current = store
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .record_count();
                 if current >= config.max_records {
                     return Err(AmorphicError::IngestionError(format!(
                         "Tenant '{}' quota exceeded: {} / {} records",
@@ -132,8 +135,13 @@ impl MultiTenantStore {
             )));
         }
 
-        let store = self.stores.get(tenant_id).unwrap();
-        store.write().unwrap().ingest_json(json)
+        let store = self.stores.get(tenant_id).ok_or_else(|| {
+            AmorphicError::IngestionError(format!("Tenant store '{}' missing", tenant_id))
+        })?;
+        store
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .ingest_json(json)
     }
 
     /// Query by field equality for a specific tenant.
@@ -146,7 +154,10 @@ impl MultiTenantStore {
         // Check access first, then release borrow before mutating query_counts
         self.check_tenant_active(tenant_id)?;
         *self.query_counts.entry(tenant_id.to_string()).or_default() += 1;
-        let store = self.stores.get(tenant_id).unwrap().read().unwrap();
+        let store_lock = self.stores.get(tenant_id).ok_or_else(|| {
+            AmorphicError::QueryError(format!("Tenant store '{}' missing", tenant_id))
+        })?;
+        let store = store_lock.read().unwrap_or_else(|e| e.into_inner());
         Ok(store.query_equals(field, value))
     }
 
@@ -159,7 +170,10 @@ impl MultiTenantStore {
     ) -> AmorphicResult<QueryResult> {
         self.check_tenant_active(tenant_id)?;
         *self.query_counts.entry(tenant_id.to_string()).or_default() += 1;
-        let store = self.stores.get(tenant_id).unwrap().read().unwrap();
+        let store_lock = self.stores.get(tenant_id).ok_or_else(|| {
+            AmorphicError::QueryError(format!("Tenant store '{}' missing", tenant_id))
+        })?;
+        let store = store_lock.read().unwrap_or_else(|e| e.into_inner());
         Ok(store.query_similar_to(name, k))
     }
 
@@ -167,7 +181,10 @@ impl MultiTenantStore {
     pub fn query_sql(&mut self, tenant_id: &str, sql: &str) -> AmorphicResult<QueryResult> {
         self.check_tenant_active(tenant_id)?;
         *self.query_counts.entry(tenant_id.to_string()).or_default() += 1;
-        let store = self.stores.get(tenant_id).unwrap().read().unwrap();
+        let store_lock = self.stores.get(tenant_id).ok_or_else(|| {
+            AmorphicError::QueryError(format!("Tenant store '{}' missing", tenant_id))
+        })?;
+        let store = store_lock.read().unwrap_or_else(|e| e.into_inner());
         store.query_sql(sql)
     }
 
@@ -221,7 +238,7 @@ impl MultiTenantStore {
     /// Get statistics for a tenant.
     pub fn tenant_stats(&self, tenant_id: &str) -> AmorphicResult<TenantStats> {
         let store_lock = self.get_store(tenant_id)?;
-        let store = store_lock.read().unwrap();
+        let store = store_lock.read().unwrap_or_else(|e| e.into_inner());
         Ok(TenantStats {
             tenant_id: tenant_id.to_string(),
             record_count: store.record_count(),

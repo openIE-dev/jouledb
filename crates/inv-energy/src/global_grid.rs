@@ -832,7 +832,7 @@ pub fn green_energy_countries(min_renewable_pct: f64) -> Vec<&'static CountryEne
 /// All profiles sorted by cost per joule (cheapest first).
 pub fn profiles_by_cost() -> Vec<&'static CountryEnergyProfile> {
     let mut v: Vec<&CountryEnergyProfile> = PROFILES.iter().collect();
-    v.sort_by(|a, b| a.cost_per_joule().partial_cmp(&b.cost_per_joule()).unwrap());
+    v.sort_by(|a, b| a.cost_per_joule().total_cmp(&b.cost_per_joule()));
     v
 }
 
@@ -841,8 +841,7 @@ pub fn profiles_by_carbon() -> Vec<&'static CountryEnergyProfile> {
     let mut v: Vec<&CountryEnergyProfile> = PROFILES.iter().collect();
     v.sort_by(|a, b| {
         a.carbon_intensity_gco2_kwh
-            .partial_cmp(&b.carbon_intensity_gco2_kwh)
-            .unwrap()
+            .total_cmp(&b.carbon_intensity_gco2_kwh)
     });
     v
 }

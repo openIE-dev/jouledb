@@ -139,7 +139,7 @@ pub fn compute_peak(signal: &[f64]) -> DspResult<f64> {
     signal
         .iter()
         .cloned()
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .max_by(|a, b| a.total_cmp(b))
         .ok_or(DspError::SignalTooShort { needed: 1, got: 0 })
 }
 
@@ -148,7 +148,7 @@ pub fn compute_trough(signal: &[f64]) -> DspResult<f64> {
     signal
         .iter()
         .cloned()
-        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .min_by(|a, b| a.total_cmp(b))
         .ok_or(DspError::SignalTooShort { needed: 1, got: 0 })
 }
 
@@ -204,7 +204,7 @@ pub fn compute_percentile(signal: &[f64], percentile: f64) -> DspResult<f64> {
     }
 
     let mut sorted = signal.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.sort_by(|a, b| a.total_cmp(b));
 
     let idx = (percentile / 100.0 * (sorted.len() - 1) as f64).round() as usize;
     Ok(sorted[idx])

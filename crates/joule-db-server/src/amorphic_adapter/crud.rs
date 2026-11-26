@@ -244,20 +244,19 @@ impl AmorphicTableStorage {
 
     /// Insert a SQL row into the amorphic store within the current batch transaction.
     pub fn batch_insert(&self, table: &str, row: &RowData) -> QueryResult<RecordId> {
-        let mut store = self.store.write().map_err(lock_error)?;
-
-        // Build JSON with __table__ field
-        let mut fields = serde_json::Map::new();
+        let mut fields = HashMap::with_capacity(row.columns.len() + 1);
         fields.insert(
             TABLE_FIELD.to_string(),
-            serde_json::Value::String(table.to_string()),
+            AmorphicValue::String(table.to_string()),
         );
         for (col, val) in row.columns.iter().zip(row.values.iter()) {
-            fields.insert(col.clone(), ast_to_json(val));
+            fields.insert(col.clone(), ast_to_amorphic(val));
         }
-
-        let json = serde_json::Value::Object(fields).to_string();
-        let id = store.batch_ingest_json(&json).map_err(amorphic_error)?;
+        let mut store = self.store.write().map_err(lock_error)?;
+        let id = store.batch_ingest_fields(fields).map_err(amorphic_error)?;
+        if store.pending_holograms() > 0 {
+            self.store.mark_pending();
+        }
         Ok(id)
     }
 
@@ -307,6 +306,7 @@ impl AmorphicTableStorage {
         guard.begin_batch().map_err(amorphic_error)?;
 
         let mut assigned_ids = Vec::new();
+        let mut any_insert = false;
         for op in ops {
             let step_res: QueryResult<()> = match op {
                 AtomicBatchOp::Insert {
@@ -314,17 +314,14 @@ impl AmorphicTableStorage {
                     table,
                     row,
                 } => {
-                    let mut fields = serde_json::Map::new();
-                    fields.insert(
-                        TABLE_FIELD.to_string(),
-                        serde_json::Value::String(table),
-                    );
-                    for (col, val) in row.columns.iter().zip(row.values.iter()) {
-                        fields.insert(col.clone(), ast_to_json(val));
+                    let mut fields = HashMap::with_capacity(row.columns.len() + 1);
+                    fields.insert(TABLE_FIELD.to_string(), AmorphicValue::String(table));
+                    for (col, val) in row.columns.into_iter().zip(row.values) {
+                        fields.insert(col, ast_into_amorphic(val));
                     }
-                    let json = serde_json::Value::Object(fields).to_string();
-                    match guard.batch_ingest_json(&json) {
+                    match guard.batch_ingest_fields(fields) {
                         Ok(id) => {
+                            any_insert = true;
                             assigned_ids.push((key_idx, id));
                             Ok(())
                         }
@@ -347,8 +344,12 @@ impl AmorphicTableStorage {
             return Err(amorphic_error(e));
         }
 
+        let has_pending_holo = any_insert && guard.pending_holograms() > 0;
         let lsn = sync_arc.as_ref().map(|g| g.committed_lsn());
         drop(guard);
+        if has_pending_holo {
+            self.store.mark_pending();
+        }
         Ok((
             assigned_ids,
             DeferredBatchSync {
@@ -782,11 +783,23 @@ impl AmorphicTableStorage {
                 .ok()
                 .and_then(|c| c.get(table).map(|(_, t)| t.len))
                 .unwrap_or(0);
-            let existing_rows = cached_rows.max(
-                store
-                    .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
-                    .len(),
-            );
+            let pending_table_rows: usize = if store.pending_rows() > 0 {
+                let (off, pbs) = store.pending_batches();
+                pbs.iter()
+                    .enumerate()
+                    .filter(|(_, b)| b.table == table)
+                    .map(|(i, b)| b.len.saturating_sub(if i == 0 { off } else { 0 }))
+                    .sum()
+            } else {
+                0
+            };
+            let existing_rows = cached_rows
+                .max(pending_table_rows)
+                .max(
+                    store
+                        .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
+                        .len(),
+                );
             if existing_rows.saturating_add(n) > spill_thresh {
                 let defs = self
                     .get_column_defs_from_store(&store, table)
@@ -921,25 +934,31 @@ impl AmorphicTableStorage {
     }
 
     pub fn insert_returning_id(&self, table: &str, row: &RowData) -> QueryResult<u64> {
-        let mut store = self.store.write().map_err(lock_error)?;
-
-        // Verify table exists
-        let _columns = self.get_schema_columns(&store, table)?;
-
-        // Build JSON with __table__ field
-        let mut fields = serde_json::Map::new();
+        let mut fields = HashMap::with_capacity(row.columns.len() + 1);
         fields.insert(
             TABLE_FIELD.to_string(),
-            serde_json::Value::String(table.to_string()),
+            AmorphicValue::String(table.to_string()),
         );
-
         for (col, val) in row.columns.iter().zip(row.values.iter()) {
-            fields.insert(col.clone(), ast_to_json(val));
+            fields.insert(col.clone(), ast_to_amorphic(val));
         }
 
-        let json = serde_json::Value::Object(fields).to_string();
-        let record_id = store.ingest_json(&json).map_err(amorphic_error)?;
-
+        let (mut guard, sync_arc) = self.store.write_deferred_sync().map_err(lock_error)?;
+        let _columns = self.get_schema_columns(&guard, table)?;
+        let record_id = guard
+            .ingest_fields_deferred_sync(fields)
+            .map_err(amorphic_error)?;
+        let has_pending_holo = guard.pending_holograms() > 0;
+        let lsn = sync_arc.as_ref().map(|g| g.committed_lsn());
+        drop(guard);
+        if has_pending_holo {
+            self.store.mark_pending();
+        }
+        DeferredBatchSync {
+            sync: sync_arc,
+            lsn,
+        }
+        .wait_durable()?;
         Ok(record_id)
     }
 

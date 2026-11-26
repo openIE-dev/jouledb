@@ -185,14 +185,20 @@ impl ThermodynamicOptimizer {
             return QueryPlan::new(1.0, 0, false, "empty");
         }
 
-        *self.optimization_count.write().unwrap() += 1;
+        *self
+            .optimization_count
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) += 1;
 
         let mut current = plans[0].clone();
         let mut current_energy = current.cost();
 
         // Record initial energy
         {
-            let mut history = self.energy_history.write().unwrap();
+            let mut history = self
+                .energy_history
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             history.push_back(current_energy);
             if history.len() > 100 {
                 history.pop_front();
@@ -215,8 +221,12 @@ impl ThermodynamicOptimizer {
 
         // Update best plan
         {
-            let mut best = self.best_plan.write().unwrap();
-            if best.is_none() || current_energy < best.as_ref().unwrap().1 {
+            let mut best = self.best_plan.write().unwrap_or_else(|e| e.into_inner());
+            let should_update = match best.as_ref() {
+                None => true,
+                Some((_, best_energy)) => current_energy < *best_energy,
+            };
+            if should_update {
                 *best = Some((current.clone(), current_energy));
             }
         }
@@ -228,16 +238,22 @@ impl ThermodynamicOptimizer {
     pub fn best_plan(&self) -> Option<QueryPlan> {
         self.best_plan
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .as_ref()
             .map(|(p, _)| p.clone())
     }
 
     /// Get statistics
     pub fn stats(&self) -> OptimizerStats {
-        let history = self.energy_history.read().unwrap();
-        let best = self.best_plan.read().unwrap();
-        let count = *self.optimization_count.read().unwrap();
+        let history = self
+            .energy_history
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
+        let best = self.best_plan.read().unwrap_or_else(|e| e.into_inner());
+        let count = *self
+            .optimization_count
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
 
         let average_energy = if history.is_empty() {
             0.0
@@ -257,9 +273,15 @@ impl ThermodynamicOptimizer {
 
     /// Clear history
     pub fn clear(&mut self) {
-        self.energy_history.write().unwrap().clear();
-        *self.best_plan.write().unwrap() = None;
-        *self.optimization_count.write().unwrap() = 0;
+        self.energy_history
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        *self.best_plan.write().unwrap_or_else(|e| e.into_inner()) = None;
+        *self
+            .optimization_count
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = 0;
         self.reset_temperature();
     }
 }

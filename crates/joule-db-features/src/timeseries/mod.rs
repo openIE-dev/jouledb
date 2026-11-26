@@ -31,7 +31,7 @@ impl DataPoint {
     pub fn now(value: f64) -> Self {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_nanos() as i64;
         Self {
             timestamp,
@@ -200,7 +200,7 @@ impl TimeSeriesStore {
 
     /// Write a data point
     pub fn write(&self, metric: &str, point: DataPoint) {
-        let mut metrics = self.metrics.write().unwrap();
+        let mut metrics = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         let partitions = metrics.entry(metric.to_string()).or_insert_with(Vec::new);
 
         // Find or create partition
@@ -238,7 +238,7 @@ impl TimeSeriesStore {
         // Sort by timestamp for better compression and partition grouping
         points.sort_by_key(|p| p.timestamp);
 
-        let mut metrics = self.metrics.write().unwrap();
+        let mut metrics = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         let partitions = metrics.entry(metric.to_string()).or_insert_with(Vec::new);
 
         let partition_duration = self.config.partition_interval.as_nanos() as i64;
@@ -285,7 +285,7 @@ impl TimeSeriesStore {
 
     /// Query time range
     pub fn query(&self, metric: &str, start: i64, end: i64) -> Vec<DataPoint> {
-        let metrics = self.metrics.read().unwrap();
+        let metrics = self.metrics.read().unwrap_or_else(|e| e.into_inner());
         let partitions = match metrics.get(metric) {
             Some(p) => p,
             None => return Vec::new(),
@@ -372,7 +372,7 @@ impl TimeSeriesStore {
                     return 0.0;
                 }
                 let mut sorted = values.to_vec();
-                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                sorted.sort_by(f64::total_cmp);
                 let idx = ((p as f64 / 100.0) * (sorted.len() - 1) as f64) as usize;
                 sorted[idx]
             }
@@ -381,14 +381,19 @@ impl TimeSeriesStore {
 
     /// Get metric names
     pub fn list_metrics(&self) -> Vec<String> {
-        self.metrics.read().unwrap().keys().cloned().collect()
+        self.metrics
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect()
     }
 
     /// Get metric count
     pub fn metric_count(&self, metric: &str) -> usize {
         self.metrics
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(metric)
             .map(|partitions| partitions.iter().map(|p| p.count()).sum())
             .unwrap_or(0)
@@ -396,20 +401,24 @@ impl TimeSeriesStore {
 
     /// Delete metric
     pub fn delete_metric(&self, metric: &str) -> bool {
-        self.metrics.write().unwrap().remove(metric).is_some()
+        self.metrics
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(metric)
+            .is_some()
     }
 
     /// Apply retention policy (remove old data)
     pub fn apply_retention(&self) {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_nanos() as i64;
 
         let retention_ns = self.config.default_retention.as_nanos() as i64;
         let cutoff = now - retention_ns;
 
-        let mut metrics = self.metrics.write().unwrap();
+        let mut metrics = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         for partitions in metrics.values_mut() {
             partitions.retain(|p| p.end_time > cutoff);
         }
@@ -419,7 +428,7 @@ impl TimeSeriesStore {
     pub fn add_retention_policy(&self, policy: RetentionPolicy) {
         self.retention_policies
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(policy.name.clone(), policy);
     }
 
@@ -427,7 +436,7 @@ impl TimeSeriesStore {
     pub fn get_retention_policies(&self) -> Vec<RetentionPolicy> {
         self.retention_policies
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .values()
             .cloned()
             .collect()

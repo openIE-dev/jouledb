@@ -406,7 +406,10 @@ impl AudienceMatcher {
 
             if combined_score > 0.5 {
                 if let Some(campaign) = self.campaign_data.get(id) {
-                    if best_match.is_none() || combined_score > best_match.as_ref().unwrap().1 {
+                    if match &best_match {
+                        None => true,
+                        Some((_, best_score, _)) => combined_score > *best_score,
+                    } {
                         best_match = Some((id.clone(), combined_score, campaign.max_bid));
                     }
                 }

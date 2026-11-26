@@ -345,7 +345,7 @@ impl ScratchPool {
         let idx = self.next_idx.fetch_add(1, Ordering::Relaxed) as usize;
         let idx = idx % self.buffers.len();
 
-        let guard = self.buffers[idx].lock().unwrap();
+        let guard = self.buffers[idx].lock().unwrap_or_else(|e| e.into_inner());
         ScratchGuard {
             guard,
             size: self.buffer_size,
@@ -1243,16 +1243,17 @@ impl FourierBenchmark {
     pub fn bench_bind(&self) -> HyperVector {
         self.binder
             .bind(&self.test_vectors[0], &self.test_vectors[1])
-            .unwrap()
+            .unwrap_or_else(|_| self.test_vectors[0].clone())
     }
 
     /// Benchmark single unbind operation
     pub fn bench_unbind(&self) -> HyperVector {
-        let bound = self
-            .binder
-            .bind(&self.test_vectors[0], &self.test_vectors[1])
-            .unwrap();
-        self.binder.unbind(&bound, &self.test_vectors[1]).unwrap()
+        let Ok(bound) = self.binder.bind(&self.test_vectors[0], &self.test_vectors[1]) else {
+            return self.test_vectors[0].clone();
+        };
+        self.binder
+            .unbind(&bound, &self.test_vectors[1])
+            .unwrap_or_else(|_| self.test_vectors[0].clone())
     }
 
     /// Benchmark batched bind
@@ -1260,7 +1261,7 @@ impl FourierBenchmark {
         let half = self.test_vectors.len() / 2;
         let a = &self.test_vectors[..batch_size.min(half)];
         let b = &self.test_vectors[half..half + batch_size.min(half)];
-        self.binder.bind_batch(a, b).unwrap()
+        self.binder.bind_batch(a, b).unwrap_or_default()
     }
 
     /// Get binder reference

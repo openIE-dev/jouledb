@@ -108,7 +108,7 @@ impl OptimizedTimeSeriesWriter {
 
     /// Write data point (buffered)
     pub fn write(&self, metric: &str, point: DataPoint) {
-        let mut buffers = self.buffers.write().unwrap();
+        let mut buffers = self.buffers.write().unwrap_or_else(|e| e.into_inner());
         let buffer = buffers.entry(metric.to_string()).or_insert_with(|| {
             WriteBuffer::new(
                 metric.to_string(),
@@ -122,7 +122,7 @@ impl OptimizedTimeSeriesWriter {
 
     /// Write batch of data points (optimized)
     pub fn write_batch(&self, metric: &str, points: Vec<DataPoint>) {
-        let mut buffers = self.buffers.write().unwrap();
+        let mut buffers = self.buffers.write().unwrap_or_else(|e| e.into_inner());
         let buffer = buffers.entry(metric.to_string()).or_insert_with(|| {
             WriteBuffer::new(
                 metric.to_string(),
@@ -136,7 +136,7 @@ impl OptimizedTimeSeriesWriter {
 
     /// Flush all buffers
     pub fn flush_all(&self) {
-        let mut buffers = self.buffers.write().unwrap();
+        let mut buffers = self.buffers.write().unwrap_or_else(|e| e.into_inner());
         for buffer in buffers.values_mut() {
             buffer.force_flush();
         }
@@ -144,7 +144,7 @@ impl OptimizedTimeSeriesWriter {
 
     /// Flush specific metric buffer
     pub fn flush_metric(&self, metric: &str) {
-        let mut buffers = self.buffers.write().unwrap();
+        let mut buffers = self.buffers.write().unwrap_or_else(|e| e.into_inner());
         if let Some(buffer) = buffers.get_mut(metric) {
             buffer.force_flush();
         }

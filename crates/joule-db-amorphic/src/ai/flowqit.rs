@@ -144,12 +144,13 @@ impl DensityState {
         let entropy_before = self.entropy();
 
         // Find the most probable state
-        let (max_idx, _max_p) = self
+        let max_idx = self
             .probabilities
             .iter()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .unwrap();
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
+            .map(|(idx, _)| idx)
+            .unwrap_or(0);
 
         // Sharpen distribution toward the most probable state
         let strength = strength.clamp(0.01, 1.0);

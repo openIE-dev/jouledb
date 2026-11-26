@@ -1375,7 +1375,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.query_equals(field, value).into_records()
                     })
                 })
@@ -1401,7 +1401,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.query_range(field, min, max).into_records()
                     })
                 })
@@ -1430,7 +1430,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.query_similar_to(name, k).into_records()
                     })
                 })
@@ -1565,7 +1565,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.sum(field).unwrap_or(0.0)
                     })
                 })
@@ -1591,7 +1591,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.count(field).unwrap_or(0)
                     })
                 })
@@ -1628,7 +1628,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.min(field).unwrap_or(f64::MAX)
                     })
                 })
@@ -1653,7 +1653,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.max(field).unwrap_or(f64::MIN)
                     })
                 })
@@ -1678,7 +1678,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard.count_where_range(filter_field, min, max).unwrap_or(0)
                     })
                 })
@@ -1710,7 +1710,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         guard
                             .sum_where_range(sum_field, filter_field, min, max)
                             .unwrap_or(0.0)
@@ -1751,7 +1751,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         if let Some(col) = guard.columnar().get_column(build_field) {
                             col.scan().map(|(_, v)| v as i64).collect::<Vec<_>>()
                         } else {
@@ -1780,7 +1780,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(move || {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         let columnar = guard.columnar();
 
                         let probe_col = columnar.get_column(probe_field)?;
@@ -1835,7 +1835,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(|| {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         if let Some(col) = guard.columnar().get_column(build_field) {
                             col.scan().map(|(_, v)| v as i64).collect::<Vec<_>>()
                         } else {
@@ -1864,7 +1864,7 @@ impl ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(move || {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         if let Some(col) = guard.columnar().get_column(probe_field) {
                             col.scan()
                                 .filter(|(_, v)| build_keys_ref.contains(&(*v as i64)))
@@ -1931,7 +1931,7 @@ fn num_cpus() -> usize {
 fn now_epoch() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs()
 }
 

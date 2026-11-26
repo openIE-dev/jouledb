@@ -466,9 +466,9 @@ impl<'a> QueryOptimizer<'a> {
 
         QueryPlan {
             steps: vec![
-                if filter_field.is_some() {
+                if let Some(field) = filter_field {
                     PlanStep::Filter {
-                        field: filter_field.unwrap().to_string(),
+                        field: field.to_string(),
                         min: filter_min.unwrap_or(f64::MIN),
                         max: filter_max.unwrap_or(f64::MAX),
                         estimated_rows: (probe_card as f64 * filter_selectivity) as usize,
@@ -1371,14 +1371,14 @@ impl RuleBasedOptimizer {
                 input,
                 predicate: Predicate::And(preds),
             } => {
-                let simplified: Vec<_> = preds
+                let mut simplified: Vec<_> = preds
                     .into_iter()
                     .filter(|p| !matches!(p, Predicate::True))
                     .collect();
 
                 let predicate = match simplified.len() {
                     0 => return Self::fold_constants(*input),
-                    1 => simplified.into_iter().next().unwrap(),
+                    1 => simplified.pop().unwrap_or(Predicate::True),
                     _ => Predicate::And(simplified),
                 };
 

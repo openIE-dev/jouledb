@@ -103,7 +103,7 @@ impl JoinToken {
     ) -> Self {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         let mut token = Self {
@@ -140,7 +140,7 @@ impl JoinToken {
     pub fn verify(&self, public_key: &VerifyingKey) -> Result<(), JoinTokenError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         if now > self.expires_at {

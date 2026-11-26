@@ -115,11 +115,11 @@ impl ApiKeyService {
         };
 
         {
-            let mut keys = self.keys_by_id.write().unwrap();
+            let mut keys = self.keys_by_id.write().unwrap_or_else(|e| e.into_inner());
             keys.insert(id, api_key.clone());
         }
         {
-            let mut hashes = self.hash_to_id.write().unwrap();
+            let mut hashes = self.hash_to_id.write().unwrap_or_else(|e| e.into_inner());
             hashes.insert(key_hash, id);
         }
 
@@ -138,7 +138,7 @@ impl ApiKeyService {
         let key_hash = hash_key(plaintext_key);
 
         let id = {
-            let hashes = self.hash_to_id.read().unwrap();
+            let hashes = self.hash_to_id.read().unwrap_or_else(|e| e.into_inner());
             hashes.get(&key_hash).copied()
         };
 
@@ -146,7 +146,7 @@ impl ApiKeyService {
             return Err(AuthError::ApiKeyNotFound);
         };
 
-        let mut keys = self.keys_by_id.write().unwrap();
+        let mut keys = self.keys_by_id.write().unwrap_or_else(|e| e.into_inner());
         let Some(key) = keys.get_mut(&id) else {
             return Err(AuthError::ApiKeyNotFound);
         };
@@ -165,7 +165,7 @@ impl ApiKeyService {
 
     /// Revoke an API key by its ID.
     pub fn revoke(&self, key_id: Uuid) -> Result<(), AuthError> {
-        let mut keys = self.keys_by_id.write().unwrap();
+        let mut keys = self.keys_by_id.write().unwrap_or_else(|e| e.into_inner());
         let Some(key) = keys.get_mut(&key_id) else {
             return Err(AuthError::ApiKeyNotFound);
         };
@@ -176,13 +176,13 @@ impl ApiKeyService {
 
     /// List all API keys for an organization.
     pub fn list(&self, org: &str) -> Vec<ApiKey> {
-        let keys = self.keys_by_id.read().unwrap();
+        let keys = self.keys_by_id.read().unwrap_or_else(|e| e.into_inner());
         keys.values().filter(|k| k.org == org).cloned().collect()
     }
 
     /// Update the last-used timestamp for a key.
     pub fn update_last_used(&self, key_id: Uuid) -> Result<(), AuthError> {
-        let mut keys = self.keys_by_id.write().unwrap();
+        let mut keys = self.keys_by_id.write().unwrap_or_else(|e| e.into_inner());
         let Some(key) = keys.get_mut(&key_id) else {
             return Err(AuthError::ApiKeyNotFound);
         };
@@ -192,7 +192,7 @@ impl ApiKeyService {
 
     /// Get a key by its ID.
     pub fn get(&self, key_id: Uuid) -> Result<ApiKey, AuthError> {
-        let keys = self.keys_by_id.read().unwrap();
+        let keys = self.keys_by_id.read().unwrap_or_else(|e| e.into_inner());
         keys.get(&key_id).cloned().ok_or(AuthError::ApiKeyNotFound)
     }
 }

@@ -290,7 +290,7 @@ impl VolatilitySurface {
         // Time to expiry in years (assume 365 days/year)
         let now_epoch = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs()
             / 86400; // Current epoch day
 

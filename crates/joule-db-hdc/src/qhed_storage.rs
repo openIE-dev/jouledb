@@ -853,10 +853,11 @@ impl QHEDStorageEngine {
     }
 
     /// Create with minimal configuration for testing
-    pub fn minimal() -> Self {
+    pub fn minimal() -> QHEDResult<Self> {
         let backend = MemoryBackend::new();
-        let engine = Arc::new(Engine::new(backend).unwrap());
-        Self::new(engine, QHEDStorageConfig::minimal())
+        let engine =
+            Arc::new(Engine::new(backend).map_err(|e| QHEDError::Other(e.to_string()))?);
+        Ok(Self::new(engine, QHEDStorageConfig::minimal()))
     }
 
     // ========================================================================
@@ -1814,14 +1815,14 @@ mod tests {
 
     #[test]
     fn test_engine_creation() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
         assert!(engine.is_empty());
         assert_eq!(engine.len(), 0);
     }
 
     #[test]
     fn test_basic_put_get() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         engine.put("key2", b"value2").unwrap();
@@ -1833,7 +1834,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         assert!(engine.contains("key1"));
@@ -1845,7 +1846,7 @@ mod tests {
 
     #[test]
     fn test_keys() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         engine.put("key2", b"value2").unwrap();
@@ -1860,7 +1861,7 @@ mod tests {
 
     #[test]
     fn test_hybrid_query() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
 
         engine.put("hello_world", b"Hello, World!").unwrap();
         engine.put("hello_rust", b"Hello, Rust!").unwrap();
@@ -1873,7 +1874,7 @@ mod tests {
 
     #[test]
     fn test_content_lookup() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
 
         engine.put("test", b"test data").unwrap();
 
@@ -1884,7 +1885,7 @@ mod tests {
 
     #[test]
     fn test_persist_all() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         engine.put("key2", b"value2").unwrap();
@@ -1920,7 +1921,7 @@ mod tests {
 
     #[test]
     fn test_stats() {
-        let engine = QHEDStorageEngine::minimal();
+        let engine = QHEDStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         let _ = engine.get("key1");

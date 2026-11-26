@@ -36,7 +36,7 @@ impl HyperdimensionalStorage {
             });
         }
 
-        let mut vectors = self.vectors.write().unwrap();
+        let mut vectors = self.vectors.write().unwrap_or_else(|e| e.into_inner());
         let index = vectors.len();
         vectors.push(vector);
         Ok(index)
@@ -53,7 +53,7 @@ impl HyperdimensionalStorage {
             }
         }
 
-        let mut vectors = self.vectors.write().unwrap();
+        let mut vectors = self.vectors.write().unwrap_or_else(|e| e.into_inner());
         let start_index = vectors.len();
         let count = new_vectors.len();
         vectors.extend(new_vectors);
@@ -62,7 +62,11 @@ impl HyperdimensionalStorage {
 
     /// Get vector by index
     pub fn get(&self, index: usize) -> Option<HyperVector> {
-        self.vectors.read().unwrap().get(index).cloned()
+        self.vectors
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(index)
+            .cloned()
     }
 
     /// Search for top-k similar vectors
@@ -78,7 +82,7 @@ impl HyperdimensionalStorage {
             });
         }
 
-        let vectors = self.vectors.read().unwrap();
+        let vectors = self.vectors.read().unwrap_or_else(|e| e.into_inner());
         let mut results: Vec<SimilarityMatch> = Vec::with_capacity(vectors.len());
 
         for (index, v) in vectors.iter().enumerate() {
@@ -111,7 +115,7 @@ impl HyperdimensionalStorage {
             });
         }
 
-        let vectors = self.vectors.read().unwrap();
+        let vectors = self.vectors.read().unwrap_or_else(|e| e.into_inner());
         let mut results: Vec<SimilarityMatch> = Vec::new();
 
         for (index, v) in vectors.iter().enumerate() {
@@ -133,7 +137,7 @@ impl HyperdimensionalStorage {
 
     /// Get number of stored vectors
     pub fn len(&self) -> usize {
-        self.vectors.read().unwrap().len()
+        self.vectors.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Check if empty
@@ -148,12 +152,15 @@ impl HyperdimensionalStorage {
 
     /// Clear all vectors
     pub fn clear(&self) {
-        self.vectors.write().unwrap().clear();
+        self.vectors
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     /// Remove vector by index (expensive - shifts subsequent indices)
     pub fn remove(&self, index: usize) -> Option<HyperVector> {
-        let mut vectors = self.vectors.write().unwrap();
+        let mut vectors = self.vectors.write().unwrap_or_else(|e| e.into_inner());
         if index < vectors.len() {
             Some(vectors.remove(index))
         } else {

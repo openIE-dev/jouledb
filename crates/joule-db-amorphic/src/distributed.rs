@@ -128,11 +128,9 @@ impl ConsistentHashRing {
 
     /// Remove a node from the ring
     pub fn remove_node(&mut self, node_id: NodeId) -> AmorphicResult<()> {
-        if !self.nodes.contains_key(&node_id) {
+        let Some(config) = self.nodes.remove(&node_id) else {
             return Err(AmorphicError::NotFound);
-        }
-
-        let config = self.nodes.remove(&node_id).unwrap();
+        };
         let vnode_count =
             (self.vnodes_per_node as f64 * config.weight as f64 / 100.0).ceil() as usize;
 
@@ -359,7 +357,10 @@ impl DistributedStore {
         let node_id = config.id;
 
         // Add to ring
-        self.ring.write().unwrap().add_node(config.clone())?;
+        self.ring
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .add_node(config.clone())?;
 
         // Add to nodes map
         self.nodes.insert(node_id, config);
@@ -367,7 +368,7 @@ impl DistributedStore {
         // Create local store simulation
         self.local_stores
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(node_id, Arc::new(RwLock::new(ShardedAmorphicStore::new())));
 
         Ok(())
@@ -376,13 +377,19 @@ impl DistributedStore {
     /// Remove a node from the cluster
     pub fn remove_node(&mut self, node_id: NodeId) -> AmorphicResult<()> {
         // Remove from ring
-        self.ring.write().unwrap().remove_node(node_id)?;
+        self.ring
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove_node(node_id)?;
 
         // Remove from nodes map
         self.nodes.remove(&node_id);
 
         // Remove local store
-        self.local_stores.write().unwrap().remove(&node_id);
+        self.local_stores
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&node_id);
 
         Ok(())
     }
@@ -391,7 +398,7 @@ impl DistributedStore {
     pub fn set_node_available(&self, node_id: NodeId, available: bool) -> AmorphicResult<()> {
         self.ring
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .set_node_available(node_id, available)
     }
 
@@ -402,14 +409,17 @@ impl DistributedStore {
 
     /// Route a key to its primary node
     pub fn route(&self, key: &str) -> Option<NodeId> {
-        self.ring.read().unwrap().get_node(key)
+        self.ring
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_node(key)
     }
 
     /// Route a key to all its replica nodes
     pub fn route_replicas(&self, key: &str) -> Vec<NodeId> {
         self.ring
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get_replicas(key, self.replication_factor)
     }
 
@@ -424,10 +434,13 @@ impl DistributedStore {
         let global_id = self.next_global_id();
 
         // Write to all replica nodes
-        let stores = self.local_stores.read().unwrap();
+        let stores = self.local_stores.read().unwrap_or_else(|e| e.into_inner());
         for node_id in nodes {
             if let Some(store) = stores.get(&node_id) {
-                store.write().unwrap().ingest_json(json)?;
+                store
+                    .write()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .ingest_json(json)?;
             }
         }
 
@@ -446,10 +459,13 @@ impl DistributedStore {
         let global_id = self.next_global_id();
 
         // Write to all replica nodes
-        let stores = self.local_stores.read().unwrap();
+        let stores = self.local_stores.read().unwrap_or_else(|e| e.into_inner());
         for node_id in nodes {
             if let Some(store) = stores.get(&node_id) {
-                store.write().unwrap().ingest_row(columns, values)?;
+                store
+                    .write()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .ingest_row(columns, values)?;
             }
         }
 
@@ -470,7 +486,7 @@ impl DistributedStore {
         let mut participating = Vec::new();
         let mut failed = Vec::new();
 
-        let stores = self.local_stores.read().unwrap();
+        let stores = self.local_stores.read().unwrap_or_else(|e| e.into_inner());
 
         // Query all nodes in parallel (simulated)
         for (&node_id, store_arc) in stores.iter() {
@@ -517,7 +533,7 @@ impl DistributedStore {
         let mut participating = Vec::new();
         let mut failed = Vec::new();
 
-        let stores = self.local_stores.read().unwrap();
+        let stores = self.local_stores.read().unwrap_or_else(|e| e.into_inner());
 
         for (&node_id, store_arc) in stores.iter() {
             match store_arc.read() {
@@ -553,7 +569,7 @@ impl DistributedStore {
     pub fn stats(&self) -> HashMap<NodeId, ShardedStoreStats> {
         let mut all_stats = HashMap::new();
 
-        let stores = self.local_stores.read().unwrap();
+        let stores = self.local_stores.read().unwrap_or_else(|e| e.into_inner());
         for (&node_id, store_arc) in stores.iter() {
             if let Ok(store) = store_arc.read() {
                 if let Ok(stats) = store.stats() {
@@ -567,7 +583,7 @@ impl DistributedStore {
 
     /// Get total record count across all nodes
     pub fn total_record_count(&self) -> usize {
-        let stores = self.local_stores.read().unwrap();
+        let stores = self.local_stores.read().unwrap_or_else(|e| e.into_inner());
         stores
             .values()
             .filter_map(|s| s.read().ok())
@@ -583,7 +599,10 @@ impl DistributedStore {
 
     /// Get number of available nodes
     pub fn available_node_count(&self) -> usize {
-        self.ring.read().unwrap().available_node_count()
+        self.ring
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .available_node_count()
     }
 
     /// Get the local node ID

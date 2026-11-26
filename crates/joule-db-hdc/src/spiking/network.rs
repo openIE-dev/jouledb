@@ -108,7 +108,7 @@ impl SpikeNeuralNetwork {
 
     /// Add input spike
     pub fn add_input_spike(&self, neuron_id: usize, time: f32, strength: f32) {
-        let mut inputs = self.input_spikes.write().unwrap();
+        let mut inputs = self.input_spikes.write().unwrap_or_else(|e| e.into_inner());
         inputs.push_back(SpikeEvent::new(neuron_id, time, strength));
     }
 
@@ -117,11 +117,11 @@ impl SpikeNeuralNetwork {
     /// Returns list of neurons that spiked.
     pub fn update(&self) -> Vec<SpikeEvent> {
         let mut output_spikes = Vec::new();
-        let mut neurons = self.neurons.write().unwrap();
-        let synapses = self.synapses.read().unwrap();
-        let mut spike_times = self.spike_times.write().unwrap();
-        let mut input_spikes = self.input_spikes.write().unwrap();
-        let mut current_time = self.current_time.write().unwrap();
+        let mut neurons = self.neurons.write().unwrap_or_else(|e| e.into_inner());
+        let synapses = self.synapses.read().unwrap_or_else(|e| e.into_inner());
+        let mut spike_times = self.spike_times.write().unwrap_or_else(|e| e.into_inner());
+        let mut input_spikes = self.input_spikes.write().unwrap_or_else(|e| e.into_inner());
+        let mut current_time = self.current_time.write().unwrap_or_else(|e| e.into_inner());
 
         // Compute input currents for each neuron
         let mut input_currents = vec![0.0f32; neurons.len()];
@@ -171,38 +171,44 @@ impl SpikeNeuralNetwork {
 
     /// Get current simulation time
     pub fn current_time(&self) -> f32 {
-        *self.current_time.read().unwrap()
+        *self.current_time.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Get number of neurons
     pub fn num_neurons(&self) -> usize {
-        self.neurons.read().unwrap().len()
+        self.neurons.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Get number of synapses
     pub fn num_synapses(&self) -> usize {
-        self.synapses.read().unwrap().len()
+        self.synapses
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     /// Reset network to initial state
     pub fn reset(&self) {
-        let mut neurons = self.neurons.write().unwrap();
+        let mut neurons = self.neurons.write().unwrap_or_else(|e| e.into_inner());
         for neuron in neurons.iter_mut() {
             neuron.reset();
         }
-        let mut spike_times = self.spike_times.write().unwrap();
+        let mut spike_times = self.spike_times.write().unwrap_or_else(|e| e.into_inner());
         for time in spike_times.iter_mut() {
             *time = -1000.0;
         }
-        self.input_spikes.write().unwrap().clear();
-        *self.current_time.write().unwrap() = 0.0;
+        self.input_spikes
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        *self.current_time.write().unwrap_or_else(|e| e.into_inner()) = 0.0;
     }
 
     /// Get network statistics
     pub fn stats(&self) -> SNNStats {
-        let neurons = self.neurons.read().unwrap();
-        let synapses = self.synapses.read().unwrap();
-        let spike_times = self.spike_times.read().unwrap();
+        let neurons = self.neurons.read().unwrap_or_else(|e| e.into_inner());
+        let synapses = self.synapses.read().unwrap_or_else(|e| e.into_inner());
+        let spike_times = self.spike_times.read().unwrap_or_else(|e| e.into_inner());
 
         let active_neurons = spike_times.iter().filter(|&&t| t > -100.0).count();
 
@@ -210,7 +216,7 @@ impl SpikeNeuralNetwork {
             num_neurons: neurons.len(),
             num_synapses: synapses.len(),
             active_neurons,
-            current_time: *self.current_time.read().unwrap(),
+            current_time: *self.current_time.read().unwrap_or_else(|e| e.into_inner()),
             time_step: self.time_step,
         }
     }

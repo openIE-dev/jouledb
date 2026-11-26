@@ -161,30 +161,40 @@ impl LlmRuntime {
         let id = instance.instance_id.clone();
         self.active_models
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(id.clone(), instance);
         self.telemetry
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(id, InferenceTelemetry::default());
     }
 
     /// Deregister an LLM instance (called on stop).
     pub fn deregister_instance(&self, instance_id: &str) {
-        self.active_models.write().unwrap().remove(instance_id);
-        self.telemetry.write().unwrap().remove(instance_id);
+        self.active_models
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(instance_id);
+        self.telemetry
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(instance_id);
     }
 
     /// Get the LLM instance if this instance ID is running an LLM.
     pub fn get_instance(&self, instance_id: &str) -> Option<LlmInstance> {
-        self.active_models.read().unwrap().get(instance_id).cloned()
+        self.active_models
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(instance_id)
+            .cloned()
     }
 
     /// List all active LLM instances.
     pub fn list_instances(&self) -> Vec<LlmInstance> {
         self.active_models
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .values()
             .cloned()
             .collect()
@@ -200,7 +210,7 @@ impl LlmRuntime {
         energy_joules: f64,
         duration_secs: f64,
     ) {
-        let mut telemetry = self.telemetry.write().unwrap();
+        let mut telemetry = self.telemetry.write().unwrap_or_else(|e| e.into_inner());
         if let Some(t) = telemetry.get_mut(instance_id) {
             t.total_tokens += tokens_generated;
             t.total_requests += 1;
@@ -244,12 +254,16 @@ impl LlmRuntime {
 
     /// Get inference telemetry for an instance.
     pub fn get_telemetry(&self, instance_id: &str) -> Option<InferenceTelemetry> {
-        self.telemetry.read().unwrap().get(instance_id).cloned()
+        self.telemetry
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(instance_id)
+            .cloned()
     }
 
     /// Get telemetry for all active LLM instances.
     pub fn all_telemetry(&self) -> HashMap<String, InferenceTelemetry> {
-        self.telemetry.read().unwrap().clone()
+        self.telemetry.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Get the model cache directory path.

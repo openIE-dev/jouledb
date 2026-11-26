@@ -490,7 +490,9 @@ impl WgpuComputeBackend {
             self.pipelines.insert(name.to_string(), pipeline);
         }
 
-        Ok(self.pipelines.get(name).unwrap())
+        self.pipelines
+            .get(name)
+            .ok_or_else(|| StorageError::Backend(format!("Pipeline '{name}' not found")))
     }
 
     /// Execute aggregation on GPU
@@ -531,9 +533,20 @@ impl WgpuComputeBackend {
         // One portable pipeline for all five: per-workgroup partials, host
         // reduction in f64 (no float atomics; naga rejects them).
         self.get_or_create_pipeline("agg_partials", shaders::AGG_PARTIALS_SHADER)?;
-        let pipeline = self.pipelines.get("agg_partials").unwrap();
-        let bind_group_layout = self.bind_group_layouts.get("agg_partials").unwrap();
-        let input_data = self.buffers.get(&input_handle.0).unwrap();
+        let pipeline = self
+            .pipelines
+            .get("agg_partials")
+            .ok_or_else(|| StorageError::Backend("Pipeline 'agg_partials' not found".to_string()))?;
+        let bind_group_layout = self
+            .bind_group_layouts
+            .get("agg_partials")
+            .ok_or_else(|| {
+                StorageError::Backend("Bind group layout 'agg_partials' not found".to_string())
+            })?;
+        let input_data = self
+            .buffers
+            .get(&input_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
         let num_items = num_items.min((input_data.size / 4) as u32);
 
         const WG: u32 = 256;
@@ -706,9 +719,20 @@ impl WgpuComputeBackend {
         let _pipeline = self.get_or_create_pipeline(shader_name, shader_source)?;
 
         // Get references after pipeline is created
-        let pipeline = self.pipelines.get(shader_name).unwrap();
-        let bind_group_layout = self.bind_group_layouts.get(shader_name).unwrap();
-        let input_data = self.buffers.get(&input_handle.0).unwrap();
+        let pipeline = self
+            .pipelines
+            .get(shader_name)
+            .ok_or_else(|| StorageError::Backend(format!("Pipeline '{shader_name}' not found")))?;
+        let bind_group_layout = self
+            .bind_group_layouts
+            .get(shader_name)
+            .ok_or_else(|| {
+                StorageError::Backend(format!("Bind group layout '{shader_name}' not found"))
+            })?;
+        let input_data = self
+            .buffers
+            .get(&input_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
 
         // Create output buffer (u32 per item)
         let output_size = (num_items as u64) * 4;
@@ -835,11 +859,29 @@ impl WgpuComputeBackend {
         // Create pipeline first (needs mutable borrow)
         let _pipeline =
             self.get_or_create_pipeline("btree_range_scan", shaders::BTREE_RANGE_SCAN_SHADER)?;
-        let pipeline = self.pipelines.get("btree_range_scan").unwrap();
-        let bind_group_layout = self.bind_group_layouts.get("btree_range_scan").unwrap();
+        let pipeline = self.pipelines.get("btree_range_scan").ok_or_else(|| {
+            StorageError::Backend("Pipeline 'btree_range_scan' not found".to_string())
+        })?;
+        let bind_group_layout = self
+            .bind_group_layouts
+            .get("btree_range_scan")
+            .ok_or_else(|| {
+                StorageError::Backend("Bind group layout 'btree_range_scan' not found".to_string())
+            })?;
 
         // Now get buffer data (immutable borrow)
-        let nodes_data = self.buffers.get(&nodes_handle.0).unwrap();
+        let nodes_data = self
+            .buffers
+            .get(&nodes_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
+        let start_key_data = self
+            .buffers
+            .get(&start_key_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
+        let end_key_data = self
+            .buffers
+            .get(&end_key_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
 
         // Estimate node size (would be calculated from serialized nodes)
         let node_size = (nodes_data.size() / num_nodes as u64) as u32;
@@ -917,21 +959,11 @@ impl WgpuComputeBackend {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: self
-                        .buffers
-                        .get(&start_key_handle.0)
-                        .unwrap()
-                        .buffer
-                        .as_entire_binding(),
+                    resource: start_key_data.buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: self
-                        .buffers
-                        .get(&end_key_handle.0)
-                        .unwrap()
-                        .buffer
-                        .as_entire_binding(),
+                    resource: end_key_data.buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -1020,12 +1052,25 @@ impl WgpuComputeBackend {
         // Create pipeline first (needs mutable borrow)
         let _pipeline =
             self.get_or_create_pipeline("binary_hd_bind", shaders::BINARY_HD_BIND_SHADER)?;
-        let pipeline = self.pipelines.get("binary_hd_bind").unwrap();
-        let bind_group_layout = self.bind_group_layouts.get("binary_hd_bind").unwrap();
+        let pipeline = self.pipelines.get("binary_hd_bind").ok_or_else(|| {
+            StorageError::Backend("Pipeline 'binary_hd_bind' not found".to_string())
+        })?;
+        let bind_group_layout = self
+            .bind_group_layouts
+            .get("binary_hd_bind")
+            .ok_or_else(|| {
+                StorageError::Backend("Bind group layout 'binary_hd_bind' not found".to_string())
+            })?;
 
         // Now get buffer data (immutable borrow)
-        let vector_a_data = self.buffers.get(&vector_a_handle.0).unwrap();
-        let vector_b_data = self.buffers.get(&vector_b_handle.0).unwrap();
+        let vector_a_data = self
+            .buffers
+            .get(&vector_a_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
+        let vector_b_data = self
+            .buffers
+            .get(&vector_b_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
 
         // num_words is u64-word count from ComputeOp; shader operates on u32 words
         let u32_words = num_words * 2;
@@ -1150,11 +1195,21 @@ impl WgpuComputeBackend {
         // Create pipeline first (needs mutable borrow)
         let _pipeline =
             self.get_or_create_pipeline("binary_hd_bundle", shaders::BINARY_HD_BUNDLE_SHADER)?;
-        let pipeline = self.pipelines.get("binary_hd_bundle").unwrap();
-        let bind_group_layout = self.bind_group_layouts.get("binary_hd_bundle").unwrap();
+        let pipeline = self.pipelines.get("binary_hd_bundle").ok_or_else(|| {
+            StorageError::Backend("Pipeline 'binary_hd_bundle' not found".to_string())
+        })?;
+        let bind_group_layout = self
+            .bind_group_layouts
+            .get("binary_hd_bundle")
+            .ok_or_else(|| {
+                StorageError::Backend("Bind group layout 'binary_hd_bundle' not found".to_string())
+            })?;
 
         // Now get buffer data (immutable borrow)
-        let vectors_data = self.buffers.get(&vectors_handle.0).unwrap();
+        let vectors_data = self
+            .buffers
+            .get(&vectors_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
 
         // num_words is u64-word count from ComputeOp; shader operates on u32 words
         let u32_words = num_words * 2;
@@ -1279,12 +1334,27 @@ impl WgpuComputeBackend {
         // Create pipeline first (needs mutable borrow)
         let _pipeline = self
             .get_or_create_pipeline("binary_hd_similarity", shaders::BINARY_HD_SIMILARITY_SHADER)?;
-        let pipeline = self.pipelines.get("binary_hd_similarity").unwrap();
-        let bind_group_layout = self.bind_group_layouts.get("binary_hd_similarity").unwrap();
+        let pipeline = self.pipelines.get("binary_hd_similarity").ok_or_else(|| {
+            StorageError::Backend("Pipeline 'binary_hd_similarity' not found".to_string())
+        })?;
+        let bind_group_layout = self
+            .bind_group_layouts
+            .get("binary_hd_similarity")
+            .ok_or_else(|| {
+                StorageError::Backend(
+                    "Bind group layout 'binary_hd_similarity' not found".to_string(),
+                )
+            })?;
 
         // Now get buffer data (immutable borrow)
-        let query_data = self.buffers.get(&query_handle.0).unwrap();
-        let vectors_data = self.buffers.get(&vectors_handle.0).unwrap();
+        let query_data = self
+            .buffers
+            .get(&query_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
+        let vectors_data = self
+            .buffers
+            .get(&vectors_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
 
         // num_words is u64-word count from ComputeOp; shader operates on u32 words
         let u32_words = num_words * 2;
@@ -1413,11 +1483,26 @@ impl WgpuComputeBackend {
         // Create pipeline — same 4-binding layout as bind/similarity
         let _pipeline = self
             .get_or_create_pipeline("binary_hd_batch_bind", shaders::BINARY_HD_BATCH_BIND_SHADER)?;
-        let pipeline = self.pipelines.get("binary_hd_batch_bind").unwrap();
-        let bind_group_layout = self.bind_group_layouts.get("binary_hd_batch_bind").unwrap();
+        let pipeline = self.pipelines.get("binary_hd_batch_bind").ok_or_else(|| {
+            StorageError::Backend("Pipeline 'binary_hd_batch_bind' not found".to_string())
+        })?;
+        let bind_group_layout = self
+            .bind_group_layouts
+            .get("binary_hd_batch_bind")
+            .ok_or_else(|| {
+                StorageError::Backend(
+                    "Bind group layout 'binary_hd_batch_bind' not found".to_string(),
+                )
+            })?;
 
-        let vectors_a_data = self.buffers.get(&vectors_a_handle.0).unwrap();
-        let vectors_b_data = self.buffers.get(&vectors_b_handle.0).unwrap();
+        let vectors_a_data = self
+            .buffers
+            .get(&vectors_a_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
+        let vectors_b_data = self
+            .buffers
+            .get(&vectors_b_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
 
         // num_words is u64-word count; shader operates on u32 words
         let u32_words = num_words * 2;
@@ -1545,14 +1630,29 @@ impl WgpuComputeBackend {
             "binary_hd_multi_similarity",
             shaders::BINARY_HD_MULTI_SIMILARITY_SHADER,
         )?;
-        let pipeline = self.pipelines.get("binary_hd_multi_similarity").unwrap();
+        let pipeline = self
+            .pipelines
+            .get("binary_hd_multi_similarity")
+            .ok_or_else(|| {
+                StorageError::Backend("Pipeline 'binary_hd_multi_similarity' not found".to_string())
+            })?;
         let bind_group_layout = self
             .bind_group_layouts
             .get("binary_hd_multi_similarity")
-            .unwrap();
+            .ok_or_else(|| {
+                StorageError::Backend(
+                    "Bind group layout 'binary_hd_multi_similarity' not found".to_string(),
+                )
+            })?;
 
-        let queries_data = self.buffers.get(&queries_handle.0).unwrap();
-        let vectors_data = self.buffers.get(&vectors_handle.0).unwrap();
+        let queries_data = self
+            .buffers
+            .get(&queries_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
+        let vectors_data = self
+            .buffers
+            .get(&vectors_handle.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?;
 
         // num_words is u64-word count; shader operates on u32 words
         let u32_words = num_words * 2;
@@ -1735,7 +1835,11 @@ impl ComputeBackend for WgpuComputeBackend {
         let staging_buffer = self.acquire_staging_buffer(size);
 
         // Copy to staging (re-borrow buffer_data immutably)
-        let src_buffer = &self.buffers.get(&buffer.0).unwrap().buffer;
+        let src_buffer = &self
+            .buffers
+            .get(&buffer.0)
+            .ok_or_else(|| StorageError::Backend("Buffer not found".to_string()))?
+            .buffer;
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -1748,7 +1852,7 @@ impl ComputeBackend for WgpuComputeBackend {
         let buffer_slice = staging_buffer.slice(..size);
         let (tx, rx) = std::sync::mpsc::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-            tx.send(result).unwrap();
+            let _ = tx.send(result);
         });
         self.device.poll(wgpu::PollType::wait_indefinitely());
 

@@ -61,7 +61,7 @@ impl QueryHistoryStorage {
     /// Initialize IndexedDB
     #[cfg(target_arch = "wasm32")]
     pub async fn init(&self) -> Result<(), String> {
-        if *self.initialized.read().unwrap() {
+        if *self.initialized.read().unwrap_or_else(|e| e.into_inner()) {
             return Ok(());
         }
 
@@ -108,7 +108,7 @@ impl QueryHistoryStorage {
                         if let Ok(result) = request.result() {
                             let result: wasm_bindgen::JsValue = result;
                             if let Ok(db) = result.dyn_into::<web_sys::IdbDatabase>() {
-                                resolve.call1(&JsValue::NULL, &db).unwrap();
+                                let _ = resolve.call1(&JsValue::NULL, &db);
                             }
                         }
                     }
@@ -126,8 +126,8 @@ impl QueryHistoryStorage {
             .dyn_into::<web_sys::IdbDatabase>()
             .map_err(|e| format!("Failed to cast database: {:?}", e))?;
 
-        *self.db.write().unwrap() = Some(db);
-        *self.initialized.write().unwrap() = true;
+        *self.db.write().unwrap_or_else(|e| e.into_inner()) = Some(db);
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
 
         Ok(())
     }
@@ -135,7 +135,7 @@ impl QueryHistoryStorage {
     /// Initialize storage (non-WASM: uses in-memory storage with optional file persistence)
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn init(&self) -> Result<(), String> {
-        *self.initialized.write().unwrap() = true;
+        *self.initialized.write().unwrap_or_else(|e| e.into_inner()) = true;
         tracing::debug!(
             "QueryHistoryStorage initialized (non-WASM mode, in-memory with file backup)"
         );
@@ -145,11 +145,11 @@ impl QueryHistoryStorage {
     /// Save query history to IndexedDB
     #[cfg(target_arch = "wasm32")]
     pub async fn save_history(&self, queries: &[String]) -> Result<(), String> {
-        if !*self.initialized.read().unwrap() {
+        if !*self.initialized.read().unwrap_or_else(|e| e.into_inner()) {
             self.init().await?;
         }
 
-        let db_guard = self.db.read().unwrap();
+        let db_guard = self.db.read().unwrap_or_else(|e| e.into_inner());
         let db = db_guard
             .as_ref()
             .ok_or_else(|| "Database not initialized".to_string())?;
@@ -177,10 +177,10 @@ impl QueryHistoryStorage {
         // Wait for completion
         let promise = Promise::new(&mut |resolve, reject| {
             let onsuccess = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                resolve.call0(&JsValue::NULL).unwrap();
+                let _ = resolve.call0(&JsValue::NULL);
             }) as Box<dyn FnMut(_)>);
             let onerror = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                reject.call0(&JsValue::NULL).unwrap();
+                let _ = reject.call0(&JsValue::NULL);
             }) as Box<dyn FnMut(_)>);
 
             request.set_onsuccess(Some(onsuccess.as_ref().unchecked_ref()));
@@ -225,11 +225,11 @@ impl QueryHistoryStorage {
     /// Load query history from IndexedDB
     #[cfg(target_arch = "wasm32")]
     pub async fn load_history(&self) -> Result<Vec<String>, String> {
-        if !*self.initialized.read().unwrap() {
+        if !*self.initialized.read().unwrap_or_else(|e| e.into_inner()) {
             self.init().await?;
         }
 
-        let db_guard = self.db.read().unwrap();
+        let db_guard = self.db.read().unwrap_or_else(|e| e.into_inner());
         let db = db_guard
             .as_ref()
             .ok_or_else(|| "Database not initialized".to_string())?;
@@ -251,15 +251,15 @@ impl QueryHistoryStorage {
                 if let Some(target) = event.target() {
                     if let Ok(request) = target.dyn_into::<web_sys::IdbRequest>() {
                         if let Ok(result) = request.result() {
-                            resolve.call1(&JsValue::NULL, &result).unwrap();
+                            let _ = resolve.call1(&JsValue::NULL, &result);
                             return;
                         }
                     }
                 }
-                resolve.call1(&JsValue::NULL, &JsValue::NULL).unwrap();
+                let _ = resolve.call1(&JsValue::NULL, &JsValue::NULL);
             }) as Box<dyn FnMut(_)>);
             let onerror = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                reject.call0(&JsValue::NULL).unwrap();
+                let _ = reject.call0(&JsValue::NULL);
             }) as Box<dyn FnMut(_)>);
 
             request.set_onsuccess(Some(onsuccess.as_ref().unchecked_ref()));
@@ -328,11 +328,11 @@ impl QueryHistoryStorage {
     /// Clear query history
     #[cfg(target_arch = "wasm32")]
     pub async fn clear(&self) -> Result<(), String> {
-        if !*self.initialized.read().unwrap() {
+        if !*self.initialized.read().unwrap_or_else(|e| e.into_inner()) {
             self.init().await?;
         }
 
-        let db_guard = self.db.read().unwrap();
+        let db_guard = self.db.read().unwrap_or_else(|e| e.into_inner());
         let db = db_guard
             .as_ref()
             .ok_or_else(|| "Database not initialized".to_string())?;
@@ -352,10 +352,10 @@ impl QueryHistoryStorage {
 
         let promise = Promise::new(&mut |resolve, reject| {
             let onsuccess = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                resolve.call0(&JsValue::NULL).unwrap();
+                let _ = resolve.call0(&JsValue::NULL);
             }) as Box<dyn FnMut(_)>);
             let onerror = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                reject.call0(&JsValue::NULL).unwrap();
+                let _ = reject.call0(&JsValue::NULL);
             }) as Box<dyn FnMut(_)>);
 
             request.set_onsuccess(Some(onsuccess.as_ref().unchecked_ref()));

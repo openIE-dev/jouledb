@@ -136,7 +136,7 @@ impl AuditLog {
     /// to the sink. This satisfies AU-9 (Protection of Audit Information)
     /// and PCI DSS 10.2 (12-month audit retention).
     pub fn set_sink(&self, sink: Arc<dyn AuditSink>) {
-        *self.sink.write().unwrap() = Some(sink);
+        *self.sink.write().unwrap_or_else(|e| e.into_inner()) = Some(sink);
     }
 
     /// Record an arbitrary [`AuditEntry`].  Returns the entry id.
@@ -150,11 +150,11 @@ impl AuditLog {
         let id = entry.id.clone();
 
         // Forward to durable sink before in-memory storage (AU-9)
-        if let Some(sink) = self.sink.read().unwrap().as_ref() {
+        if let Some(sink) = self.sink.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
             sink.persist(&entry);
         }
 
-        let mut entries = self.entries.write().unwrap();
+        let mut entries = self.entries.write().unwrap_or_else(|e| e.into_inner());
         if entries.len() >= self.max_entries {
             entries.remove(0);
         }
@@ -213,7 +213,7 @@ impl AuditLog {
     /// Query the log with optional filters.  Results are returned in
     /// chronological order (oldest first).
     pub fn query(&self, q: &AuditQuery) -> Vec<AuditEntry> {
-        let entries = self.entries.read().unwrap();
+        let entries = self.entries.read().unwrap_or_else(|e| e.into_inner());
         let iter = entries.iter().filter(|e| {
             if let Some(ref actor) = q.actor
                 && e.actor != *actor
@@ -256,12 +256,12 @@ impl AuditLog {
 
     /// Return all entries in chronological order.
     pub fn all(&self) -> Vec<AuditEntry> {
-        self.entries.read().unwrap().clone()
+        self.entries.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Return the `limit` most recent entries, newest first.
     pub fn recent(&self, limit: usize) -> Vec<AuditEntry> {
-        let entries = self.entries.read().unwrap();
+        let entries = self.entries.read().unwrap_or_else(|e| e.into_inner());
         entries.iter().rev().take(limit).cloned().collect()
     }
 
@@ -272,7 +272,7 @@ impl AuditLog {
 
     /// Number of entries currently retained in the log.
     pub fn count(&self) -> usize {
-        self.entries.read().unwrap().len()
+        self.entries.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 }
 
@@ -285,7 +285,7 @@ impl Default for AuditLog {
 /// Whether a durable sink has been attached.
 impl AuditLog {
     pub fn has_sink(&self) -> bool {
-        self.sink.read().unwrap().is_some()
+        self.sink.read().unwrap_or_else(|e| e.into_inner()).is_some()
     }
 }
 

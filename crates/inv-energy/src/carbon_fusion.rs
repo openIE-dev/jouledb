@@ -782,7 +782,7 @@ impl CarbonFusionEngine {
                         granularity_secs: source.granularity_secs(),
                         geo_scope,
                     };
-                    let mut store = self.store.lock().unwrap();
+                    let mut store = self.store.lock().unwrap_or_else(|e| e.into_inner());
                     store.record(obs);
                 }
                 Err(e) => {
@@ -814,7 +814,7 @@ impl CarbonFusionEngine {
                         granularity_secs: source.granularity_secs(),
                         geo_scope,
                     };
-                    let mut store = self.store.lock().unwrap();
+                    let mut store = self.store.lock().unwrap_or_else(|e| e.into_inner());
                     store.record(obs);
                 }
                 Err(_) => {
@@ -829,7 +829,7 @@ impl CarbonFusionEngine {
     /// Combines direct observations, spatial neighbor observations, and
     /// IPCC static baseline, weighted by freshness × precision × reliability.
     pub fn estimate(&self, zone: &str) -> FusedEstimate {
-        let store = self.store.lock().unwrap();
+        let store = self.store.lock().unwrap_or_else(|e| e.into_inner());
         let now = Utc::now();
         let config = &self.config.weight_config;
 
@@ -903,7 +903,7 @@ impl CarbonFusionEngine {
         let current = self.estimate(zone);
 
         // Build temporal profile from history.
-        let store = self.store.lock().unwrap();
+        let store = self.store.lock().unwrap_or_else(|e| e.into_inner());
         let profile = store
             .history(zone)
             .map(TemporalProfile::from_history)
@@ -965,7 +965,7 @@ impl CarbonFusionEngine {
 
     /// Global action map: fused estimates for all zones with observations.
     pub fn global_map(&self) -> Vec<FusedEstimate> {
-        let store = self.store.lock().unwrap();
+        let store = self.store.lock().unwrap_or_else(|e| e.into_inner());
         let zones: Vec<String> = store.all_zones().iter().map(|s| s.to_string()).collect();
         drop(store);
 
@@ -974,7 +974,7 @@ impl CarbonFusionEngine {
 
     /// Inject an observation directly (useful for testing or external feeds).
     pub fn inject(&self, obs: Observation) {
-        let mut store = self.store.lock().unwrap();
+        let mut store = self.store.lock().unwrap_or_else(|e| e.into_inner());
         store.record(obs);
     }
 }

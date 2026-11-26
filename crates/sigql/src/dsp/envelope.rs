@@ -175,18 +175,21 @@ impl EnvelopeExtractor {
         let mut peaks = Vec::new();
 
         // Find local maxima
-        for i in 1..n - 1 {
+        for i in 1..n.saturating_sub(1) {
             if signal[i] > signal[i - 1] && signal[i] > signal[i + 1] && signal[i] > 0.0 {
-                if peaks.is_empty() || i - peaks.last().unwrap() >= min_distance {
+                if match peaks.last() {
+                    None => true,
+                    Some(&last) => i - last >= min_distance,
+                } {
                     peaks.push(i);
                 }
             }
         }
 
         // Interpolate between peaks
-        if peaks.is_empty() {
+        let Some(&last) = peaks.last() else {
             return envelope;
-        }
+        };
 
         // Before first peak
         for i in 0..peaks[0] {
@@ -205,7 +208,6 @@ impl EnvelopeExtractor {
         }
 
         // After last peak
-        let last = *peaks.last().unwrap();
         for i in last..n {
             envelope[i] = signal[last];
         }

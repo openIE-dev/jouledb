@@ -43,6 +43,8 @@ pub struct Column {
     deltas: Vec<(RecordId, f64)>,
     /// Whether statistics need recomputation
     stats_dirty: bool,
+    /// True while `record_ids` remains strictly ascending (enables O(log n) lookup/update)
+    sorted: bool,
 }
 
 impl Column {
@@ -56,12 +58,25 @@ impl Column {
             tombstones: HashSet::new(),
             deltas: Vec::new(),
             stats_dirty: false,
+            sorted: true,
+        }
+    }
+
+    #[inline]
+    fn find_pos(&self, record_id: RecordId) -> Option<usize> {
+        if self.sorted {
+            self.record_ids.binary_search(&record_id).ok()
+        } else {
+            self.record_ids.iter().position(|&id| id == record_id)
         }
     }
 
     /// Append a value to this column
     #[inline]
     pub fn push(&mut self, record_id: RecordId, value: f64) {
+        if self.sorted && self.record_ids.last().is_some_and(|&last| record_id <= last) {
+            self.sorted = false;
+        }
         self.values.push(value);
         self.record_ids.push(record_id);
         self.min = self.min.min(value);
@@ -71,7 +86,7 @@ impl Column {
 
     /// Remove a record from this column (e.g., when value becomes NULL).
     pub fn remove_record(&mut self, record_id: RecordId) {
-        if let Some(pos) = self.record_ids.iter().position(|&id| id == record_id) {
+        if let Some(pos) = self.find_pos(record_id) {
             let old_value = self.values[pos];
             self.values.remove(pos);
             self.record_ids.remove(pos);
@@ -87,8 +102,8 @@ impl Column {
     /// If the record exists, its value is updated in-place.
     /// If the record doesn't exist, the value is appended.
     pub fn update(&mut self, record_id: RecordId, value: f64) {
-        // Try to find the record in the column
-        if let Some(pos) = self.record_ids.iter().position(|&id| id == record_id) {
+        // Try to find the record in the column (O(log n) when monotonic)
+        if let Some(pos) = self.find_pos(record_id) {
             // Record exists - update in place
             let old_value = self.values[pos];
             self.values[pos] = value;
@@ -242,15 +257,12 @@ impl Column {
         self.tombstones.len()
     }
 
-    /// Get value for a specific record ID (O(n) scan, use sparingly)
+    /// Get value for a specific record ID (O(log n) when monotonic)
     pub fn get_value(&self, record_id: RecordId) -> Option<f64> {
         if self.tombstones.contains(&record_id) {
             return None;
         }
-        self.record_ids
-            .iter()
-            .position(|&id| id == record_id)
-            .map(|idx| self.values[idx])
+        self.find_pos(record_id).map(|idx| self.values[idx])
     }
 
     /// Compute live sum (accounting for tombstones)
@@ -1495,7 +1507,7 @@ impl ColumnarStore {
             .collect();
 
         // If no partition, treat all rows as one partition
-        if partition_col.is_none() {
+        let Some(partition_col_name) = partition_col else {
             // Sort by order column
             if order_asc {
                 values.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -1503,10 +1515,9 @@ impl ColumnarStore {
                 values.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
             }
             return compute_fn(&values);
-        }
+        };
 
         // With partition: group by partition value, then compute for each partition
-        let partition_col_name = partition_col.unwrap();
         let partition_column = match self.columns.get(partition_col_name) {
             Some(c) => c,
             None => return HashMap::new(),

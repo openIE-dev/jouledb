@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # JouleDB Domain-Specific HDC Modules
 //!
 //! Domain-specific hyperdimensional computing encoders for various industries.

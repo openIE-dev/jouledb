@@ -533,6 +533,51 @@ impl DurableAmorphicStore {
         Ok(id)
     }
 
+    /// Add a pre-built field map to the current batch using binary `JWB1` WAL framing
+    /// and deferred hypervector encoding (zero JSON serialization, zero synchronous HDC stall).
+    pub fn batch_ingest_fields(&mut self, fields: HashMap<String, Value>) -> AmorphicResult<RecordId> {
+        let batch = self
+            .active_batch
+            .as_mut()
+            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
+
+        let tx_id = batch.tx_id;
+        let (id, fields) = self.store.prepare_fields_ingest(fields)?;
+        let serialized = crate::wal_codec::encode_chunk(&[(id, fields.clone())]);
+
+        self.wal
+            .log_page_write(tx_id, id, &serialized)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+
+        self.store.apply_prepared_ingest_deferred_holo(id, fields)?;
+        batch.records.push((id, serialized));
+        Ok(id)
+    }
+
+    /// Single-record durable field-map ingest using binary `JWB1` WAL framing and
+    /// deferred hypervector encoding (safe to pair with `GroupSync::wait_durable`).
+    pub fn ingest_fields_deferred_sync(
+        &mut self,
+        fields: HashMap<String, Value>,
+    ) -> AmorphicResult<RecordId> {
+        self.settle_pending()?;
+        let tx_id = self.next_tx_id();
+        let (id, fields) = self.store.prepare_fields_ingest(fields)?;
+        let serialized = crate::wal_codec::encode_chunk(&[(id, fields.clone())]);
+
+        self.wal
+            .log_page_write(tx_id, id, &serialized)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+
+        self.store.apply_prepared_ingest_deferred_holo(id, fields)?;
+
+        self.wal
+            .log_commit(tx_id)
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
+
+        Ok(id)
+    }
+
     /// Delete a record within the current batch transaction
     pub fn batch_delete(&mut self, id: RecordId) -> AmorphicResult<()> {
         let batch = self

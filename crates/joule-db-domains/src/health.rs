@@ -785,12 +785,9 @@ impl DrugInteractionChecker {
     }
 
     pub fn register_drug_class(&mut self, class_name: &str, rxcui: &str) {
-        self.drug_classes
-            .entry(class_name.to_string())
-            .or_insert_with(HashSet::new)
-            .insert(rxcui.to_string());
+        let drugs = self.drug_classes.entry(class_name.to_string()).or_default();
+        drugs.insert(rxcui.to_string());
 
-        let drugs = self.drug_classes.get(class_name).unwrap();
         let drug_hvs: Vec<BinaryHV> = drugs
             .iter()
             .map(|rx| self.encoder.rxcui_vectors(rx))

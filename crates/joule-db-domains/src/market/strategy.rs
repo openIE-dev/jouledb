@@ -95,7 +95,7 @@ impl MultiLegStrategy {
             expiration_epoch,
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .as_secs(),
         }
     }
@@ -332,13 +332,13 @@ impl HolographicStrategyBook {
         // Add to metadata
         let fill_status = StrategyFillStatus::new(strategy.legs.len());
         {
-            let mut strategies = self.strategies.write().unwrap();
+            let mut strategies = self.strategies.write().unwrap_or_else(|e| e.into_inner());
             strategies.insert(strategy_id, (strategy.clone(), fill_status));
         }
 
         // Update symbol index
         {
-            let mut symbol_idx = self.symbol_index.write().unwrap();
+            let mut symbol_idx = self.symbol_index.write().unwrap_or_else(|e| e.into_inner());
             symbol_idx
                 .entry(strategy.symbol.clone())
                 .or_insert_with(Vec::new)
@@ -347,7 +347,7 @@ impl HolographicStrategyBook {
 
         // Update type index
         {
-            let mut type_idx = self.type_index.write().unwrap();
+            let mut type_idx = self.type_index.write().unwrap_or_else(|e| e.into_inner());
             type_idx
                 .entry(strategy.strategy_type)
                 .or_insert_with(Vec::new)
@@ -360,7 +360,7 @@ impl HolographicStrategyBook {
     /// Remove a strategy from the book
     pub fn remove_strategy(&mut self, strategy_id: u128) -> Option<MultiLegStrategy> {
         let (strategy, _) = {
-            let strategies = self.strategies.read().unwrap();
+            let strategies = self.strategies.read().unwrap_or_else(|e| e.into_inner());
             strategies.get(&strategy_id)?.clone()
         };
 
@@ -376,20 +376,20 @@ impl HolographicStrategyBook {
 
         // Remove from metadata
         {
-            let mut strategies = self.strategies.write().unwrap();
+            let mut strategies = self.strategies.write().unwrap_or_else(|e| e.into_inner());
             strategies.remove(&strategy_id);
         }
 
         // Remove from indices
         {
-            let mut symbol_idx = self.symbol_index.write().unwrap();
+            let mut symbol_idx = self.symbol_index.write().unwrap_or_else(|e| e.into_inner());
             if let Some(ids) = symbol_idx.get_mut(&strategy.symbol) {
                 ids.retain(|&id| id != strategy_id);
             }
         }
 
         {
-            let mut type_idx = self.type_index.write().unwrap();
+            let mut type_idx = self.type_index.write().unwrap_or_else(|e| e.into_inner());
             if let Some(ids) = type_idx.get_mut(&strategy.strategy_type) {
                 ids.retain(|&id| id != strategy_id);
             }
@@ -402,7 +402,7 @@ impl HolographicStrategyBook {
     pub fn on_leg_fill(&mut self, strategy_id: u128, leg_index: usize) -> bool {
         // Clone strategy and fill status to avoid borrow conflicts
         let (strategy, mut fill_status, key) = {
-            let strategies = self.strategies.read().unwrap();
+            let strategies = self.strategies.read().unwrap_or_else(|e| e.into_inner());
             if let Some((s, fs)) = strategies.get(&strategy_id) {
                 let key = (s.symbol.clone(), s.expiration_epoch);
                 (s.clone(), fs.clone(), key)
@@ -424,7 +424,7 @@ impl HolographicStrategyBook {
 
         // Update the metadata
         {
-            let mut strategies = self.strategies.write().unwrap();
+            let mut strategies = self.strategies.write().unwrap_or_else(|e| e.into_inner());
             if let Some((_, fs)) = strategies.get_mut(&strategy_id) {
                 fs.mark_filled(leg_index);
             }
@@ -444,13 +444,13 @@ impl HolographicStrategyBook {
         &self,
         strategy_id: u128,
     ) -> Option<(MultiLegStrategy, StrategyFillStatus)> {
-        let strategies = self.strategies.read().unwrap();
+        let strategies = self.strategies.read().unwrap_or_else(|e| e.into_inner());
         strategies.get(&strategy_id).cloned()
     }
 
     /// Query strategies by symbol and expiration
     pub fn find_by_symbol_expiration(&self, symbol: &str, expiration: u64) -> Vec<u128> {
-        let strategies = self.strategies.read().unwrap();
+        let strategies = self.strategies.read().unwrap_or_else(|e| e.into_inner());
         strategies
             .iter()
             .filter(|(_, (s, _))| s.symbol == symbol && s.expiration_epoch == expiration)
@@ -460,19 +460,19 @@ impl HolographicStrategyBook {
 
     /// Query strategies by type
     pub fn find_by_type(&self, strategy_type: StrategyType) -> Vec<u128> {
-        let type_idx = self.type_index.read().unwrap();
+        let type_idx = self.type_index.read().unwrap_or_else(|e| e.into_inner());
         type_idx.get(&strategy_type).cloned().unwrap_or_default()
     }
 
     /// Query strategies by symbol
     pub fn find_by_symbol(&self, symbol: &str) -> Vec<u128> {
-        let symbol_idx = self.symbol_index.read().unwrap();
+        let symbol_idx = self.symbol_index.read().unwrap_or_else(|e| e.into_inner());
         symbol_idx.get(symbol).cloned().unwrap_or_default()
     }
 
     /// Find all iron condors on a symbol
     pub fn find_iron_condors(&self, symbol: &str) -> Vec<u128> {
-        let strategies = self.strategies.read().unwrap();
+        let strategies = self.strategies.read().unwrap_or_else(|e| e.into_inner());
         strategies
             .iter()
             .filter(|(_, (s, _))| s.symbol == symbol && s.strategy_type == StrategyType::IronCondor)
@@ -482,7 +482,7 @@ impl HolographicStrategyBook {
 
     /// Get all pending (not fully filled) strategies
     pub fn find_pending_strategies(&self) -> Vec<u128> {
-        let strategies = self.strategies.read().unwrap();
+        let strategies = self.strategies.read().unwrap_or_else(|e| e.into_inner());
         strategies
             .iter()
             .filter(|(_, (_, fill_status))| !fill_status.is_fully_filled())
@@ -492,7 +492,10 @@ impl HolographicStrategyBook {
 
     /// Get count of strategies
     pub fn strategy_count(&self) -> usize {
-        self.strategies.read().unwrap().len()
+        self.strategies
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     // ==================== Internal Encoding ====================

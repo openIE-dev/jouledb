@@ -72,20 +72,23 @@ impl BrowserQueryPredictor {
     pub fn record_query(&mut self, query: &str) {
         // Update in-memory history
         {
-            let mut history = self.history.write().unwrap();
+            let mut history = self.history.write().unwrap_or_else(|e| e.into_inner());
             history.push(query.to_string());
         }
 
         // Compute hash and store reverse mapping
         let hash = Self::compute_query_hash(query);
         {
-            let mut mapping = self.hash_to_query.write().unwrap();
+            let mut mapping = self
+                .hash_to_query
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             mapping.insert(hash, query.to_string());
         }
 
         // Update predictor
         {
-            let mut predictor = self.predictor.write().unwrap();
+            let predictor = self.predictor.write().unwrap_or_else(|e| e.into_inner());
             predictor.observe(query);
         }
 
@@ -106,11 +109,11 @@ impl BrowserQueryPredictor {
 
     /// Predict next queries
     pub fn predict_next(&self, count: usize) -> Vec<String> {
-        let predictor = self.predictor.read().unwrap();
+        let predictor = self.predictor.read().unwrap_or_else(|e| e.into_inner());
         let predictions = predictor.predict(count);
 
         // Convert prediction hashes back to query strings using reverse mapping
-        let mapping = self.hash_to_query.read().unwrap();
+        let mapping = self.hash_to_query.read().unwrap_or_else(|e| e.into_inner());
         predictions
             .into_iter()
             .filter_map(|pred| mapping.get(&pred.hash).cloned())
@@ -120,12 +123,15 @@ impl BrowserQueryPredictor {
 
     /// Get query history
     pub fn get_history(&self) -> Vec<String> {
-        self.history.read().unwrap().clone()
+        self.history
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Get history length
     pub fn history_len(&self) -> usize {
-        self.history.read().unwrap().len()
+        self.history.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Prefetch predicted queries
@@ -141,7 +147,7 @@ impl BrowserQueryPredictor {
             #[cfg(target_arch = "wasm32")]
             {
                 wasm_bindgen_futures::spawn_local(async move {
-                    let engine_guard = engine.read().unwrap();
+                    let engine_guard = engine.read().unwrap_or_else(|e| e.into_inner());
                     let _ = engine_guard.execute_sql(&query, None).await;
                 });
             }
@@ -151,7 +157,7 @@ impl BrowserQueryPredictor {
                 // Note: In non-wasm environments, we'd typically use tokio::spawn
                 // but since joule-db-browser is primarily for browser use,
                 // we simply execute synchronously in this fallback path
-                let engine_guard = engine.read().unwrap();
+                let engine_guard = engine.read().unwrap_or_else(|e| e.into_inner());
                 // Note: Can't await here in non-async context, so skip prefetch
                 // in native builds. The main use case is browser/wasm.
                 drop(engine_guard);
@@ -163,19 +169,22 @@ impl BrowserQueryPredictor {
 
     /// Load query history from IndexedDB
     pub async fn load_history(&mut self) -> Result<(), String> {
-        let storage = self.storage.read().unwrap();
+        let storage = self.storage.read().unwrap_or_else(|e| e.into_inner());
         let queries = storage.load_history().await?;
 
         // Update in-memory history
         {
-            let mut history = self.history.write().unwrap();
+            let mut history = self.history.write().unwrap_or_else(|e| e.into_inner());
             *history = queries.clone();
         }
 
         // Replay queries to predictor to rebuild N-gram model and hash mapping
         {
-            let mut predictor = self.predictor.write().unwrap();
-            let mut mapping = self.hash_to_query.write().unwrap();
+            let predictor = self.predictor.write().unwrap_or_else(|e| e.into_inner());
+            let mut mapping = self
+                .hash_to_query
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             for query in &queries {
                 predictor.observe(query);
                 let hash = Self::compute_query_hash(query);
@@ -188,8 +197,12 @@ impl BrowserQueryPredictor {
 
     /// Save query history to IndexedDB
     pub async fn save_history(&self) -> Result<(), String> {
-        let queries = self.history.read().unwrap().clone();
-        let storage = self.storage.read().unwrap();
+        let queries = self
+            .history
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        let storage = self.storage.read().unwrap_or_else(|e| e.into_inner());
         storage.save_history(&queries).await?;
         Ok(())
     }
@@ -198,18 +211,18 @@ impl BrowserQueryPredictor {
     pub async fn clear_history(&mut self) -> Result<(), String> {
         // Clear in-memory
         {
-            let mut history = self.history.write().unwrap();
+            let mut history = self.history.write().unwrap_or_else(|e| e.into_inner());
             history.clear();
         }
 
         // Clear predictor
         {
             // Create new predictor to reset state
-            *self.predictor.write().unwrap() = NGramPredictor::new(3);
+            *self.predictor.write().unwrap_or_else(|e| e.into_inner()) = NGramPredictor::new(3);
         }
 
         // Clear IndexedDB
-        let storage = self.storage.read().unwrap();
+        let storage = self.storage.read().unwrap_or_else(|e| e.into_inner());
         storage.clear().await?;
 
         Ok(())
@@ -239,12 +252,12 @@ impl PredictivePrefetch {
     /// Record query and trigger prefetch if enabled
     pub async fn record_and_prefetch(&self, query: &str) -> Result<(), String> {
         {
-            let mut predictor = self.predictor.write().unwrap();
+            let mut predictor = self.predictor.write().unwrap_or_else(|e| e.into_inner());
             predictor.record_query(query);
         }
 
         if self.enabled {
-            let predictor = self.predictor.read().unwrap();
+            let predictor = self.predictor.read().unwrap_or_else(|e| e.into_inner());
             predictor.prefetch(5).await?; // Prefetch top 5 predictions
         }
 
@@ -253,13 +266,13 @@ impl PredictivePrefetch {
 
     /// Save history (call periodically or on close)
     pub async fn save_history(&self) -> Result<(), String> {
-        let predictor = self.predictor.read().unwrap();
+        let predictor = self.predictor.read().unwrap_or_else(|e| e.into_inner());
         predictor.save_history().await
     }
 
     /// Load history (call on initialization)
     pub async fn load_history(&mut self) -> Result<(), String> {
-        let mut predictor = self.predictor.write().unwrap();
+        let mut predictor = self.predictor.write().unwrap_or_else(|e| e.into_inner());
         predictor.load_history().await
     }
 }

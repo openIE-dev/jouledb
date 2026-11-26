@@ -72,7 +72,7 @@ impl InformationManifold {
 
     /// Get number of points
     pub fn len(&self) -> usize {
-        self.points.read().unwrap().len()
+        self.points.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Check if empty
@@ -101,8 +101,8 @@ impl InformationManifold {
 
     /// Insert a point
     fn insert_point(&self, id: &str, point: ManifoldPoint) -> usize {
-        let mut points = self.points.write().unwrap();
-        let mut id_to_index = self.id_to_index.write().unwrap();
+        let mut points = self.points.write().unwrap_or_else(|e| e.into_inner());
+        let mut id_to_index = self.id_to_index.write().unwrap_or_else(|e| e.into_inner());
 
         let index = points.len();
         points.push((point, id.to_string()));
@@ -113,7 +113,7 @@ impl InformationManifold {
 
     /// Find k nearest neighbors
     pub fn nearest_neighbors(&self, query: &ManifoldPoint, k: usize) -> Vec<NeighborResult> {
-        let points = self.points.read().unwrap();
+        let points = self.points.read().unwrap_or_else(|e| e.into_inner());
 
         let mut distances: Vec<(usize, &str, f32)> = points
             .iter()
@@ -158,7 +158,7 @@ impl InformationManifold {
 
     /// Range query (all points within radius)
     pub fn range_query(&self, query: &ManifoldPoint, radius: f32) -> Vec<NeighborResult> {
-        let points = self.points.read().unwrap();
+        let points = self.points.read().unwrap_or_else(|e| e.into_inner());
 
         points
             .iter()
@@ -180,8 +180,8 @@ impl InformationManifold {
 
     /// Get point by ID
     pub fn get_point(&self, id: &str) -> Option<ManifoldPoint> {
-        let id_to_index = self.id_to_index.read().unwrap();
-        let points = self.points.read().unwrap();
+        let id_to_index = self.id_to_index.read().unwrap_or_else(|e| e.into_inner());
+        let points = self.points.read().unwrap_or_else(|e| e.into_inner());
 
         id_to_index
             .get(id)
@@ -191,17 +191,25 @@ impl InformationManifold {
 
     /// Check if point exists
     pub fn contains(&self, id: &str) -> bool {
-        self.id_to_index.read().unwrap().contains_key(id)
+        self.id_to_index
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(id)
     }
 
     /// Get all point IDs
     pub fn list_ids(&self) -> Vec<String> {
-        self.id_to_index.read().unwrap().keys().cloned().collect()
+        self.id_to_index
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect()
     }
 
     /// Compute centroid of all points
     pub fn centroid(&self) -> Option<ManifoldPoint> {
-        let points = self.points.read().unwrap();
+        let points = self.points.read().unwrap_or_else(|e| e.into_inner());
         if points.is_empty() {
             return None;
         }
@@ -223,7 +231,7 @@ impl InformationManifold {
 
     /// Compute manifold curvature (local density estimation)
     pub fn local_curvature(&self, point: &ManifoldPoint, k: usize) -> f32 {
-        let points = self.points.read().unwrap();
+        let points = self.points.read().unwrap_or_else(|e| e.into_inner());
         if points.len() < k {
             return 0.0;
         }
@@ -245,7 +253,7 @@ impl InformationManifold {
 
     /// Get statistics
     pub fn stats(&self) -> ManifoldStats {
-        let points = self.points.read().unwrap();
+        let points = self.points.read().unwrap_or_else(|e| e.into_inner());
 
         let avg_distance = if points.len() >= 2 {
             // Sample for efficiency
@@ -278,8 +286,14 @@ impl InformationManifold {
 
     /// Clear all points
     pub fn clear(&self) {
-        self.points.write().unwrap().clear();
-        self.id_to_index.write().unwrap().clear();
+        self.points
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        self.id_to_index
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 }
 

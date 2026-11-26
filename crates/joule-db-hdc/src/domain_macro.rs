@@ -123,8 +123,10 @@ macro_rules! define_domain_module {
             ///
             /// Maps a value in `[0, max]` to a permuted version of the named base vector.
             pub fn encode_scalar(&self, base: &str, value: u32, max: u32) -> $crate::BinaryHV {
-                self.scalar_bases.get(base).unwrap()
-                    .permute(((value as f64 / max as f64) * 100.0) as usize)
+                let Some(base_hv) = self.scalar_bases.get(base) else {
+                    return $crate::BinaryHV::random($dim, 0);
+                };
+                base_hv.permute(((value as f64 / max as f64) * 100.0) as usize)
             }
 
             // Generate get_* methods for dynamic caches
@@ -152,13 +154,12 @@ macro_rules! __domain_module_dynamic_getters {
             /// Get or create a vector for the given key in this dynamic cache.
             pub fn $dyn_map(&mut self, key: &str) -> $crate::BinaryHV {
                 use rand::RngExt as _;
-                if !self.$dyn_map.contains_key(key) {
-                    self.$dyn_map.insert(
-                        key.to_string(),
-                        $crate::BinaryHV::random($dim, self.rng.random()),
-                    );
+                if let Some(hv) = self.$dyn_map.get(key) {
+                    return hv.clone();
                 }
-                self.$dyn_map.get(key).unwrap().clone()
+                let hv = $crate::BinaryHV::random($dim, self.rng.random());
+                self.$dyn_map.insert(key.to_string(), hv.clone());
+                hv
             }
         )*
     };

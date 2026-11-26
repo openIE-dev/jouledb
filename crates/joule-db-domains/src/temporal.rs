@@ -135,9 +135,12 @@ impl TemporalLink {
         if points.len() < 2 {
             return TrendDirection::Flat;
         }
+        let (Some(first_pt), Some(last_pt)) = (points.first(), points.last()) else {
+            return TrendDirection::Flat;
+        };
 
-        let first = points.first().unwrap().value;
-        let last = points.last().unwrap().value;
+        let first = first_pt.value;
+        let last = last_pt.value;
         let diff = last - first;
         let threshold = (first.abs() * 0.05).max(0.01);
 

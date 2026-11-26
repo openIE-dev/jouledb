@@ -167,8 +167,8 @@ impl YieldPredictor {
     pub fn train(&mut self, obs: &CropObservation, actual_yield: f64) {
         let hv = self.encoder.encode_observation(obs);
         self.yield_patterns
-            .get_mut(&obs.crop_type)
-            .unwrap()
+            .entry(obs.crop_type)
+            .or_insert_with(|| BundleAccumulator::new(DIMENSION))
             .add(&hv);
         self.yield_values.insert(hv.condense_to_u64(), actual_yield);
     }

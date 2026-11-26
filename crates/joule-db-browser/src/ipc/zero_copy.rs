@@ -43,14 +43,20 @@ impl WorkerBridge {
 
     #[cfg(target_arch = "wasm32")]
     pub fn init(&self, buffer: &js_sys::SharedArrayBuffer) -> Result<(), JsValue> {
-        let mut shared = self.shared_buffer.write().unwrap();
+        let mut shared = self
+            .shared_buffer
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         *shared = Some(buffer.clone());
         Ok(())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn init(&self, _buffer: &JsValue) -> Result<(), JsValue> {
-        let mut shared = self.shared_buffer.write().unwrap();
+        let mut shared = self
+            .shared_buffer
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         *shared = Some(vec![0u8; self.buffer_size]);
         Ok(())
     }
@@ -60,7 +66,7 @@ impl WorkerBridge {
     #[cfg(target_arch = "wasm32")]
     pub fn send_query(&self, query: &str) -> Result<(), JsValue> {
         // Check if buffer is available
-        let shared = self.shared_buffer.read().unwrap();
+        let shared = self.shared_buffer.read().unwrap_or_else(|e| e.into_inner());
         let buffer = shared
             .as_ref()
             .ok_or_else(|| JsValue::from_str("SharedArrayBuffer not initialized"))?;
@@ -122,7 +128,7 @@ impl WorkerBridge {
 
         if status == 2 {
             // Result is ready - read from buffer
-            let shared = self.shared_buffer.read().unwrap();
+            let shared = self.shared_buffer.read().unwrap_or_else(|e| e.into_inner());
             let buffer = shared
                 .as_ref()
                 .ok_or_else(|| JsValue::from_str("SharedArrayBuffer not initialized"))?;
@@ -372,7 +378,7 @@ impl ArrowIpcBridge {
         }
 
         let schema = ArrowSchema { fields };
-        let mut s = self.schema.write().unwrap();
+        let mut s = self.schema.write().unwrap_or_else(|e| e.into_inner());
         *s = Some(schema);
 
         Ok(())
@@ -387,7 +393,7 @@ impl ArrowIpcBridge {
 
     #[cfg(target_arch = "wasm32")]
     pub fn serialize(&self, data: &js_sys::Object) -> Result<js_sys::Uint8Array, JsValue> {
-        let schema = self.schema.read().unwrap();
+        let schema = self.schema.read().unwrap_or_else(|e| e.into_inner());
         let schema = schema
             .as_ref()
             .ok_or_else(|| JsValue::from_str("Schema not set. Call set_schema first."))?;
@@ -452,7 +458,7 @@ impl ArrowIpcBridge {
             .ok_or_else(|| JsValue::from_str("Invalid Arrow IPC format"))?;
 
         // Store schema
-        let mut s = self.schema.write().unwrap();
+        let mut s = self.schema.write().unwrap_or_else(|e| e.into_inner());
         *s = Some(schema.clone());
 
         // Return empty object (full implementation would parse data section)
@@ -484,7 +490,7 @@ impl ArrowIpcBridge {
     /// Get schema as JavaScript object
 
     pub fn get_schema(&self) -> Result<js_sys::Object, JsValue> {
-        let schema = self.schema.read().unwrap();
+        let schema = self.schema.read().unwrap_or_else(|e| e.into_inner());
         let schema = schema
             .as_ref()
             .ok_or_else(|| JsValue::from_str("Schema not set"))?;

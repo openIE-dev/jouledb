@@ -37,7 +37,7 @@ impl InstanceRegistry {
     /// Register a new instance.
     pub fn register(&self, info: InstanceInfo) -> Result<(), RuntimeError> {
         let id = info.id.0.clone();
-        let mut instances = self.instances.write().unwrap();
+        let mut instances = self.instances.write().unwrap_or_else(|e| e.into_inner());
         if instances.contains_key(&id) {
             return Err(RuntimeError::InstanceAlreadyExists(id));
         }
@@ -49,7 +49,7 @@ impl InstanceRegistry {
 
     /// Remove an instance from the registry.
     pub fn deregister(&self, instance_id: &str) -> Result<InstanceInfo, RuntimeError> {
-        let mut instances = self.instances.write().unwrap();
+        let mut instances = self.instances.write().unwrap_or_else(|e| e.into_inner());
         let info = instances
             .remove(instance_id)
             .ok_or_else(|| RuntimeError::InstanceNotFound(instance_id.into()))?;
@@ -60,13 +60,13 @@ impl InstanceRegistry {
 
     /// Get instance info by ID.
     pub fn get(&self, instance_id: &str) -> Option<InstanceInfo> {
-        let instances = self.instances.read().unwrap();
+        let instances = self.instances.read().unwrap_or_else(|e| e.into_inner());
         instances.get(instance_id).cloned()
     }
 
     /// List all registered instances.
     pub fn list(&self) -> Vec<InstanceInfo> {
-        let instances = self.instances.read().unwrap();
+        let instances = self.instances.read().unwrap_or_else(|e| e.into_inner());
         instances.values().cloned().collect()
     }
 
@@ -76,7 +76,7 @@ impl InstanceRegistry {
         instance_id: &str,
         state: InstanceState,
     ) -> Result<(), RuntimeError> {
-        let mut instances = self.instances.write().unwrap();
+        let mut instances = self.instances.write().unwrap_or_else(|e| e.into_inner());
         let info = instances
             .get_mut(instance_id)
             .ok_or_else(|| RuntimeError::InstanceNotFound(instance_id.into()))?;
@@ -88,7 +88,7 @@ impl InstanceRegistry {
 
     /// Update the PID of an instance.
     pub fn update_pid(&self, instance_id: &str, pid: Option<u32>) -> Result<(), RuntimeError> {
-        let mut instances = self.instances.write().unwrap();
+        let mut instances = self.instances.write().unwrap_or_else(|e| e.into_inner());
         let info = instances
             .get_mut(instance_id)
             .ok_or_else(|| RuntimeError::InstanceNotFound(instance_id.into()))?;
@@ -100,14 +100,14 @@ impl InstanceRegistry {
 
     /// Number of registered instances.
     pub fn count(&self) -> usize {
-        let instances = self.instances.read().unwrap();
+        let instances = self.instances.read().unwrap_or_else(|e| e.into_inner());
         instances.len()
     }
 
     /// Persist the registry to disk (atomic write via temp + rename).
     fn persist(&self) {
         if let Some(path) = &self.persistence_path {
-            let instances = self.instances.read().unwrap();
+            let instances = self.instances.read().unwrap_or_else(|e| e.into_inner());
             let json = serde_json::to_string_pretty(&*instances).unwrap_or_default();
             drop(instances);
 

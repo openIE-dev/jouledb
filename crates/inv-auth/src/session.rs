@@ -70,7 +70,7 @@ impl SessionManager {
         };
 
         {
-            let mut sessions = self.sessions.write().unwrap();
+            let mut sessions = self.sessions.write().unwrap_or_else(|e| e.into_inner());
             sessions.insert(session.id, session.clone());
         }
 
@@ -86,7 +86,7 @@ impl SessionManager {
 
     /// Get a session by its ID.
     pub fn get(&self, session_id: Uuid) -> Result<Session, AuthError> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self.sessions.read().unwrap_or_else(|e| e.into_inner());
         sessions
             .get(&session_id)
             .cloned()
@@ -95,7 +95,7 @@ impl SessionManager {
 
     /// List all active sessions for a user within an org.
     pub fn list_for_user(&self, org: &str, user: &str) -> Vec<Session> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self.sessions.read().unwrap_or_else(|e| e.into_inner());
         sessions
             .values()
             .filter(|s| s.org == org && s.user == user && s.active)
@@ -105,7 +105,7 @@ impl SessionManager {
 
     /// List all active sessions for an organization.
     pub fn list_for_org(&self, org: &str) -> Vec<Session> {
-        let sessions = self.sessions.read().unwrap();
+        let sessions = self.sessions.read().unwrap_or_else(|e| e.into_inner());
         sessions
             .values()
             .filter(|s| s.org == org && s.active)
@@ -115,7 +115,7 @@ impl SessionManager {
 
     /// Update the last activity timestamp for a session (keep-alive / touch).
     pub fn touch(&self, session_id: Uuid) -> Result<(), AuthError> {
-        let mut sessions = self.sessions.write().unwrap();
+        let mut sessions = self.sessions.write().unwrap_or_else(|e| e.into_inner());
         let session = sessions
             .get_mut(&session_id)
             .ok_or(AuthError::SessionNotFound)?;
@@ -130,7 +130,7 @@ impl SessionManager {
 
     /// Terminate a specific session.
     pub fn terminate(&self, session_id: Uuid) -> Result<(), AuthError> {
-        let mut sessions = self.sessions.write().unwrap();
+        let mut sessions = self.sessions.write().unwrap_or_else(|e| e.into_inner());
         let session = sessions
             .get_mut(&session_id)
             .ok_or(AuthError::SessionNotFound)?;
@@ -143,7 +143,7 @@ impl SessionManager {
     ///
     /// Returns the number of sessions terminated.
     pub fn terminate_all_for_user(&self, org: &str, user: &str) -> usize {
-        let mut sessions = self.sessions.write().unwrap();
+        let mut sessions = self.sessions.write().unwrap_or_else(|e| e.into_inner());
         let mut count = 0;
         for session in sessions.values_mut() {
             if session.org == org && session.user == user && session.active {

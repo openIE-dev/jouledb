@@ -31,6 +31,22 @@ const SEG_MAGIC_HEAD: &[u8; 8] = b"JCOL\x01\x00\x00\x00";
 const SEG_MAGIC_FOOT: &[u8; 4] = b"JCL1";
 const NULL_CODE_U32: u32 = u32::MAX;
 
+/// Return unused multi-MB Rayon thread-arena pages to the OS on GNU/Linux so
+/// multi-million-row streaming `COPY` and out-of-core scans keep `VmRSS` bounded.
+#[inline]
+pub fn trim_unused_heap() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        unsafe extern "C" {
+            fn malloc_trim(pad: usize) -> i32;
+        }
+        // SAFETY: `malloc_trim(0)` is thread-safe in glibc and releases unused top-of-heap/arena pages.
+        unsafe {
+            let _ = malloc_trim(0);
+        }
+    }
+}
+
 /// Row threshold above which streaming `COPY` / `insert_column_batch` spills
 /// a table into durable `.jcol` disk segments instead of holding all rows in RAM.
 pub fn disk_segment_spill_rows() -> usize {
@@ -1303,6 +1319,7 @@ impl DiskColumnTable {
         }
         self.next_seq = seq;
         self.save_manifest(sync_data)?;
+        trim_unused_heap();
         Ok(written)
     }
 

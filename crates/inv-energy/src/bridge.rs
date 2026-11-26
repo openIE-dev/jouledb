@@ -95,7 +95,7 @@ impl<M: EnergyMeter> EnergyAccountant for MeshAccountant<M> {
 
         self.operations
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(id, (label.to_string(), Instant::now(), joules, watts));
         OperationId(id)
     }
@@ -104,7 +104,7 @@ impl<M: EnergyMeter> EnergyAccountant for MeshAccountant<M> {
         let (label, start, joules_at_start, watts_at_start) = self
             .operations
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .remove(&id.0)
             .ok_or(EnergyError::UnknownOperation(id))?;
 

@@ -237,7 +237,7 @@ impl RiskAggregator {
 
         // Layer 3: Update symbol-level aggregation
         {
-            let mut symbol_map = self.symbol_risks.write().unwrap();
+            let mut symbol_map = self.symbol_risks.write().unwrap_or_else(|e| e.into_inner());
             symbol_map
                 .entry(symbol.to_string())
                 .or_insert_with(|| SymbolRisk::new(symbol))
@@ -246,7 +246,10 @@ impl RiskAggregator {
 
         // Layer 4: Update expiration-level aggregation
         {
-            let mut exp_map = self.expiration_risks.write().unwrap();
+            let mut exp_map = self
+                .expiration_risks
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             let key = (symbol.to_string(), expiration_epoch);
             exp_map
                 .entry(key)
@@ -277,7 +280,7 @@ impl RiskAggregator {
 
         // Layer 3: Update symbol-level aggregation
         {
-            let mut symbol_map = self.symbol_risks.write().unwrap();
+            let mut symbol_map = self.symbol_risks.write().unwrap_or_else(|e| e.into_inner());
             if let Some(risk) = symbol_map.get_mut(symbol) {
                 risk.remove_position(greeks, notional);
             }
@@ -285,7 +288,10 @@ impl RiskAggregator {
 
         // Layer 4: Update expiration-level aggregation
         {
-            let mut exp_map = self.expiration_risks.write().unwrap();
+            let mut exp_map = self
+                .expiration_risks
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             let key = (symbol.to_string(), expiration_epoch);
             if let Some(risk) = exp_map.get_mut(&key) {
                 risk.total_delta -= greeks.delta;
@@ -303,7 +309,7 @@ impl RiskAggregator {
     pub fn delta_by_symbol(&self, symbol: &str) -> f64 {
         self.symbol_risks
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(symbol)
             .map(|r| r.total_delta)
             .unwrap_or(0.0)
@@ -313,7 +319,7 @@ impl RiskAggregator {
     pub fn gamma_by_symbol(&self, symbol: &str) -> f64 {
         self.symbol_risks
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(symbol)
             .map(|r| r.total_gamma)
             .unwrap_or(0.0)
@@ -323,7 +329,7 @@ impl RiskAggregator {
     pub fn gamma_by_expiration(&self, exp_epoch: u64) -> f64 {
         self.expiration_risks
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|((_, exp), _)| *exp == exp_epoch)
             .map(|(_, r)| r.total_gamma)
@@ -344,7 +350,7 @@ impl RiskAggregator {
     pub fn greeks_by_symbol(&self, symbol: &str) -> Option<Greeks> {
         self.symbol_risks
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(symbol)
             .map(|r| Greeks {
                 delta: r.total_delta,
@@ -358,7 +364,7 @@ impl RiskAggregator {
     pub fn greeks_by_expiration(&self, symbol: &str, exp_epoch: u64) -> Option<Greeks> {
         self.expiration_risks
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(&(symbol.to_string(), exp_epoch))
             .map(|r| Greeks {
                 delta: r.total_delta,
@@ -408,7 +414,7 @@ impl RiskAggregator {
             margin_requirement: self.margin_requirement(),
         };
 
-        let mut history = self.risk_history.write().unwrap();
+        let mut history = self.risk_history.write().unwrap_or_else(|e| e.into_inner());
         if history.len() >= self.max_history_size {
             history.pop_front();
         }
@@ -424,7 +430,10 @@ impl RiskAggregator {
             portfolio_value: self.total_notional + unrealized,
         };
 
-        let mut snapshots = self.pnl_snapshots.write().unwrap();
+        let mut snapshots = self
+            .pnl_snapshots
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         if snapshots.len() >= self.max_history_size {
             snapshots.pop_front();
         }
@@ -433,7 +442,12 @@ impl RiskAggregator {
 
     /// Get list of all symbols with positions
     pub fn symbols_with_positions(&self) -> Vec<String> {
-        self.symbol_risks.read().unwrap().keys().cloned().collect()
+        self.symbol_risks
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect()
     }
 
     /// Get summary of portfolio risk

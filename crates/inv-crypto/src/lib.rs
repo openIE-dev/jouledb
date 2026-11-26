@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod acme;
 pub mod certificates;
 pub mod encryption;

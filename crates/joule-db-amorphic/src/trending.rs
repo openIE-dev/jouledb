@@ -160,11 +160,13 @@ impl TrendingIndex {
     /// If the content is not yet registered, it will be auto-registered without a category.
     pub fn record_event(&mut self, content_id: &str, record_id: RecordId) {
         let now_ms = self.now_ms();
-        if !self.counters.contains_key(content_id) {
-            self.counters
-                .insert(content_id.to_string(), ContentCounter::new(record_id, None));
+        if let Some(counter) = self.counters.get(content_id) {
+            counter.record_event(now_ms);
+        } else {
+            let counter = ContentCounter::new(record_id, None);
+            counter.record_event(now_ms);
+            self.counters.insert(content_id.to_string(), counter);
         }
-        self.counters.get(content_id).unwrap().record_event(now_ms);
     }
 
     /// Query the top-k trending content items.

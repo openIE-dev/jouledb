@@ -44,7 +44,7 @@ impl EnergyMeter for RaplMeter {
             let joules = energy_uj as f64 / 1_000_000.0;
             let now_ms = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .as_millis() as u64;
 
             Ok(EnergyReading::new(

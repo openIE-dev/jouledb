@@ -57,9 +57,8 @@ impl BeaconManager {
 
     #[cfg(target_arch = "wasm32")]
     pub fn send_beacon_blob(&self, url: &str, data: &[u8]) -> Result<bool, JsValue> {
-        let navigator = web_sys::window()
-            .ok_or_else(|| JsValue::from_str("No window"))?
-            .navigator();
+        let window = web_sys::window().ok_or_else(|| JsValue::from_str("No window"))?;
+        let navigator = window.navigator();
 
         let send_beacon_func = js_sys::Reflect::get(&navigator, &JsValue::from_str("sendBeacon"))
             .ok()
@@ -80,11 +79,10 @@ impl BeaconManager {
         )
         .ok();
 
-        let blob_constructor =
-            js_sys::Reflect::get(&web_sys::window().unwrap(), &JsValue::from_str("Blob"))
-                .ok()
-                .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
-                .ok_or_else(|| JsValue::from_str("Blob constructor not found"))?;
+        let blob_constructor = js_sys::Reflect::get(&window, &JsValue::from_str("Blob"))
+            .ok()
+            .and_then(|v| v.dyn_into::<js_sys::Function>().ok())
+            .ok_or_else(|| JsValue::from_str("Blob constructor not found"))?;
 
         let blob = js_sys::Reflect::construct(
             &blob_constructor,
@@ -140,19 +138,28 @@ impl BeaconManager {
     /// Queue data for later sending (fallback when beacon fails)
 
     pub fn queue_data(&self, data: String) {
-        self.queued_data.write().unwrap().push(data);
+        self.queued_data
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(data);
     }
 
     /// Get queued data count
 
     pub fn queued_count(&self) -> usize {
-        self.queued_data.read().unwrap().len()
+        self.queued_data
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     /// Clear queued data
 
     pub fn clear_queue(&self) {
-        self.queued_data.write().unwrap().clear();
+        self.queued_data
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 }
 

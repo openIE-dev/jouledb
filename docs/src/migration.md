@@ -1,6 +1,6 @@
 # Multi-Format Import & Reconciliation (`jouledb migrate`)
 
-`crates/joule-db-server/src/live_migration.rs` provides a parser, canonicalizer, and order-independent `BLAKE3` multiset checksum tool for importing structured exports into JouleDB (`v0.10.0` preview).
+`crates/joule-db-server/src/live_migration.rs` provides a parser, canonicalizer, and order-independent `BLAKE3` multiset checksum tool for importing structured exports into JouleDB (`v0.11.0` preview).
 
 ## Supported Input Formats
 

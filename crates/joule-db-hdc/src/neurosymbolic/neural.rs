@@ -50,7 +50,10 @@ impl NeuralLayer {
 
     /// Get number of patterns
     pub fn len(&self) -> usize {
-        self.embeddings.read().unwrap().len()
+        self.embeddings
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     /// Check if empty
@@ -70,9 +73,9 @@ impl NeuralLayer {
         // Normalize embedding
         let normalized = Self::normalize(embedding);
 
-        let mut patterns = self.patterns.write().unwrap();
-        let mut embeddings = self.embeddings.write().unwrap();
-        let mut names = self.names.write().unwrap();
+        let mut patterns = self.patterns.write().unwrap_or_else(|e| e.into_inner());
+        let mut embeddings = self.embeddings.write().unwrap_or_else(|e| e.into_inner());
+        let mut names = self.names.write().unwrap_or_else(|e| e.into_inner());
 
         let index = embeddings.len();
         embeddings.push(normalized.clone());
@@ -84,7 +87,7 @@ impl NeuralLayer {
 
     /// Get pattern by name
     pub fn get_pattern(&self, name: &str) -> Option<Vec<f32>> {
-        let patterns = self.patterns.read().unwrap();
+        let patterns = self.patterns.read().unwrap_or_else(|e| e.into_inner());
         patterns.get(name).map(|(emb, _)| emb.clone())
     }
 
@@ -102,8 +105,8 @@ impl NeuralLayer {
         }
 
         let normalized_query = Self::normalize(query);
-        let embeddings = self.embeddings.read().unwrap();
-        let names = self.names.read().unwrap();
+        let embeddings = self.embeddings.read().unwrap_or_else(|e| e.into_inner());
+        let names = self.names.read().unwrap_or_else(|e| e.into_inner());
 
         // Compute similarities
         let mut matches: Vec<PatternMatch> = embeddings
@@ -143,8 +146,8 @@ impl NeuralLayer {
         }
 
         let normalized_query = Self::normalize(query);
-        let embeddings = self.embeddings.read().unwrap();
-        let names = self.names.read().unwrap();
+        let embeddings = self.embeddings.read().unwrap_or_else(|e| e.into_inner());
+        let names = self.names.read().unwrap_or_else(|e| e.into_inner());
 
         let matches: Vec<PatternMatch> = embeddings
             .iter()
@@ -198,9 +201,21 @@ impl NeuralLayer {
 impl Clone for NeuralLayer {
     fn clone(&self) -> Self {
         Self {
-            patterns: Arc::new(RwLock::new(self.patterns.read().unwrap().clone())),
-            embeddings: Arc::new(RwLock::new(self.embeddings.read().unwrap().clone())),
-            names: Arc::new(RwLock::new(self.names.read().unwrap().clone())),
+            patterns: Arc::new(RwLock::new(
+                self.patterns
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone(),
+            )),
+            embeddings: Arc::new(RwLock::new(
+                self.embeddings
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone(),
+            )),
+            names: Arc::new(RwLock::new(
+                self.names.read().unwrap_or_else(|e| e.into_inner()).clone(),
+            )),
             dimension: self.dimension,
         }
     }

@@ -78,9 +78,9 @@ jobs:
           rustup target add x86_64-pc-windows-gnu --toolchain "$RUST_TOOLCHAIN"
           cargo check -p joule-energy-rt --target x86_64-pc-windows-gnu --locked
 
-      # Blocking panic-safety gate across the 29 crates (including joule-db-server & jouledb-cli) with `deny(clippy::unwrap_used)`:
-      - name: cargo clippy (blocking unwrap_used gate on 29 crates)
-        run: cargo clippy -p joule-db-core -p joule-db-branch -p joule-db-ledger -p joule-db-local -p joule-db-energy -p joule-db-weights -p joule-db-query -p joule-db-server -p jouledb-cli -p joule-db-client -p joule-db-c -p joule-db-odbc -p joule-db-edge -p joule-db-crdt -p joule-db-langgraph -p joule-db-ternary -p joule-db-viz -p joule-energy -p joule-energy-rt -p joule-metal-rt -p joule-ane-rt -p inv-energy-core -p inv-hdc-core -p inv-identity -p inv-mcp-core -p inv-pqcrypto -p inv-vm-core -p jpb-core -p jwp --lib --bins --locked
+      # Blocking panic-safety gate across 100% of the workspace (all 41 / 41 crates enforce `deny(clippy::unwrap_used)`):
+      - name: cargo clippy (blocking unwrap_used gate across all 41 workspace crates)
+        run: cargo clippy --workspace --lib --bins --locked
 
       # Not blocking yet: the existing tree has clippy findings. Shown so new
       # code does not add more; make it blocking once the backlog is cleared.

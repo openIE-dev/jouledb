@@ -166,14 +166,23 @@ impl<'a> Rd<'a> {
         self.p += n;
         Ok(s)
     }
+    fn chunk<const N: usize>(&mut self) -> Result<&'a [u8; N], String> {
+        let (c, _) = self
+            .b
+            .get(self.p..)
+            .and_then(|s| s.split_first_chunk::<N>())
+            .ok_or("truncated JWB1 record")?;
+        self.p += N;
+        Ok(c)
+    }
     fn u16(&mut self) -> Result<u16, String> {
-        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
+        Ok(u16::from_le_bytes(*self.chunk()?))
     }
     fn u32(&mut self) -> Result<u32, String> {
-        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+        Ok(u32::from_le_bytes(*self.chunk()?))
     }
     fn u64(&mut self) -> Result<u64, String> {
-        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+        Ok(u64::from_le_bytes(*self.chunk()?))
     }
 }
 
@@ -183,8 +192,10 @@ pub fn decode_chunk(data: &[u8]) -> Result<Vec<(RecordId, HashMap<String, Value>
     if !is_binary(data) || data.len() < 16 {
         return Err("not a JWB1 record".into());
     }
-    let (body, tail) = data.split_at(data.len() - 4);
-    if crc32fast::hash(body) != u32::from_le_bytes(tail.try_into().unwrap()) {
+    let Some((body, tail)) = data.split_last_chunk::<4>() else {
+        return Err("not a JWB1 record".into());
+    };
+    if crc32fast::hash(body) != u32::from_le_bytes(*tail) {
         return Err("JWB1 crc mismatch".into());
     }
     let mut r = Rd { b: body, p: 4 };
@@ -205,10 +216,9 @@ pub fn decode_chunk(data: &[u8]) -> Result<Vec<(RecordId, HashMap<String, Value>
         let has = |i: usize| bm[i / 8] & (1 << (i % 8)) != 0;
         match tag {
             T_INT | T_FLOAT => {
-                let d = r.take(n * 8)?;
                 for (i, row) in rows.iter_mut().enumerate() {
+                    let w = *r.chunk::<8>()?;
                     if has(i) {
-                        let w: [u8; 8] = d[i * 8..i * 8 + 8].try_into().unwrap();
                         let v = if tag == T_INT {
                             Value::Int(i64::from_le_bytes(w))
                         } else {
@@ -229,7 +239,9 @@ pub fn decode_chunk(data: &[u8]) -> Result<Vec<(RecordId, HashMap<String, Value>
             T_STR => {
                 let offs = r.take((n + 1) * 4)?;
                 let off = |i: usize| {
-                    u32::from_le_bytes(offs[i * 4..i * 4 + 4].try_into().unwrap()) as usize
+                    offs.get(i * 4..)
+                        .and_then(|s| s.split_first_chunk::<4>())
+                        .map_or(0, |(c, _)| u32::from_le_bytes(*c) as usize)
                 };
                 let bytes = r.take(off(n))?;
                 for (i, row) in rows.iter_mut().enumerate() {

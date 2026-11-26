@@ -105,7 +105,7 @@ impl MfaService {
 
         self.pending
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(session_id.clone(), pending);
 
         (session_id, code)
@@ -118,7 +118,7 @@ impl MfaService {
             .unwrap_or_default()
             .as_secs();
 
-        let mut map = self.pending.write().unwrap();
+        let mut map = self.pending.write().unwrap_or_else(|e| e.into_inner());
         let Some(pending) = map.get_mut(session_id) else {
             return MfaVerifyResult::NotFound;
         };

@@ -63,7 +63,7 @@ impl SpanCollector {
     /// Record a finished span. If the collector is at capacity the oldest span
     /// is evicted first.
     pub fn record(&self, span: FinishedSpan) {
-        let mut spans = self.spans.write().unwrap();
+        let mut spans = self.spans.write().unwrap_or_else(|e| e.into_inner());
         if spans.len() >= self.max_spans {
             spans.remove(0);
         }
@@ -73,14 +73,14 @@ impl SpanCollector {
     /// Drain all spans from the collector, returning them and leaving the
     /// buffer empty.
     pub fn drain(&self) -> Vec<FinishedSpan> {
-        let mut spans = self.spans.write().unwrap();
+        let mut spans = self.spans.write().unwrap_or_else(|e| e.into_inner());
         std::mem::take(&mut *spans)
     }
 
     /// Return the most recent `limit` spans, ordered oldest-first (newest
     /// last).
     pub fn recent(&self, limit: usize) -> Vec<FinishedSpan> {
-        let spans = self.spans.read().unwrap();
+        let spans = self.spans.read().unwrap_or_else(|e| e.into_inner());
         let start = spans.len().saturating_sub(limit);
         spans[start..].to_vec()
     }
@@ -90,7 +90,7 @@ impl SpanCollector {
     /// All non-`None` fields act as conjunctive (AND) filters. The `limit`
     /// field is applied last, after all other filters.
     pub fn query(&self, q: &SpanQuery) -> Vec<FinishedSpan> {
-        let spans = self.spans.read().unwrap();
+        let spans = self.spans.read().unwrap_or_else(|e| e.into_inner());
         let mut results: Vec<FinishedSpan> = spans
             .iter()
             .filter(|s| {
@@ -128,12 +128,12 @@ impl SpanCollector {
 
     /// Return the number of spans currently stored.
     pub fn count(&self) -> usize {
-        self.spans.read().unwrap().len()
+        self.spans.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Remove all stored spans.
     pub fn clear(&self) {
-        self.spans.write().unwrap().clear();
+        self.spans.write().unwrap_or_else(|e| e.into_inner()).clear();
     }
 
     /// Return the maximum number of spans this collector can hold.

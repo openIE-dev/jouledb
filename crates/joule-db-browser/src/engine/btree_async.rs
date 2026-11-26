@@ -257,14 +257,14 @@ impl AsyncBTree {
 
     /// Search for a key
     pub async fn search(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreError> {
-        let root_id = *self.root_page_id.read().unwrap();
+        let root_id = *self.root_page_id.read().unwrap_or_else(|e| e.into_inner());
         self.search_node(root_id, key).await
     }
 
     /// Search in a specific node
     async fn search_node(&self, page_id: PageId, key: &[u8]) -> Result<Option<Vec<u8>>, CoreError> {
         // Load node
-        let backend = self.backend.read().unwrap();
+        let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
         let data = backend.read_page(page_id).await
             .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
         drop(backend);
@@ -298,10 +298,10 @@ impl AsyncBTree {
 
     /// Insert key-value pair
     pub async fn insert(&self, key: &[u8], value: &[u8]) -> Result<(), CoreError> {
-        let root_id = *self.root_page_id.read().unwrap();
+        let root_id = *self.root_page_id.read().unwrap_or_else(|e| e.into_inner());
         
         // Load root
-        let backend = self.backend.read().unwrap();
+        let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
         let root_data = backend.read_page(root_id).await
             .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
         drop(backend);
@@ -312,7 +312,7 @@ impl AsyncBTree {
         // If root is full, split it
         if root.is_full() {
             let new_root_id = {
-                let mut next = self.next_page_id.write().unwrap();
+                let mut next = self.next_page_id.write().unwrap_or_else(|e| e.into_inner());
                 let id = *next;
                 *next += 1;
                 id
@@ -329,7 +329,7 @@ impl AsyncBTree {
             new_root.children.push(right.page_id);
 
             // Save nodes
-            let backend = self.backend.read().unwrap();
+            let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
             backend.write_page(new_root.page_id, &new_root.serialize()).await
                 .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
             backend.write_page(root.page_id, &root.serialize()).await
@@ -338,7 +338,7 @@ impl AsyncBTree {
                 .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
             drop(backend);
 
-            *self.root_page_id.write().unwrap() = new_root_id;
+            *self.root_page_id.write().unwrap_or_else(|e| e.into_inner()) = new_root_id;
             
             // Insert into new root
             self.insert_non_full(new_root_id, key, value).await
@@ -350,7 +350,7 @@ impl AsyncBTree {
     /// Insert into non-full node
     async fn insert_non_full(&self, page_id: PageId, key: &[u8], value: &[u8]) -> Result<(), CoreError> {
         // Load node
-        let backend = self.backend.read().unwrap();
+        let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
         let data = backend.read_page(page_id).await
             .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
         drop(backend);
@@ -373,7 +373,7 @@ impl AsyncBTree {
             }
 
             // Save node
-            let backend = self.backend.read().unwrap();
+            let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
             backend.write_page(page_id, &node.serialize()).await
                 .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
             Ok(())
@@ -385,7 +385,7 @@ impl AsyncBTree {
             let child_id = node.children[idx];
             
             // Load child
-            let backend = self.backend.read().unwrap();
+            let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
             let child_data = backend.read_page(child_id).await
                 .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
             drop(backend);
@@ -396,7 +396,7 @@ impl AsyncBTree {
             // If child is full, split it
             if child.is_full() {
                 let new_child_id = {
-                    let mut next = self.next_page_id.write().unwrap();
+                    let mut next = self.next_page_id.write().unwrap_or_else(|e| e.into_inner());
                     let id = *next;
                     *next += 1;
                     id
@@ -409,7 +409,7 @@ impl AsyncBTree {
                 node.children.insert(idx + 1, new_child_id);
 
                 // Save nodes
-                let backend = self.backend.read().unwrap();
+                let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
                 backend.write_page(page_id, &node.serialize()).await
                     .map_err(|e| CoreError::Storage(StorageError::Backend(e.to_string())))?;
                 backend.write_page(child_id, &child.serialize()).await

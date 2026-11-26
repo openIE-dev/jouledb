@@ -302,10 +302,11 @@ impl SpatialIndex {
                     hilbert_encode(x_max, y_min, self.precision),
                     hilbert_encode(x_max, y_max, self.precision),
                 ];
-                (
-                    corners.iter().copied().min().unwrap(),
-                    corners.iter().copied().max().unwrap(),
-                )
+                corners[1..]
+                    .iter()
+                    .fold((corners[0], corners[0]), |(lo, hi), &c| {
+                        (lo.min(c), hi.max(c))
+                    })
             }
         };
 

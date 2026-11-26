@@ -275,7 +275,9 @@ impl HolographicReceiver {
     where
         F: Fn(String, String, f64) + Send + 'static,
     {
-        let socket = self.socket.try_clone().unwrap();
+        let Ok(socket) = self.socket.try_clone() else {
+            return;
+        };
         let book = self.book.clone();
 
         thread::spawn(move || {
@@ -294,7 +296,8 @@ impl HolographicReceiver {
                         {
                             match msg {
                                 HolographicMessage::Delta(delta) => {
-                                    let mut b_guard = book.lock().unwrap();
+                                    let mut b_guard =
+                                        book.lock().unwrap_or_else(|e| e.into_inner());
                                     // Deserialize the HV component
                                     if let Ok((hv, _)) =
                                         bincode::serde::decode_from_slice::<BinaryHV, _>(

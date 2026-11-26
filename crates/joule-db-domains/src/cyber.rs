@@ -393,7 +393,10 @@ impl ThreatIntelDb {
             let similarity = query_hv.similarity(&bundle_hv);
 
             if similarity > 0.65 {
-                if best_match.is_none() || similarity > best_match.as_ref().unwrap().1 {
+                if match &best_match {
+                    None => true,
+                    Some((_, best_sim)) => similarity > *best_sim,
+                } {
                     best_match = Some((family.clone(), similarity));
                 }
             }

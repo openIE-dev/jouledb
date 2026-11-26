@@ -316,8 +316,8 @@ impl Column {
 
     /// Push value with dictionary encoding.
     fn push_dictionary(&mut self, value: Value) {
-        let dict = self.dictionary.as_mut().unwrap();
-        let indices = self.dict_indices.as_mut().unwrap();
+        let dict = self.dictionary.get_or_insert_with(Vec::new);
+        let indices = self.dict_indices.get_or_insert_with(Vec::new);
 
         // Find or insert value in dictionary
         let idx = dict.iter().position(|v| v == &value).unwrap_or_else(|| {
@@ -559,7 +559,10 @@ impl ColumnStore {
 
         for (i, value) in values.into_iter().enumerate() {
             let col_name = &self.column_order[i];
-            let column = self.columns.get_mut(col_name).unwrap();
+            let column = self
+                .columns
+                .get_mut(col_name)
+                .ok_or_else(|| ColumnarError::ColumnNotFound(col_name.clone()))?;
             column.push(value)?;
         }
 
@@ -571,7 +574,10 @@ impl ColumnStore {
     pub fn insert_row_map(&mut self, values: HashMap<String, Value>) -> Result<(), ColumnarError> {
         for col_name in &self.column_order {
             let value = values.get(col_name).cloned().unwrap_or(Value::Null);
-            let column = self.columns.get_mut(col_name).unwrap();
+            let column = self
+                .columns
+                .get_mut(col_name)
+                .ok_or_else(|| ColumnarError::ColumnNotFound(col_name.clone()))?;
             column.push(value)?;
         }
 
@@ -654,7 +660,9 @@ impl ColumnStore {
         let mut result = ColumnStore::new(format!("{}_filtered", self.name));
 
         for col_name in &self.column_order {
-            let src_col = self.columns.get(col_name).unwrap();
+            let Some(src_col) = self.columns.get(col_name) else {
+                continue;
+            };
             let mut new_col = Column::new(col_name, src_col.data_type);
 
             for &idx in indices {

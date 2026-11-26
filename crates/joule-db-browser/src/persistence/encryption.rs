@@ -183,10 +183,10 @@ impl OpfsEncryption {
             .for_each(|(src, dst)| *dst = *src);
 
         // Store key and enable encryption
-        *self.key.write().unwrap() = Some(key);
+        *self.key.write().unwrap_or_else(|e| e.into_inner()) = Some(key);
         let key_id = format!("key_{}", salt.as_str());
-        *self.key_id.write().unwrap() = Some(key_id.clone());
-        *self.enabled.write().unwrap() = true;
+        *self.key_id.write().unwrap_or_else(|e| e.into_inner()) = Some(key_id.clone());
+        *self.enabled.write().unwrap_or_else(|e| e.into_inner()) = true;
 
         Ok(key_id)
     }
@@ -194,13 +194,13 @@ impl OpfsEncryption {
     /// Enable encryption with a raw key
     #[cfg(feature = "encryption")]
     pub fn enable_with_key(&self, key: [u8; 32]) -> Result<String, JsValue> {
-        *self.key.write().unwrap() = Some(key);
+        *self.key.write().unwrap_or_else(|e| e.into_inner()) = Some(key);
         let key_id = format!(
             "key_{:x}",
             key[0..8].iter().fold(0u64, |acc, &x| acc << 8 | x as u64)
         );
-        *self.key_id.write().unwrap() = Some(key_id.clone());
-        *self.enabled.write().unwrap() = true;
+        *self.key_id.write().unwrap_or_else(|e| e.into_inner()) = Some(key_id.clone());
+        *self.enabled.write().unwrap_or_else(|e| e.into_inner()) = true;
         Ok(key_id)
     }
 
@@ -218,8 +218,8 @@ impl OpfsEncryption {
         {
             // Fallback when encryption feature is not enabled
             let key_id = format!("key_{}", js_sys::Date::now() as u64);
-            *self.key_id.write().unwrap() = Some(key_id.clone());
-            *self.enabled.write().unwrap() = true;
+            *self.key_id.write().unwrap_or_else(|e| e.into_inner()) = Some(key_id.clone());
+            *self.enabled.write().unwrap_or_else(|e| e.into_inner()) = true;
             Ok(key_id)
         }
     }
@@ -239,43 +239,46 @@ impl OpfsEncryption {
                 "key_{}",
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_millis()
             );
-            *self.key_id.write().unwrap() = Some(key_id.clone());
-            *self.enabled.write().unwrap() = true;
+            *self.key_id.write().unwrap_or_else(|e| e.into_inner()) = Some(key_id.clone());
+            *self.enabled.write().unwrap_or_else(|e| e.into_inner()) = true;
             Ok(key_id)
         }
     }
 
     /// Disable encryption
     pub fn disable(&self) {
-        *self.enabled.write().unwrap() = false;
+        *self.enabled.write().unwrap_or_else(|e| e.into_inner()) = false;
         // Securely clear the key
-        if let Some(ref mut key) = *self.key.write().unwrap() {
+        if let Some(ref mut key) = *self.key.write().unwrap_or_else(|e| e.into_inner()) {
             key.iter_mut().for_each(|b| *b = 0);
         }
-        *self.key.write().unwrap() = None;
+        *self.key.write().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
     /// Check if encryption is enabled
     pub fn is_enabled(&self) -> bool {
-        *self.enabled.read().unwrap()
+        *self.enabled.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Get the current key ID
     pub fn key_id(&self) -> Option<String> {
-        self.key_id.read().unwrap().clone()
+        self.key_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Get the current algorithm
     pub fn algorithm(&self) -> EncryptionAlgorithm {
-        *self.algorithm.read().unwrap()
+        *self.algorithm.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Set the encryption algorithm
     pub fn set_algorithm(&self, algo: EncryptionAlgorithm) {
-        *self.algorithm.write().unwrap() = algo;
+        *self.algorithm.write().unwrap_or_else(|e| e.into_inner()) = algo;
     }
 
     /// Generate a unique nonce for a page
@@ -301,18 +304,18 @@ impl OpfsEncryption {
         page_data: &[u8],
         page_id: u64,
     ) -> Result<Vec<u8>, JsValue> {
-        if !*self.enabled.read().unwrap() {
+        if !*self.enabled.read().unwrap_or_else(|e| e.into_inner()) {
             return Ok(page_data.to_vec());
         }
 
         let key = self
             .key
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .ok_or_else(|| JsValue::from_str("Encryption key not set"))?;
 
         let nonce = self.generate_nonce(page_id);
-        let algorithm = *self.algorithm.read().unwrap();
+        let algorithm = *self.algorithm.read().unwrap_or_else(|e| e.into_inner());
 
         let ciphertext = match algorithm {
             EncryptionAlgorithm::Aes256Gcm => {
@@ -359,7 +362,7 @@ impl OpfsEncryption {
     /// Decrypt page data
     #[cfg(feature = "encryption")]
     pub async fn decrypt_page(&self, encrypted_data: &[u8]) -> Result<Vec<u8>, JsValue> {
-        if !*self.enabled.read().unwrap() {
+        if !*self.enabled.read().unwrap_or_else(|e| e.into_inner()) {
             return Ok(encrypted_data.to_vec());
         }
 
@@ -370,7 +373,7 @@ impl OpfsEncryption {
         let key = self
             .key
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .ok_or_else(|| JsValue::from_str("Encryption key not set"))?;
 
         // Parse format: [algorithm (1 byte)][nonce (12 bytes)][ciphertext]
@@ -417,7 +420,7 @@ impl OpfsEncryption {
 
         let encrypted_pages = js_sys::Array::new();
 
-        if !*self.enabled.read().unwrap() {
+        if !*self.enabled.read().unwrap_or_else(|e| e.into_inner()) {
             for i in 0..pages.length() {
                 encrypted_pages.push(&pages.get(i));
             }
@@ -452,7 +455,7 @@ impl OpfsEncryption {
 
         let decrypted_pages = js_sys::Array::new();
 
-        if !*self.enabled.read().unwrap() {
+        if !*self.enabled.read().unwrap_or_else(|e| e.into_inner()) {
             for i in 0..encrypted_pages.length() {
                 decrypted_pages.push(&encrypted_pages.get(i));
             }

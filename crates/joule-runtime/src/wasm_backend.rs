@@ -170,7 +170,7 @@ impl RuntimeBackend for WasmBackend {
             .map_err(|e| RuntimeError::WasmError(format!("failed to spawn {}: {}", binary, e)))?;
 
         let pid = child.id();
-        let mut containers = self.containers.write().unwrap();
+        let mut containers = self.containers.write().unwrap_or_else(|e| e.into_inner());
         containers.insert(
             instance.id.0.clone(),
             WasmProcess {
@@ -185,7 +185,7 @@ impl RuntimeBackend for WasmBackend {
 
     async fn stop(&self, instance_id: &str) -> Result<(), RuntimeError> {
         let container = {
-            let mut containers = self.containers.write().unwrap();
+            let mut containers = self.containers.write().unwrap_or_else(|e| e.into_inner());
             containers
                 .remove(instance_id)
                 .ok_or_else(|| RuntimeError::InstanceNotFound(instance_id.into()))?
@@ -215,7 +215,7 @@ impl RuntimeBackend for WasmBackend {
     }
 
     async fn status(&self, instance_id: &str) -> Result<InstanceState, RuntimeError> {
-        let containers = self.containers.read().unwrap();
+        let containers = self.containers.read().unwrap_or_else(|e| e.into_inner());
         match containers.get(instance_id) {
             Some(c) => {
                 if let Some(pid) = c.pid {

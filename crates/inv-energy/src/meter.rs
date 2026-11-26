@@ -151,7 +151,7 @@ impl EnergyMeter for EstimationMeter {
     fn read(&self) -> Result<EnergyReading, EnergyMeterError> {
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis() as u64;
 
         let cpu_load = self.cpu_load_estimate();

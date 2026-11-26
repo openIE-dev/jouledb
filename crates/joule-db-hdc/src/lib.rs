@@ -67,6 +67,7 @@
 #![allow(dead_code, unused_imports, unused_assignments)]
 #![warn(missing_docs)]
 #![warn(clippy::all)]
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 
 pub mod bridge;
 pub mod error;

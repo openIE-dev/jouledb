@@ -100,6 +100,22 @@ def duck_type_to_sql(dtype: str) -> str:
     return "TEXT"
 
 
+def read_proc_mem_mb(pid: int) -> tuple[float | None, float | None]:
+    if not sys.platform.startswith("linux"):
+        return None, None
+    rss_mb = None
+    hwm_mb = None
+    try:
+        for ln in Path(f"/proc/{pid}/status").read_text().splitlines():
+            if ln.startswith("VmRSS:"):
+                rss_mb = round(int(ln.split()[1]) / 1024.0, 2)
+            elif ln.startswith("VmHWM:"):
+                hwm_mb = round(int(ln.split()[1]) / 1024.0, 2)
+    except Exception:
+        pass
+    return rss_mb, hwm_mb
+
+
 def wait_port(host: str, port: int, timeout_s: float = 30.0) -> None:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -270,7 +286,8 @@ def main() -> int:
                 per_table_ingest_s[tbl] = round(time.perf_counter() - t_t0, 4)
         jdb_ingest_s = round(time.perf_counter() - t_ji0, 4)
         jdb_ingest_j = rapl_delta_j(u_ji0, read_rapl_uj(rapl_path))
-        print(f"[tpch] Ingested {total_rows:,} rows into JouleDB (.jcol + Amorphic) in {jdb_ingest_s:.3f}s (DuckDB: {duck_ingest_s:.3f}s).")
+        post_load_rss_mb, _ = read_proc_mem_mb(proc.pid)
+        print(f"[tpch] Ingested {total_rows:,} rows into JouleDB (.jcol + Amorphic) in {jdb_ingest_s:.3f}s (DuckDB: {duck_ingest_s:.3f}s, post_load_rss_mb={post_load_rss_mb}).")
 
         query_reports: dict[str, Any] = {}
         passed = 0
@@ -385,11 +402,17 @@ def main() -> int:
                     signal.setitimer(signal.ITIMER_REAL, 0.0)
                     stop_watch.set()
                     jdb_err = rss_tripped[0] if rss_tripped else str(exc)
-                    # Reconnect if connection broke or timed out
+                    # Reconnect if connection broke or server was killed by RSS watchdog
                     try:
                         conn.close()
                     except Exception:
                         pass
+                    if rss_tripped:
+                        proc.kill()
+                        try:
+                            proc.wait(timeout=5)
+                        except Exception:
+                            pass
                     if proc.poll() is not None:
                         proc = spawn_server()
                         wait_port("127.0.0.1", pg_port, timeout_s=30.0)
@@ -440,6 +463,7 @@ def main() -> int:
                 "energy_tag": energy_tag,
             }
 
+        end_rss_mb, peak_hwm_mb = read_proc_mem_mb(proc.pid)
         geomean_ratio = (
             round(math.exp(sum(math.log(max(r, 1e-9)) for r in ratios) / len(ratios)), 4)
             if ratios
@@ -458,6 +482,11 @@ def main() -> int:
                 "processor": platform.processor(),
                 "cpu_count": os.cpu_count(),
                 "energy_tag": energy_tag,
+            },
+            "memory": {
+                "server_post_load_rss_mb": post_load_rss_mb,
+                "server_end_rss_mb": end_rss_mb,
+                "server_peak_vmhwm_mb": peak_hwm_mb,
             },
             "ingest": {
                 "jouledb_parquet_copy_s": jdb_ingest_s,

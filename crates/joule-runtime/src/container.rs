@@ -206,7 +206,7 @@ impl RuntimeBackend for ContainerBackend {
             &container_id[..12.min(container_id.len())]
         );
 
-        let mut containers = self.containers.write().unwrap();
+        let mut containers = self.containers.write().unwrap_or_else(|e| e.into_inner());
         containers.insert(
             instance.id.0.clone(),
             ContainerProcess {
@@ -221,7 +221,7 @@ impl RuntimeBackend for ContainerBackend {
 
     async fn stop(&self, instance_id: &str) -> Result<(), RuntimeError> {
         let proc_info = {
-            let containers = self.containers.read().unwrap();
+            let containers = self.containers.read().unwrap_or_else(|e| e.into_inner());
             containers
                 .get(instance_id)
                 .map(|c| c.container_id.clone())
@@ -255,7 +255,10 @@ impl RuntimeBackend for ContainerBackend {
             .await;
 
         // Clean up tracking
-        self.containers.write().unwrap().remove(instance_id);
+        self.containers
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(instance_id);
         self.network_manager.disconnect_all(instance_id).await;
 
         Ok(())
@@ -263,7 +266,7 @@ impl RuntimeBackend for ContainerBackend {
 
     async fn status(&self, instance_id: &str) -> Result<InstanceState, RuntimeError> {
         let container_id = {
-            let containers = self.containers.read().unwrap();
+            let containers = self.containers.read().unwrap_or_else(|e| e.into_inner());
             match containers.get(instance_id) {
                 Some(c) => c.container_id.clone(),
                 None => return Ok(InstanceState::Stopped),
@@ -307,7 +310,7 @@ impl RuntimeBackend for ContainerBackend {
         command: &[String],
     ) -> Result<ExecOutput, RuntimeError> {
         let container_id = {
-            let containers = self.containers.read().unwrap();
+            let containers = self.containers.read().unwrap_or_else(|e| e.into_inner());
             containers
                 .get(instance_id)
                 .map(|c| c.container_id.clone())
@@ -342,7 +345,7 @@ impl RuntimeBackend for ContainerBackend {
         tail: Option<usize>,
     ) -> Result<Vec<String>, RuntimeError> {
         let container_id = {
-            let containers = self.containers.read().unwrap();
+            let containers = self.containers.read().unwrap_or_else(|e| e.into_inner());
             containers
                 .get(instance_id)
                 .map(|c| c.container_id.clone())

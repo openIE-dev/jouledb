@@ -45,7 +45,10 @@ impl BroadcastChannelManager {
         )
         .map_err(|_| JsValue::from_str("Failed to create BroadcastChannel"))?;
 
-        *self.channel.write().unwrap() = Some(channel.dyn_into::<js_sys::Object>().unwrap());
+        let channel_obj = channel
+            .dyn_into::<js_sys::Object>()
+            .map_err(|_| JsValue::from_str("Invalid BroadcastChannel object"))?;
+        *self.channel.write().unwrap_or_else(|e| e.into_inner()) = Some(channel_obj);
         Ok(())
     }
 
@@ -62,7 +65,7 @@ impl BroadcastChannelManager {
         let channel = self
             .channel
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Channel not opened"))?;
 
@@ -90,7 +93,7 @@ impl BroadcastChannelManager {
         let channel = self
             .channel
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Channel not opened"))?;
 
@@ -118,7 +121,7 @@ impl BroadcastChannelManager {
         let channel = self
             .channel
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Channel not opened"))?;
 
@@ -132,13 +135,19 @@ impl BroadcastChannelManager {
             .call2(&channel, &JsValue::from_str("message"), &callback)
             .map_err(|_| JsValue::from_str("Failed to add event listener"))?;
 
-        self.message_handlers.write().unwrap().push(callback);
+        self.message_handlers
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(callback);
         Ok(())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn add_message_listener(&self, callback: js_sys::Function) -> Result<(), JsValue> {
-        self.message_handlers.write().unwrap().push(callback);
+        self.message_handlers
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(callback);
         Ok(())
     }
 
@@ -149,7 +158,7 @@ impl BroadcastChannelManager {
         let channel = self
             .channel
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
             .ok_or_else(|| JsValue::from_str("Channel not opened"))?;
 
@@ -175,7 +184,12 @@ impl BroadcastChannelManager {
 
     #[cfg(target_arch = "wasm32")]
     pub fn close(&self) -> Result<(), JsValue> {
-        if let Some(channel) = self.channel.read().unwrap().clone() {
+        if let Some(channel) = self
+            .channel
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+        {
             let close_func = js_sys::Reflect::get(&channel, &JsValue::from_str("close"))
                 .ok()
                 .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
@@ -185,16 +199,22 @@ impl BroadcastChannelManager {
                 .call0(&channel)
                 .map_err(|_| JsValue::from_str("Failed to close channel"))?;
 
-            *self.channel.write().unwrap() = None;
-            self.message_handlers.write().unwrap().clear();
+            *self.channel.write().unwrap_or_else(|e| e.into_inner()) = None;
+            self.message_handlers
+                .write()
+                .unwrap_or_else(|e| e.into_inner())
+                .clear();
         }
         Ok(())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn close(&self) -> Result<(), JsValue> {
-        *self.channel.write().unwrap() = None;
-        self.message_handlers.write().unwrap().clear();
+        *self.channel.write().unwrap_or_else(|e| e.into_inner()) = None;
+        self.message_handlers
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
         Ok(())
     }
 
@@ -207,7 +227,10 @@ impl BroadcastChannelManager {
     /// Check if channel is open
 
     pub fn is_open(&self) -> bool {
-        self.channel.read().unwrap().is_some()
+        self.channel
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
     }
 }
 

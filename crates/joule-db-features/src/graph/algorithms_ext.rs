@@ -110,7 +110,7 @@ impl PartialOrd for DijkstraEntry {
 impl GraphStore {
     /// Get edge weight from the "weight" property, defaulting to 1.0.
     fn edge_weight(&self, edge_id: EdgeId) -> f64 {
-        let edges = self.edges.read().unwrap();
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
         edges
             .get(&edge_id)
             .and_then(|e| e.properties.get("weight"))
@@ -120,9 +120,9 @@ impl GraphStore {
 
     /// Dijkstra's shortest path (weighted).
     pub fn dijkstra(&self, source: NodeId, target: NodeId) -> Option<DijkstraResult> {
-        let nodes = self.nodes.read().unwrap();
-        let outgoing = self.outgoing.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let _nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         let mut dist: HashMap<NodeId, f64> = HashMap::new();
         let mut prev: HashMap<NodeId, NodeId> = HashMap::new();
@@ -183,8 +183,8 @@ impl GraphStore {
 
     /// Single-source Dijkstra: distances from source to all reachable nodes.
     pub fn dijkstra_sssp(&self, source: NodeId) -> HashMap<NodeId, f64> {
-        let outgoing = self.outgoing.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         let mut dist: HashMap<NodeId, f64> = HashMap::new();
         let mut heap = BinaryHeap::new();
@@ -226,8 +226,8 @@ impl GraphStore {
     /// Bellman-Ford shortest path (handles negative weights).
     /// Returns None if a negative cycle is detected.
     pub fn bellman_ford(&self, source: NodeId) -> Option<HashMap<NodeId, f64>> {
-        let nodes = self.nodes.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         let node_ids: Vec<NodeId> = nodes.keys().copied().collect();
         let n = node_ids.len();
@@ -343,8 +343,8 @@ impl GraphStore {
         excluded_edges: &HashSet<(NodeId, NodeId)>,
         excluded_nodes: &[NodeId],
     ) -> Option<DijkstraResult> {
-        let outgoing = self.outgoing.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
         let excluded_set: HashSet<NodeId> = excluded_nodes.iter().copied().collect();
 
         let mut dist: HashMap<NodeId, f64> = HashMap::new();
@@ -419,8 +419,8 @@ impl GraphStore {
     }
 
     fn edge_dist(&self, from: NodeId, to: NodeId) -> f64 {
-        let outgoing = self.outgoing.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
         if let Some(edge_ids) = outgoing.get(&from) {
             for &eid in edge_ids {
                 if let Some(edge) = edges.get(&eid) {
@@ -444,10 +444,10 @@ impl GraphStore {
     /// Label Propagation community detection.
     /// Fast, scalable, no resolution parameter needed.
     pub fn label_propagation(&self, max_iterations: usize) -> LabelPropResult {
-        let nodes = self.nodes.read().unwrap();
-        let outgoing = self.outgoing.read().unwrap();
-        let incoming = self.incoming.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         // Initialize: each node gets its own label.
         let mut labels: HashMap<NodeId, NodeId> = nodes.keys().map(|&id| (id, id)).collect();
@@ -508,9 +508,9 @@ impl GraphStore {
 
     /// Strongly Connected Components (Tarjan's algorithm).
     pub fn strongly_connected_components(&self) -> SccResult {
-        let nodes = self.nodes.read().unwrap();
-        let outgoing = self.outgoing.read().unwrap();
-        let edges_map = self.edges.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let edges_map = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         let mut index_counter = 0usize;
         let mut stack: Vec<NodeId> = Vec::new();
@@ -555,16 +555,18 @@ impl GraphStore {
                                 outgoing,
                                 edges_map,
                             );
-                            let lw = *lowlinks.get(&w).unwrap();
-                            let lv = lowlinks.get_mut(&v).unwrap();
-                            if lw < *lv {
-                                *lv = lw;
+                            if let Some(&lw) = lowlinks.get(&w) {
+                                if let Some(lv) = lowlinks.get_mut(&v) {
+                                    if lw < *lv {
+                                        *lv = lw;
+                                    }
+                                }
                             }
                         } else if on_stack.contains(&w) {
-                            let iw = *indices.get(&w).unwrap();
-                            let lv = lowlinks.get_mut(&v).unwrap();
-                            if iw < *lv {
-                                *lv = iw;
+                            if let (Some(&iw), Some(lv)) = (indices.get(&w), lowlinks.get_mut(&v)) {
+                                if iw < *lv {
+                                    *lv = iw;
+                                }
                             }
                         }
                     }
@@ -572,8 +574,7 @@ impl GraphStore {
             }
 
             if lowlinks[&v] == indices[&v] {
-                loop {
-                    let w = stack.pop().unwrap();
+                while let Some(w) = stack.pop() {
                     on_stack.remove(&w);
                     components.insert(w, *comp_id);
                     if w == v {
@@ -610,9 +611,9 @@ impl GraphStore {
     /// K-Core decomposition.
     /// Returns the core number for each node (max k such that the node belongs to a k-core).
     pub fn k_core_decomposition(&self) -> KCoreResult {
-        let nodes = self.nodes.read().unwrap();
-        let outgoing = self.outgoing.read().unwrap();
-        let incoming = self.incoming.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
 
         // Compute degree (treating as undirected).
         let mut degree: HashMap<NodeId, usize> = HashMap::new();
@@ -645,12 +646,14 @@ impl GraphStore {
                     remaining.remove(&node);
 
                     // Reduce degree of neighbors.
-                    let edges = self.edges.read().unwrap();
+                    let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
                     if let Some(eids) = outgoing.get(&node) {
                         for &eid in eids {
                             if let Some(edge) = edges.get(&eid) {
                                 if remaining.contains(&edge.to) {
-                                    *degree.get_mut(&edge.to).unwrap() -= 1;
+                                    if let Some(deg) = degree.get_mut(&edge.to) {
+                                        *deg = deg.saturating_sub(1);
+                                    }
                                 }
                             }
                         }
@@ -659,7 +662,9 @@ impl GraphStore {
                         for &eid in eids {
                             if let Some(edge) = edges.get(&eid) {
                                 if remaining.contains(&edge.from) {
-                                    *degree.get_mut(&edge.from).unwrap() -= 1;
+                                    if let Some(deg) = degree.get_mut(&edge.from) {
+                                        *deg = deg.saturating_sub(1);
+                                    }
                                 }
                             }
                         }
@@ -685,9 +690,9 @@ impl GraphStore {
 
     /// Count triangles in the graph.
     pub fn triangle_count(&self) -> TriangleResult {
-        let nodes = self.nodes.read().unwrap();
-        let outgoing = self.outgoing.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let _outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         // Build adjacency set (undirected).
         let mut adj: HashMap<NodeId, HashSet<NodeId>> = HashMap::new();
@@ -732,9 +737,9 @@ impl GraphStore {
 
     /// Get undirected neighbors of a node.
     fn neighbors_undirected(&self, node: NodeId) -> HashSet<NodeId> {
-        let outgoing = self.outgoing.read().unwrap();
-        let incoming = self.incoming.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         let mut neighbors = HashSet::new();
         if let Some(eids) = outgoing.get(&node) {
@@ -806,8 +811,8 @@ impl GraphStore {
     /// Perform a random walk starting from `start` for `length` steps.
     /// Uses a simple LCG PRNG seeded with `seed`.
     pub fn random_walk(&self, start: NodeId, length: usize, seed: u64) -> Vec<NodeId> {
-        let outgoing = self.outgoing.read().unwrap();
-        let edges = self.edges.read().unwrap();
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
 
         let mut walk = vec![start];
         let mut current = start;
@@ -844,7 +849,7 @@ impl GraphStore {
         walk_length: usize,
         seed: u64,
     ) -> Vec<Vec<NodeId>> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         let node_ids: Vec<NodeId> = nodes.keys().copied().collect();
         drop(nodes);
 

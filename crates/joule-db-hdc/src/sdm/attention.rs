@@ -75,7 +75,7 @@ impl AttentionSDM {
     /// Returns a float vector (weighted sum, not thresholded).
     pub fn attention_read(&self, query: &SDMAddress) -> Vec<f64> {
         let locations = self.sdm.locations_ref();
-        let locations = locations.read().unwrap();
+        let locations = locations.read().unwrap_or_else(|e| e.into_inner());
 
         let dimension = self.sdm.dimension();
         let data_size = self.sdm.data_size();

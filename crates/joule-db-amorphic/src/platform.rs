@@ -332,7 +332,11 @@ where
             .collect();
 
         for handle in handles {
-            results.extend(handle.join().unwrap());
+            results.extend(
+                handle
+                    .join()
+                    .unwrap_or_else(|e| std::panic::resume_unwind(e)),
+            );
         }
     });
 
@@ -378,7 +382,7 @@ where
         let final_identity = identity.clone();
         handles
             .into_iter()
-            .map(|h| h.join().unwrap())
+            .map(|h| h.join().unwrap_or_else(|e| std::panic::resume_unwind(e)))
             .fold(final_identity, |a, b| combine_fn(a, b))
     })
 }

@@ -209,7 +209,7 @@ impl JouleDB {
             #[cfg(target_arch = "wasm32")]
             {
                 if let Some(ref async_engine) = self.async_engine {
-                    let engine = async_engine.read().unwrap();
+                    let engine = async_engine.read().unwrap_or_else(|e| e.into_inner());
                     match engine.get(key.as_bytes()).await {
                         Ok(Some(value)) => match String::from_utf8(value) {
                             Ok(s) => Ok(JsValue::from_str(&s)),
@@ -240,7 +240,7 @@ impl JouleDB {
             #[cfg(target_arch = "wasm32")]
             {
                 if let Some(ref async_engine) = self.async_engine {
-                    let engine = async_engine.read().unwrap();
+                    let engine = async_engine.read().unwrap_or_else(|e| e.into_inner());
                     let fut = engine.put(key.as_bytes(), value.as_bytes());
                     fut.await.map_err(|e| JsValue::from_str(&e.to_string()))
                 } else {
@@ -265,7 +265,7 @@ impl JouleDB {
             #[cfg(target_arch = "wasm32")]
             {
                 if let Some(ref async_engine) = self.async_engine {
-                    let engine = async_engine.read().unwrap();
+                    let engine = async_engine.read().unwrap_or_else(|e| e.into_inner());
                     let fut = engine.delete(key.as_bytes());
                     fut.await
                         .map(|_| ()) // Ignore boolean result
@@ -333,7 +333,7 @@ pub struct RangeIterator {
 impl RangeIterator {
     /// Get next entry
     pub async fn next(&mut self) -> Result<Option<RangeEntry>, JsValue> {
-        let mut iter = self.inner.write().unwrap();
+        let mut iter = self.inner.write().unwrap_or_else(|e| e.into_inner());
         match iter.next().await {
             Ok(Some(entry)) => Ok(Some(RangeEntry {
                 key: entry.key,
@@ -346,7 +346,7 @@ impl RangeIterator {
 
     /// Collect all remaining entries
     pub async fn collect_all(&mut self) -> Result<js_sys::Array, JsValue> {
-        let mut iter = self.inner.write().unwrap();
+        let mut iter = self.inner.write().unwrap_or_else(|e| e.into_inner());
         let entries = iter
             .collect_all()
             .await
@@ -469,7 +469,7 @@ impl EnhancedJouleDB {
 
     /// Begin a transaction
     pub async fn begin(&self) -> Result<u64, JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         engine
             .begin()
             .await
@@ -478,7 +478,7 @@ impl EnhancedJouleDB {
 
     /// Begin transaction with isolation level
     pub async fn begin_with_isolation(&self, isolation: IsolationLevel) -> Result<u64, JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         let core_isolation: CoreIsolationLevel = isolation.into();
         engine
             .begin_with_isolation(core_isolation)
@@ -488,7 +488,7 @@ impl EnhancedJouleDB {
 
     /// Commit transaction
     pub async fn commit(&self, tx_id: u64) -> Result<(), JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         engine
             .commit(tx_id)
             .await
@@ -497,7 +497,7 @@ impl EnhancedJouleDB {
 
     /// Rollback transaction
     pub async fn rollback(&self, tx_id: u64) -> Result<(), JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         engine
             .rollback(tx_id)
             .await
@@ -514,7 +514,7 @@ impl EnhancedJouleDB {
         direction: ScanDir,
         tx_id: Option<u64>,
     ) -> Result<RangeIterator, JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
 
         let start = match start_bound {
             RangeBound::Included => {
@@ -584,7 +584,7 @@ impl EnhancedJouleDB {
         let mut prefix_vec = vec![0u8; prefix.length() as usize];
         prefix.copy_to(&mut prefix_vec);
 
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         let iter = engine
             .prefix_scan(&prefix_vec, tx_id)
             .await
@@ -598,7 +598,7 @@ impl EnhancedJouleDB {
     /// Execute SQL query
     #[wasm_bindgen]
     pub async fn execute_sql(&self, sql: &str, tx_id: Option<u64>) -> Result<QueryResult, JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         let result = engine
             .execute_sql(sql, tx_id)
             .await
@@ -636,7 +636,7 @@ impl EnhancedJouleDB {
     /// Create index
     #[wasm_bindgen]
     pub async fn create_index(&self, name: &str, unique: bool) -> Result<(), JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         engine
             .create_index(name, unique)
             .await
@@ -646,7 +646,7 @@ impl EnhancedJouleDB {
     /// Drop index
     #[wasm_bindgen]
     pub async fn drop_index(&self, name: &str) -> Result<(), JsValue> {
-        let engine = self.engine.read().unwrap();
+        let engine = self.engine.read().unwrap_or_else(|e| e.into_inner());
         engine
             .drop_index(name)
             .await

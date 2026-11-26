@@ -2165,8 +2165,8 @@ impl HybridHolographic {
             return;
         }
 
-        self.ensure_codebook();
-        let codebook = self.codebook.as_ref().unwrap();
+        let dim = self.dimension;
+        let codebook = self.codebook.get_or_insert_with(|| ByteCodebook::new(dim));
 
         let mut vectors = std::collections::HashMap::with_capacity(self.keys.len());
         for (&hash, key) in &self.keys {
@@ -2194,10 +2194,9 @@ impl HybridHolographic {
 
         // Build vectors if needed
         self.ensure_vectors();
-        self.ensure_codebook();
-
-        let codebook = self.codebook.as_ref().unwrap();
-        let key_vectors = self.key_vectors.as_ref().unwrap();
+        let dim = self.dimension;
+        let codebook = self.codebook.get_or_insert_with(|| ByteCodebook::new(dim));
+        let key_vectors = self.key_vectors.as_ref()?;
         let query_hv = codebook.encode(key);
 
         // Find best match
@@ -2230,10 +2229,11 @@ impl HybridHolographic {
         }
 
         self.ensure_vectors();
-        self.ensure_codebook();
-
-        let codebook = self.codebook.as_ref().unwrap();
-        let key_vectors = self.key_vectors.as_ref().unwrap();
+        let dim = self.dimension;
+        let codebook = self.codebook.get_or_insert_with(|| ByteCodebook::new(dim));
+        let Some(key_vectors) = self.key_vectors.as_ref() else {
+            return Vec::new();
+        };
         let query_hv = codebook.encode(key);
 
         let mut scored: Vec<(u64, f32)> = key_vectors
@@ -2403,8 +2403,8 @@ impl UltraHolographicV2 {
             return;
         }
 
-        self.ensure_codebook();
-        let codebook = self.codebook.as_ref().unwrap();
+        let dim = self.dimension;
+        let codebook = self.codebook.get_or_insert_with(|| ByteCodebook::new(dim));
 
         let mut vectors = hashbrown::HashMap::with_capacity(self.keys.len());
         for (&hash, key) in &self.keys {
@@ -2437,10 +2437,9 @@ impl UltraHolographicV2 {
 
         // Build vectors if needed
         self.ensure_vectors();
-        self.ensure_codebook();
-
-        let codebook = self.codebook.as_ref().unwrap();
-        let key_vectors = self.key_vectors.as_ref().unwrap();
+        let dim = self.dimension;
+        let codebook = self.codebook.get_or_insert_with(|| ByteCodebook::new(dim));
+        let key_vectors = self.key_vectors.as_ref()?;
         let query_hv = codebook.encode(key);
 
         // Find best match using SIMD-optimized similarity
@@ -2479,10 +2478,11 @@ impl UltraHolographicV2 {
         }
 
         self.ensure_vectors();
-        self.ensure_codebook();
-
-        let codebook = self.codebook.as_ref().unwrap();
-        let key_vectors = self.key_vectors.as_ref().unwrap();
+        let dim = self.dimension;
+        let codebook = self.codebook.get_or_insert_with(|| ByteCodebook::new(dim));
+        let Some(key_vectors) = self.key_vectors.as_ref() else {
+            return Vec::new();
+        };
         let query_hv = codebook.encode(key);
 
         // SIMD-optimized similarity scoring

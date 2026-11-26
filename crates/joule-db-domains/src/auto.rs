@@ -437,7 +437,10 @@ impl HolographicMap {
             for (id, (_, map_hv)) in &self.landmarks {
                 let sim = obs_hv.similarity(map_hv);
                 if sim > 0.6 {
-                    if best.is_none() || sim > best.as_ref().unwrap().1 {
+                    if match &best {
+                        None => true,
+                        Some((_, best_sim)) => sim > *best_sim,
+                    } {
                         best = Some((id.clone(), sim));
                     }
                 }

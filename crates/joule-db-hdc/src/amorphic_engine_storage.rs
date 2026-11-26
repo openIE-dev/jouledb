@@ -878,10 +878,12 @@ impl AmorphicStorageEngine {
     }
 
     /// Create with minimal configuration for testing
-    pub fn minimal() -> Self {
+    pub fn minimal() -> AmorphicEngineResult<Self> {
         let backend = MemoryBackend::new();
-        let engine = Arc::new(Engine::new(backend).unwrap());
-        Self::new(engine, AmorphicStorageConfig::minimal())
+        let engine = Arc::new(
+            Engine::new(backend).map_err(|e| AmorphicEngineError::Other(e.to_string()))?,
+        );
+        Ok(Self::new(engine, AmorphicStorageConfig::minimal()))
     }
 
     // ========================================================================
@@ -1843,14 +1845,14 @@ mod tests {
 
     #[test]
     fn test_engine_creation() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
         assert!(engine.is_empty());
         assert_eq!(engine.len(), 0);
     }
 
     #[test]
     fn test_basic_put_get() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         engine.put("key2", b"value2").unwrap();
@@ -1862,7 +1864,7 @@ mod tests {
 
     #[test]
     fn test_delete() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         assert!(engine.contains("key1"));
@@ -1874,7 +1876,7 @@ mod tests {
 
     #[test]
     fn test_keys() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         engine.put("key2", b"value2").unwrap();
@@ -1889,7 +1891,7 @@ mod tests {
 
     #[test]
     fn test_hybrid_query() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
 
         engine.put("hello_world", b"Hello, World!").unwrap();
         engine.put("hello_rust", b"Hello, Rust!").unwrap();
@@ -1902,7 +1904,7 @@ mod tests {
 
     #[test]
     fn test_content_lookup() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
 
         engine.put("test", b"test data").unwrap();
 
@@ -1913,7 +1915,7 @@ mod tests {
 
     #[test]
     fn test_persist_all() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         engine.put("key2", b"value2").unwrap();
@@ -1949,7 +1951,7 @@ mod tests {
 
     #[test]
     fn test_stats() {
-        let engine = AmorphicStorageEngine::minimal();
+        let engine = AmorphicStorageEngine::minimal().unwrap();
 
         engine.put("key1", b"value1").unwrap();
         let _ = engine.get("key1");

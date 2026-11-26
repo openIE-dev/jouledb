@@ -81,8 +81,8 @@ impl QueryPredictor {
         let query_hash = Self::hash_query(query);
 
         // Update transition matrix
-        if let Some(prev) = *self.last_query.read().unwrap() {
-            let mut transitions = self.transitions.write().unwrap();
+        if let Some(prev) = *self.last_query.read().unwrap_or_else(|e| e.into_inner()) {
+            let mut transitions = self.transitions.write().unwrap_or_else(|e| e.into_inner());
             *transitions
                 .entry(prev)
                 .or_default()
@@ -91,10 +91,13 @@ impl QueryPredictor {
         }
 
         // Update last query
-        *self.last_query.write().unwrap() = Some(query_hash);
+        *self.last_query.write().unwrap_or_else(|e| e.into_inner()) = Some(query_hash);
 
         // Update history
-        let mut history = self.query_history.write().unwrap();
+        let mut history = self
+            .query_history
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         history.push(query_hash);
         if history.len() > self.history_size {
             history.remove(0);
@@ -103,8 +106,8 @@ impl QueryPredictor {
 
     /// Predict next likely queries
     pub fn predict_next(&self, top_k: usize) -> Vec<Prediction> {
-        if let Some(current) = *self.last_query.read().unwrap() {
-            let transitions = self.transitions.read().unwrap();
+        if let Some(current) = *self.last_query.read().unwrap_or_else(|e| e.into_inner()) {
+            let transitions = self.transitions.read().unwrap_or_else(|e| e.into_inner());
             if let Some(nexts) = transitions.get(&current) {
                 let total: u32 = nexts.values().sum();
                 let mut predictions: Vec<_> = nexts
@@ -134,7 +137,10 @@ impl QueryPredictor {
     /// Cache a query result
     pub fn cache_result(&self, query: &str, result: &[u8]) {
         let query_hash = Self::hash_query(query);
-        let mut cache = self.prediction_cache.write().unwrap();
+        let mut cache = self
+            .prediction_cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
 
         // Evict if cache full (simple FIFO)
         if cache.len() >= self.cache_size {
@@ -149,14 +155,17 @@ impl QueryPredictor {
     /// Get cached result
     pub fn get_cached(&self, query: &str) -> Option<Vec<u8>> {
         let query_hash = Self::hash_query(query);
-        let cache = self.prediction_cache.read().unwrap();
+        let cache = self
+            .prediction_cache
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         let result = cache.get(&query_hash).cloned();
 
         // Update hit/miss stats
         if result.is_some() {
-            *self.cache_hits.write().unwrap() += 1;
+            *self.cache_hits.write().unwrap_or_else(|e| e.into_inner()) += 1;
         } else {
-            *self.cache_misses.write().unwrap() += 1;
+            *self.cache_misses.write().unwrap_or_else(|e| e.into_inner()) += 1;
         }
 
         result
@@ -167,14 +176,14 @@ impl QueryPredictor {
         let query_hash = Self::hash_query(query);
         self.prediction_cache
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .contains_key(&query_hash)
     }
 
     /// Get cache hit rate
     pub fn cache_hit_rate(&self) -> f64 {
-        let hits = *self.cache_hits.read().unwrap();
-        let misses = *self.cache_misses.read().unwrap();
+        let hits = *self.cache_hits.read().unwrap_or_else(|e| e.into_inner());
+        let misses = *self.cache_misses.read().unwrap_or_else(|e| e.into_inner());
         let total = hits + misses;
         if total == 0 {
             0.0
@@ -186,7 +195,10 @@ impl QueryPredictor {
     /// Get prefetch candidates (predicted but not cached)
     pub fn get_prefetch_candidates(&self, max_candidates: usize) -> Vec<u64> {
         let predictions = self.predict_next_hashes(max_candidates * 2);
-        let cache = self.prediction_cache.read().unwrap();
+        let cache = self
+            .prediction_cache
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
 
         predictions
             .into_iter()
@@ -197,23 +209,38 @@ impl QueryPredictor {
 
     /// Clear prediction cache
     pub fn clear_cache(&self) {
-        self.prediction_cache.write().unwrap().clear();
-        *self.cache_hits.write().unwrap() = 0;
-        *self.cache_misses.write().unwrap() = 0;
+        self.prediction_cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        *self.cache_hits.write().unwrap_or_else(|e| e.into_inner()) = 0;
+        *self.cache_misses.write().unwrap_or_else(|e| e.into_inner()) = 0;
     }
 
     /// Clear learned patterns
     pub fn clear_patterns(&self) {
-        self.transitions.write().unwrap().clear();
-        *self.last_query.write().unwrap() = None;
-        self.query_history.write().unwrap().clear();
+        self.transitions
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        *self.last_query.write().unwrap_or_else(|e| e.into_inner()) = None;
+        self.query_history
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     /// Get statistics
     pub fn stats(&self) -> PredictorStats {
-        let transitions = self.transitions.read().unwrap();
-        let cache = self.prediction_cache.read().unwrap();
-        let history = self.query_history.read().unwrap();
+        let transitions = self.transitions.read().unwrap_or_else(|e| e.into_inner());
+        let cache = self
+            .prediction_cache
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
+        let history = self
+            .query_history
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
 
         let total_transitions: usize = transitions.values().map(|m| m.len()).sum();
 
@@ -249,7 +276,7 @@ impl NGramPredictor {
         query.hash(&mut hasher);
         let query_hash = hasher.finish();
 
-        let mut history = self.history.write().unwrap();
+        let mut history = self.history.write().unwrap_or_else(|e| e.into_inner());
 
         // Learn from current context
         if history.len() >= self.n - 1 {
@@ -261,7 +288,7 @@ impl NGramPredictor {
                 .cloned()
                 .collect();
 
-            let mut ngrams = self.ngrams.write().unwrap();
+            let mut ngrams = self.ngrams.write().unwrap_or_else(|e| e.into_inner());
             *ngrams
                 .entry(context)
                 .or_default()
@@ -278,8 +305,8 @@ impl NGramPredictor {
 
     /// Predict next queries based on N-gram context
     pub fn predict(&self, top_k: usize) -> Vec<Prediction> {
-        let history = self.history.read().unwrap();
-        let ngrams = self.ngrams.read().unwrap();
+        let history = self.history.read().unwrap_or_else(|e| e.into_inner());
+        let ngrams = self.ngrams.read().unwrap_or_else(|e| e.into_inner());
 
         if history.len() >= self.n - 1 {
             let context: Vec<u64> = history
@@ -316,8 +343,14 @@ impl NGramPredictor {
 
     /// Clear learned patterns
     pub fn clear(&self) {
-        self.ngrams.write().unwrap().clear();
-        self.history.write().unwrap().clear();
+        self.ngrams
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        self.history
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 }
 

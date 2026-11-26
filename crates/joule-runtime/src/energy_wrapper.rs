@@ -138,12 +138,19 @@ impl EnergySidecar {
 }
 
 async fn energy_handler(State(state): State<SidecarState>) -> impl IntoResponse {
-    let snap = state.snapshot.read().unwrap().clone();
+    let snap = state
+        .snapshot
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
 
     // Accumulate accelerator energy if manager is present
     if let Some(ref mgr) = state.accelerator_manager {
         let now = Instant::now();
-        let mut last = state.last_accumulate.write().unwrap();
+        let mut last = state
+            .last_accumulate
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(prev) = *last {
             let elapsed = now.duration_since(prev).as_secs_f64();
             mgr.accumulate_energy(
@@ -184,7 +191,11 @@ async fn energy_handler(State(state): State<SidecarState>) -> impl IntoResponse 
 async fn devices_handler(State(state): State<SidecarState>) -> impl IntoResponse {
     match &state.accelerator_manager {
         Some(mgr) => {
-            let snap = state.snapshot.read().unwrap().clone();
+            let snap = state
+                .snapshot
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
             let devices = mgr.energy_snapshots(
                 snap.gpu_utilization,
                 snap.npu_utilization,
@@ -206,7 +217,11 @@ async fn devices_handler(State(state): State<SidecarState>) -> impl IntoResponse
 }
 
 async fn metrics_handler(State(state): State<SidecarState>) -> impl IntoResponse {
-    let snap = state.snapshot.read().unwrap().clone();
+    let snap = state
+        .snapshot
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let platform = detect_platform();
     let engine = &state.engine_name;
 

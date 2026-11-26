@@ -114,7 +114,7 @@ impl SecretStore {
             .expect("system clock before UNIX epoch")
             .as_secs();
 
-        let mut secrets = self.secrets.write().unwrap();
+        let mut secrets = self.secrets.write().unwrap_or_else(|e| e.into_inner());
         let entries = secrets.entry(name.to_string()).or_default();
 
         let version = entries.last().map_or(1, |e| e.version + 1);
@@ -133,7 +133,7 @@ impl SecretStore {
 
     /// Retrieve the latest version of a secret, decrypted.
     pub fn get(&self, name: &str) -> Result<Vec<u8>, SecretError> {
-        let secrets = self.secrets.read().unwrap();
+        let secrets = self.secrets.read().unwrap_or_else(|e| e.into_inner());
         let entries = secrets
             .get(name)
             .ok_or_else(|| SecretError::NotFound(name.to_string()))?;
@@ -148,7 +148,7 @@ impl SecretStore {
 
     /// Retrieve a specific version of a secret, decrypted.
     pub fn get_version(&self, name: &str, version: u32) -> Result<Vec<u8>, SecretError> {
-        let secrets = self.secrets.read().unwrap();
+        let secrets = self.secrets.read().unwrap_or_else(|e| e.into_inner());
         let entries = secrets
             .get(name)
             .ok_or_else(|| SecretError::NotFound(name.to_string()))?;
@@ -167,7 +167,7 @@ impl SecretStore {
 
     /// List the names of all secrets in the store.
     pub fn list(&self) -> Vec<String> {
-        let secrets = self.secrets.read().unwrap();
+        let secrets = self.secrets.read().unwrap_or_else(|e| e.into_inner());
         let mut names: Vec<String> = secrets.keys().cloned().collect();
         names.sort();
         names
@@ -175,7 +175,7 @@ impl SecretStore {
 
     /// Return version metadata for all versions of a secret.
     pub fn versions(&self, name: &str) -> Result<Vec<SecretVersionInfo>, SecretError> {
-        let secrets = self.secrets.read().unwrap();
+        let secrets = self.secrets.read().unwrap_or_else(|e| e.into_inner());
         let entries = secrets
             .get(name)
             .ok_or_else(|| SecretError::NotFound(name.to_string()))?;
@@ -192,7 +192,7 @@ impl SecretStore {
 
     /// Delete all versions of a secret.
     pub fn delete(&self, name: &str) -> Result<(), SecretError> {
-        let mut secrets = self.secrets.write().unwrap();
+        let mut secrets = self.secrets.write().unwrap_or_else(|e| e.into_inner());
         secrets
             .remove(name)
             .ok_or_else(|| SecretError::NotFound(name.to_string()))?;
@@ -205,7 +205,7 @@ impl SecretStore {
         let old_cipher = Aes256Gcm::new(&self.master_key);
         let new_cipher = Aes256Gcm::new(&new_key);
 
-        let mut secrets = self.secrets.write().unwrap();
+        let mut secrets = self.secrets.write().unwrap_or_else(|e| e.into_inner());
         for entries in secrets.values_mut() {
             for entry in entries.iter_mut() {
                 let plaintext = old_cipher.decrypt(&entry.encrypted_value, b"")?;
@@ -226,7 +226,7 @@ impl SecretStore {
             .expect("system clock before UNIX epoch")
             .as_secs();
 
-        let secrets = self.secrets.read().unwrap();
+        let secrets = self.secrets.read().unwrap_or_else(|e| e.into_inner());
         let mut needs_rotation = Vec::new();
 
         for (name, entries) in secrets.iter() {
@@ -245,7 +245,7 @@ impl SecretStore {
     /// Remove old versions exceeding `max_versions`, keeping the most recent ones.
     pub fn prune_old_versions(&self) -> usize {
         let max = self.rotation_policy.max_versions as usize;
-        let mut secrets = self.secrets.write().unwrap();
+        let mut secrets = self.secrets.write().unwrap_or_else(|e| e.into_inner());
         let mut pruned = 0;
 
         for entries in secrets.values_mut() {

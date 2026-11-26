@@ -83,13 +83,13 @@ impl PendingOperations {
 
     /// Current shutdown phase.
     pub fn phase(&self) -> ShutdownPhase {
-        *self.phase.read().unwrap()
+        *self.phase.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Stop accepting new operations (begin drain).
     pub fn start_drain(&self) {
         self.accepting.store(false, Ordering::Release);
-        *self.phase.write().unwrap() = ShutdownPhase::Draining;
+        *self.phase.write().unwrap_or_else(|e| e.into_inner()) = ShutdownPhase::Draining;
     }
 
     /// Check if all in-flight operations are complete.
@@ -189,7 +189,7 @@ impl ShutdownCoordinator {
         }
 
         // Phase 2: Finalize — run callbacks (energy receipt, cleanup)
-        *pending.phase.write().unwrap() = ShutdownPhase::Finalizing;
+        *pending.phase.write().unwrap_or_else(|e| e.into_inner()) = ShutdownPhase::Finalizing;
         log::info!("Graceful shutdown: finalizing");
 
         for callback in finalize_callbacks {
@@ -201,7 +201,7 @@ impl ShutdownCoordinator {
             terminate_process(pid, &config);
         }
 
-        *pending.phase.write().unwrap() = ShutdownPhase::Terminated;
+        *pending.phase.write().unwrap_or_else(|e| e.into_inner()) = ShutdownPhase::Terminated;
 
         ShutdownResult {
             total_duration: start.elapsed(),

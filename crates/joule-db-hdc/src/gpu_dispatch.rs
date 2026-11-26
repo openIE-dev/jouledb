@@ -153,7 +153,7 @@ impl GpuDispatcher {
 
     /// Check whether the backend is a real GPU (not CPU fallback).
     pub fn is_gpu_available(&self) -> bool {
-        let backend = self.backend.lock().unwrap();
+        let backend = self.backend.lock().unwrap_or_else(|e| e.into_inner());
         matches!(
             backend.capabilities().device_type,
             DeviceType::Gpu | DeviceType::Metal | DeviceType::Cuda | DeviceType::Vulkan
@@ -524,7 +524,7 @@ impl GpuDispatcher {
         };
 
         // Destroy previous codebook if any
-        let mut codebook_guard = self.codebook.lock().unwrap();
+        let mut codebook_guard = self.codebook.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(prev) = codebook_guard.take() {
             let _ = backend.destroy_buffer(prev.buffer_handle);
         }
@@ -554,7 +554,10 @@ impl GpuDispatcher {
 
     /// Check whether a persistent codebook is uploaded.
     pub fn has_codebook(&self) -> bool {
-        self.codebook.lock().unwrap().is_some()
+        self.codebook
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
     }
 
     /// Batch decode: compute similarity of M query vectors against the persistent
@@ -576,7 +579,7 @@ impl GpuDispatcher {
         unshifted_queries: &[u64],
         num_positions: usize,
     ) -> Result<Vec<(u8, f32)>, StorageError> {
-        let codebook_guard = self.codebook.lock().unwrap();
+        let codebook_guard = self.codebook.lock().unwrap_or_else(|e| e.into_inner());
         let codebook = codebook_guard
             .as_ref()
             .ok_or_else(|| StorageError::Backend("No persistent codebook uploaded".to_string()))?;
@@ -597,7 +600,7 @@ impl GpuDispatcher {
         let queries_bytes = bytemuck::cast_slice::<u64, u8>(unshifted_queries);
         let required_bytes = queries_bytes.len() as u64;
 
-        let mut ws_guard = self.workspace.lock().unwrap();
+        let mut ws_guard = self.workspace.lock().unwrap_or_else(|e| e.into_inner());
         let queries_buf = if let Some(ref ws) = *ws_guard {
             if ws.query_capacity_bytes >= required_bytes {
                 // Reuse existing buffer

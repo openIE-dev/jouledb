@@ -49,7 +49,7 @@ impl GpuBTreeRangeScan {
         end: Bound<&[u8]>,
         _direction: ScanDirection,
     ) -> Result<Vec<IndexEntry>, StorageError> {
-        if self.use_cpu_fallback || self.gpu_backend.is_none() {
+        if self.use_cpu_fallback {
             // CPU fallback - perform range scan on CPU
             // This is a simplified implementation - in production would use proper B-tree traversal
             return Err(StorageError::Backend(
@@ -57,8 +57,12 @@ impl GpuBTreeRangeScan {
             ));
         }
 
-        let backend = self.gpu_backend.as_ref().unwrap();
-        let mut backend_guard = backend.write().unwrap();
+        let Some(backend) = self.gpu_backend.as_ref() else {
+            return Err(StorageError::Backend(
+                "CPU fallback: Use EnhancedAsyncEngine::range_cpu instead".to_string(),
+            ));
+        };
+        let mut backend_guard = backend.write().unwrap_or_else(|e| e.into_inner());
 
         // Serialize bounds
         let (start_key, start_len, include_start, unbounded_start) = match start {

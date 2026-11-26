@@ -95,7 +95,10 @@ impl Aes256Gcm {
         }
 
         let (nonce_bytes, ct_and_tag) = ciphertext.split_at(NONCE_LEN);
-        let nonce = Nonce::assume_unique_for_key(nonce_bytes.try_into().unwrap());
+        let nonce_arr: [u8; NONCE_LEN] = nonce_bytes
+            .try_into()
+            .map_err(|_| EncryptionError::CiphertextTooShort)?;
+        let nonce = Nonce::assume_unique_for_key(nonce_arr);
 
         let mut buf = ct_and_tag.to_vec();
         let plaintext = self

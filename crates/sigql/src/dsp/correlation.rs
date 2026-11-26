@@ -104,8 +104,8 @@ pub fn find_max_correlation_lag(
     let (max_idx, max_val) = corr
         .iter()
         .enumerate()
-        .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-        .unwrap();
+        .max_by(|a, b| a.1.total_cmp(b.1))
+        .ok_or(DspError::SignalTooShort { needed: 1, got: 0 })?;
 
     // Convert index to lag
     let lag = max_idx as isize - max_lag_samples as isize;
@@ -303,7 +303,7 @@ fn compute_ranks(signal: &[f64]) -> Vec<f64> {
 
     // Create sorted indices
     let mut indices: Vec<usize> = (0..n).collect();
-    indices.sort_by(|&a, &b| signal[a].partial_cmp(&signal[b]).unwrap());
+    indices.sort_by(|&a, &b| signal[a].total_cmp(&signal[b]));
 
     // Assign ranks (1-based, average for ties)
     let mut ranks = vec![0.0; n];

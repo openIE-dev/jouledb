@@ -170,7 +170,7 @@ impl RuntimeBackend for NativeBackend {
         );
 
         let health_cmd = Self::build_health_cmd(&spec, port);
-        let mut processes = self.processes.write().unwrap();
+        let mut processes = self.processes.write().unwrap_or_else(|e| e.into_inner());
         processes.insert(
             instance.id.0.clone(),
             ProcessInfo {
@@ -186,7 +186,7 @@ impl RuntimeBackend for NativeBackend {
 
     async fn stop(&self, instance_id: &str) -> Result<(), RuntimeError> {
         let proc_info = {
-            let mut processes = self.processes.write().unwrap();
+            let mut processes = self.processes.write().unwrap_or_else(|e| e.into_inner());
             processes
                 .remove(instance_id)
                 .ok_or_else(|| RuntimeError::InstanceNotFound(instance_id.into()))?
@@ -231,7 +231,7 @@ impl RuntimeBackend for NativeBackend {
     }
 
     async fn status(&self, instance_id: &str) -> Result<InstanceState, RuntimeError> {
-        let processes = self.processes.read().unwrap();
+        let processes = self.processes.read().unwrap_or_else(|e| e.into_inner());
         match processes.get(instance_id) {
             Some(info) => {
                 if is_process_running(info.pid) {
@@ -245,7 +245,7 @@ impl RuntimeBackend for NativeBackend {
     }
 
     async fn health_check(&self, instance_id: &str) -> Result<bool, RuntimeError> {
-        let processes = self.processes.read().unwrap();
+        let processes = self.processes.read().unwrap_or_else(|e| e.into_inner());
         match processes.get(instance_id) {
             Some(info) => {
                 // First check: is the process alive?

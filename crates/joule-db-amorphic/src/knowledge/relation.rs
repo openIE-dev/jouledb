@@ -220,8 +220,8 @@ impl RelationCodebook {
         self.vectors
             .iter()
             .map(|(rel, v)| (*rel, v.similarity(vector)))
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-            .unwrap()
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .unwrap_or((RelationType::Other, 0.0))
     }
 }
 

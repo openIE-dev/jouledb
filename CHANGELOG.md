@@ -9,6 +9,27 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-26
+
+### Added
+- **Vectorized Out-of-Core Columnar Multi-Table Join & Subquery Engine (`crates/joule-db-server/src/columnar_join.rs`) — `22 / 22` Official `TPC-H` Exact at `SF = 0.1`, `SF = 1.0`, AND `SF = 10.0` (`86.6M` Rows)**:
+  - Added `columnar_join.rs` (`#![deny(clippy::unwrap_used)]`, `5,493` LOC) streaming `262,144`-row `.jcol` `DiskColumnTable` segments directly against compact post-order Snowflake dimension hash branches (`CompactCol`, `DenseUnique1`, `HashUnique1`, `HashMulti1`, `Hash2`, `O(1)` `DictBitset` text/date filters, `FROM (SELECT ...)` derived-table flattening, `WITH` CTEs, parallel `LEFT OUTER JOIN` grouped count for `Q13`, `DenseKeyBits` `IN`/`EXISTS`/`NOT EXISTS` + `NeqSummary` for `Q21`, outer-domain-pushed correlated scalar `MIN`/`MAX`/`SUM`/`AVG` for `Q02, Q17, Q20`, `OR`-branch per-table bounding filters for `Q07, Q19`, and `PostAggExpr` ratio/arithmetic projections).
+  - Verified **`22 / 22` (`100%`, `0` errors) Official `TPC-H` (`tpch_queries()`) exact across three scale factors** (`bench/results/tpch_official_{sf01,sf1,sf10}.json`, Linux `rapl-package` `reported_j`):
+    - **`SF = 0.1` (`866,602` rows):** `318.0 ms` total (`155.9×` faster than `v0.10.0`'s `49.59 s`), narrowing geomean vs DuckDB `2.0.1` from **`125.50× -> 2.224×`** (`median 1.920×`) and **beating DuckDB `2.0.1` on `3 / 22` queries** (`Q22: 1.31 ms` vs `4.27 ms` [`0.31×`], `Q11: 2.46 ms` vs `4.40 ms` [`0.56×`], `Q20: 3.54 ms` vs `5.66 ms` [`0.63×`]).
+    - **`SF = 1.0` (`8,661,245` rows, `6.0M` `lineitem`):** Upgraded from `13 / 22` (`8` `25 s` timeouts + `1` `36 GB` RSS abort, `112.75×` geomean) to **`22 / 22` exact in `2,787.1 ms` total (`6.180×` geomean, `median 6.386×`, `6,303.2 MB` peak `VmHWM`)**, **beating DuckDB `2.0.1` on `Q22` (`12.59 ms` vs `17.12 ms`, `0.74×`)** (`Q06: 9.80 ms`, `Q11: 14.99 ms`, `Q17: 15.00 ms`, `Q14: 16.81 ms`, `Q05: 61.83 ms`).
+    - **`SF = 10.0` (`86,586,082` rows, `59,986,052` `lineitem` out-of-core `.jcol`):** **`22 / 22` exact in `34,060.0 ms` total (`16.026×` geomean, `median 12.445×`, `18 / 22` queries `< 1.0 s`)**, candidly reporting DuckDB `2.0.1`'s `16.03×` advantage and widest tail queries (`Q10: 9.11 s`, `Q18: 11.33 s`).
+
+### Fixed
+- **64-Shard `MvccStore` + Deferred-Hologram Binary `JWB1` `pgwire` OLTP (`5,797.0 TPS` at `c=4`, `5,038.4 TPS` at `c=16`, `invariant_verified = true`)**:
+  - Replaced single global `RwLock` in `MvccStore` (`crates/joule-db-core/src/concurrency/mvcc.rs`) with 64 FNV-1a shards and `VersionChain::find_visible_at(read_ts)` (eliminating `get_active_txns()` Mutex lock + `HashSet` clone on every read/scan), sharded `MvccTableStorage` sessions across 64 buckets with `AtomicU64` session IDs (`mvcc_adapter.rs`), added `SchemaMetaCache` + `try_direct_indexed_eq_query` (`O(1)` point reads and `O(k)` register-accumulated indexed `COUNT`/`SUM` without `TableColumns` allocation), added `O(1)` `deferred_set`, lazy `BTreeSet` promotion on `ValueIds::remove_one`, `O(log n)` monotonic `Column::find_pos`, and binary `JWB1` `batch_ingest_fields` / `ingest_fields_deferred_sync` (eliminating `catch_up_holograms(usize::MAX)` + JSON round-trips on `INSERT` commits).
+  - Measured head-to-head on `100`-warehouse (`100,000`-account) TCP `pgwire` OLTP (`bench/results/oltp_pgwire_100wh.json`, `idle_watts = 10.96 W`): Simple Query reaches **`4,094.66 TPS` (`c=1`, `p50 0.134 ms`) -> `5,797.01 TPS` (`c=4`) -> `5,376.65 TPS` (`c=8`) -> `5,038.38 TPS` (`c=16`, `15.93 mJ/txn`, `48,473` writes)** and Extended Pipeline reaches **`4,020.27 -> 5,205.58 -> 5,186.25 -> 4,990.75 TPS`**, narrowing the `c=16` gap vs `PostgreSQL 16.16` (`14,676.40` Simple / `13,029.46` Pipelined) to **`2.91×` / `2.61×`**.
+- **Streaming `.jcol` Pending-Batch Spill Accounting & GNU/Linux Arena Trim (`disk_col_segments.rs`, `file_formats.rs`, `crud.rs`)**:
+  - Counted queued `pending_batches` rows per table in `insert_column_batch` so multi-chunk Parquet loads always transition cleanly to `.jcol` disk segments above `JOULEDB_COL_SPILL_ROWS`, and added `trim_unused_heap()` (`malloc_trim(0)` on GNU/Linux).
+
+### Changed
+- **Achieved `41 / 41` (`100%` of Workspace) `deny(clippy::unwrap_used)` Enforcement (`0` `#[allow(clippy::unwrap_used)]` Bypasses)**:
+  - Eliminated over 1,000 non-test `.unwrap()` sites across the final 12 workspace crates (`joule-db-amorphic`, `joule-db-features`, `joule-db-hdc`, `joule-db-browser` incl. `wasm32`, `joule-db-domains`, `joule-db-gpu`, `joule-runtime`, `sigql`, `inv-auth`, `inv-crypto`, `inv-energy`, `inv-telemetry`), promoted `.github/workflows/engine.yml` to a workspace-wide `cargo clippy --workspace --lib --bins --locked` blocking gate, wired `@openie/jouledb` npm tarball packaging/publishing in `.github/workflows/release.yml`, and bumped all manifests & release artifacts to `0.11.0`.
+
 ## [0.10.0] - 2026-11-26
 
 ### Added

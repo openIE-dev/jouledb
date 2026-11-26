@@ -250,8 +250,10 @@ where
             }
             b0 = b1;
         }
+        drop(chunk);
         g0 = g1;
     }
+    crate::disk_col_segments::trim_unused_heap();
     Ok(())
 }
 

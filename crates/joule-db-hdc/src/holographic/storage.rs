@@ -107,7 +107,10 @@ impl HolographicStorage {
 
         // Store reference
         {
-            let mut refs = self.reference_patterns.write().unwrap();
+            let mut refs = self
+                .reference_patterns
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             refs.insert(name.to_string(), reference.clone());
         }
 
@@ -286,9 +289,12 @@ impl HolographicStorage {
 
     /// Get storage statistics
     pub fn stats(&self) -> HolographicStats {
-        let patterns = self.patterns.read().unwrap();
-        let refs = self.reference_patterns.read().unwrap();
-        let cache = self.query_cache.read().unwrap();
+        let patterns = self.patterns.read().unwrap_or_else(|e| e.into_inner());
+        let refs = self
+            .reference_patterns
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
+        let cache = self.query_cache.read().unwrap_or_else(|e| e.into_inner());
 
         HolographicStats {
             num_patterns: patterns.len(),
@@ -300,7 +306,10 @@ impl HolographicStorage {
 
     /// Clear query cache
     pub fn clear_cache(&self) {
-        self.query_cache.write().unwrap().clear();
+        self.query_cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     /// Get dimension
@@ -310,13 +319,19 @@ impl HolographicStorage {
 
     /// Check if pattern exists
     pub fn contains(&self, name: &str) -> bool {
-        self.patterns.read().unwrap().contains_key(name)
+        self.patterns
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(name)
     }
 
     /// Remove a pattern
     pub fn remove(&self, name: &str) -> bool {
-        let mut patterns = self.patterns.write().unwrap();
-        let mut refs = self.reference_patterns.write().unwrap();
+        let mut patterns = self.patterns.write().unwrap_or_else(|e| e.into_inner());
+        let mut refs = self
+            .reference_patterns
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let p = patterns.remove(name).is_some();
         refs.remove(name);
         p
@@ -324,7 +339,12 @@ impl HolographicStorage {
 
     /// List all pattern names
     pub fn list_patterns(&self) -> Vec<String> {
-        self.patterns.read().unwrap().keys().cloned().collect()
+        self.patterns
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect()
     }
 }
 

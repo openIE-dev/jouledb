@@ -323,12 +323,13 @@ impl StreamingIngester {
 
             // Collect a batch
             let batch = {
-                let mut guard = state.lock().unwrap();
+                let mut guard = state.lock().unwrap_or_else(|e| e.into_inner());
 
                 // Wait for items or timeout
                 while guard.buffer.is_empty() && !guard.shutdown {
-                    let (new_guard, timeout) =
-                        capacity_cv.wait_timeout(guard, flush_interval).unwrap();
+                    let (new_guard, timeout) = capacity_cv
+                        .wait_timeout(guard, flush_interval)
+                        .unwrap_or_else(|e| e.into_inner());
                     guard = new_guard;
 
                     if timeout.timed_out() || guard.shutdown {
@@ -381,7 +382,7 @@ impl StreamingIngester {
             let mut failed = 0;
 
             {
-                let store_guard = store.read().unwrap();
+                let store_guard = store.read().unwrap_or_else(|e| e.into_inner());
 
                 for (item, responder) in batch {
                     let result = match &item {
@@ -483,7 +484,7 @@ impl StreamingIngester {
         let item_size = item.estimated_size();
 
         {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
 
             // Wait for capacity if backpressure is active
             while self.should_apply_backpressure(&state) {
@@ -498,7 +499,7 @@ impl StreamingIngester {
                 let (new_state, _) = self
                     .capacity_available
                     .wait_timeout(state, wait_time)
-                    .unwrap();
+                    .unwrap_or_else(|e| e.into_inner());
                 state = new_state;
             }
             self.metrics
@@ -530,7 +531,7 @@ impl StreamingIngester {
         let item_size = item.estimated_size();
 
         {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
 
             // Check if shutdown in progress
             if state.shutdown {
@@ -584,14 +585,14 @@ impl StreamingIngester {
     pub fn wait_for_capacity(&self) -> Duration {
         let start = Instant::now();
 
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
 
         while self.should_apply_backpressure(&state) && !state.shutdown {
             let wait_time = Duration::from_millis(self.calculate_wait_time(&state));
             let (new_state, _) = self
                 .capacity_available
                 .wait_timeout(state, wait_time)
-                .unwrap();
+                .unwrap_or_else(|e| e.into_inner());
             state = new_state;
         }
 
@@ -606,7 +607,7 @@ impl StreamingIngester {
 
         // Wait for buffer to empty
         loop {
-            let state = self.state.lock().unwrap();
+            let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
             if state.buffer.is_empty() {
                 break;
             }
@@ -660,7 +661,7 @@ impl StreamingIngester {
         self.shutdown_flag.store(true, Ordering::SeqCst);
 
         {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
             state.shutdown = true;
         }
 

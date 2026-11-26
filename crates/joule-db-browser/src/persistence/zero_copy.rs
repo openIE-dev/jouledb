@@ -98,7 +98,7 @@ impl ZeroCopyPageCache {
         }
 
         // Update page table
-        let mut table = self.page_table.write().unwrap();
+        let mut table = self.page_table.write().unwrap_or_else(|e| e.into_inner());
         table.insert(page_id, offset);
 
         Ok(offset)
@@ -119,14 +119,17 @@ impl ZeroCopyPageCache {
         }
 
         // Use write lock instead of cloning the entire buffer
-        let mut buffer = self.shared_buffer.write().unwrap();
+        let mut buffer = self
+            .shared_buffer
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         buffer[offset..offset + data.len()].copy_from_slice(data);
         // Zero pad if needed
         if data.len() < DEFAULT_PAGE_SIZE {
             buffer[offset + data.len()..offset + DEFAULT_PAGE_SIZE].fill(0);
         }
 
-        let mut table = self.page_table.write().unwrap();
+        let mut table = self.page_table.write().unwrap_or_else(|e| e.into_inner());
         table.insert(page_id, offset);
 
         Ok(offset)
@@ -137,7 +140,7 @@ impl ZeroCopyPageCache {
     /// Returns a Uint8Array view into the shared buffer.
     #[cfg(target_arch = "wasm32")]
     pub fn get_page_view(&self, page_id: PageId) -> Option<Uint8Array> {
-        let table = self.page_table.read().unwrap();
+        let table = self.page_table.read().unwrap_or_else(|e| e.into_inner());
         let offset = *table.get(&page_id)?;
 
         let view = Uint8Array::new(&self.shared_buffer);
@@ -146,10 +149,10 @@ impl ZeroCopyPageCache {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn get_page_view(&self, page_id: PageId) -> Option<Vec<u8>> {
-        let table = self.page_table.read().unwrap();
+        let table = self.page_table.read().unwrap_or_else(|e| e.into_inner());
         let offset = *table.get(&page_id)?;
 
-        let buffer = self.shared_buffer.read().unwrap();
+        let buffer = self.shared_buffer.read().unwrap_or_else(|e| e.into_inner());
         Some(buffer[offset..offset + DEFAULT_PAGE_SIZE].to_vec())
     }
 
@@ -161,13 +164,13 @@ impl ZeroCopyPageCache {
 
     /// Check if page is cached
     pub fn has_page(&self, page_id: PageId) -> bool {
-        let table = self.page_table.read().unwrap();
+        let table = self.page_table.read().unwrap_or_else(|e| e.into_inner());
         table.contains_key(&page_id)
     }
 
     /// Get cache statistics
     pub fn stats(&self) -> CacheStats {
-        let table = self.page_table.read().unwrap();
+        let table = self.page_table.read().unwrap_or_else(|e| e.into_inner());
         let used = self.write_offset.load(Ordering::Relaxed);
 
         CacheStats {
@@ -180,7 +183,7 @@ impl ZeroCopyPageCache {
 
     /// Clear the cache
     pub fn clear(&self) {
-        let mut table = self.page_table.write().unwrap();
+        let mut table = self.page_table.write().unwrap_or_else(|e| e.into_inner());
         table.clear();
         self.write_offset.store(0, Ordering::Release);
     }
@@ -234,7 +237,7 @@ impl ZeroCopyBackend {
         }
 
         // Load from backend
-        let backend = self.backend.read().unwrap();
+        let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
         let data = backend.read_page(page_id).await?;
 
         // Write to cache (zero-copy)
@@ -252,7 +255,7 @@ impl ZeroCopyBackend {
         self.cache.write_page(page_id, data)?;
 
         // Write to backend
-        let backend = self.backend.read().unwrap();
+        let backend = self.backend.read().unwrap_or_else(|e| e.into_inner());
         backend.write_page(page_id, data).await?;
 
         Ok(())

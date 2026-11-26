@@ -236,13 +236,12 @@ impl ModerationQueue {
     /// Get the next item to review (highest priority).
     pub fn dequeue(&mut self) -> Option<FlaggedItem> {
         // BTreeMap is sorted ascending, so last = highest priority
-        if let Some((&priority, items)) = self.items.last_key_value() {
-            if let Some(item) = items.last().cloned() {
-                let items_mut = self.items.get_mut(&priority).unwrap();
-                items_mut.pop();
-                if items_mut.is_empty() {
-                    self.items.remove(&priority);
-                }
+        while let Some(mut entry) = self.items.last_entry() {
+            let item = entry.get_mut().pop();
+            if entry.get().is_empty() {
+                entry.remove();
+            }
+            if let Some(item) = item {
                 self.total -= 1;
                 return Some(item);
             }

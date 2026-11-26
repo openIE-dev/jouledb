@@ -208,7 +208,7 @@ impl Address {
     }
 
     fn keypair(&self) -> u32 {
-        u32::from_be_bytes(self.data[16..20].try_into().unwrap())
+        u32::from_be_bytes([self.data[16], self.data[17], self.data[18], self.data[19]])
     }
 
     fn set_type_and_clear(&mut self, addr_type: u32) {

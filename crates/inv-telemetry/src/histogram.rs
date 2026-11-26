@@ -124,7 +124,7 @@ impl Histogram {
 
     /// Record a single observation.
     pub fn observe(&self, value: f64) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         inner.sum += value;
         inner.total_count += 1;
 
@@ -153,7 +153,7 @@ impl Histogram {
 
     /// Reset all observations. Primarily for testing.
     pub fn reset(&self) {
-        let mut inner = self.inner.write().unwrap();
+        let mut inner = self.inner.write().unwrap_or_else(|e| e.into_inner());
         for c in inner.counts.iter_mut() {
             *c = 0;
         }
@@ -165,12 +165,12 @@ impl Histogram {
 
     /// The total number of observations.
     pub fn count(&self) -> u64 {
-        self.inner.read().unwrap().total_count
+        self.inner.read().unwrap_or_else(|e| e.into_inner()).total_count
     }
 
     /// The sum of all observed values.
     pub fn sum(&self) -> f64 {
-        self.inner.read().unwrap().sum
+        self.inner.read().unwrap_or_else(|e| e.into_inner()).sum
     }
 
     /// The histogram's name.
@@ -190,7 +190,7 @@ impl Histogram {
 
     /// Take a point-in-time snapshot with computed percentiles.
     pub fn snapshot(&self) -> HistogramSnapshot {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
 
         let mut buckets = Vec::with_capacity(inner.bounds.len() + 1);
         for (i, bound) in inner.bounds.iter().enumerate() {

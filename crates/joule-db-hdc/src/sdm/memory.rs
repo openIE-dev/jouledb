@@ -237,7 +237,7 @@ impl SparseDistributedMemory {
     ///
     /// Returns bipolar data (-1 or +1) based on accumulated counters.
     pub fn read(&self, address: &SDMAddress) -> Vec<i8> {
-        let locations = self.locations.read().unwrap();
+        let locations = self.locations.read().unwrap_or_else(|e| e.into_inner());
         let mut sum = vec![0i32; self.data_size];
 
         for loc in locations.iter() {
@@ -261,7 +261,7 @@ impl SparseDistributedMemory {
 
     /// Find k nearest hard locations
     pub fn nearest_locations(&self, address: &SDMAddress, k: usize) -> Vec<NearestLocation> {
-        let locations = self.locations.read().unwrap();
+        let locations = self.locations.read().unwrap_or_else(|e| e.into_inner());
         let mut distances: Vec<(usize, usize)> = locations
             .iter()
             .enumerate()
@@ -285,7 +285,7 @@ impl SparseDistributedMemory {
 
     /// Get statistics
     pub fn stats(&self) -> SDMStats {
-        let locations = self.locations.read().unwrap();
+        let locations = self.locations.read().unwrap_or_else(|e| e.into_inner());
         let total_writes: u32 = locations.iter().map(|l| l.write_count).sum();
         let active_locations = locations.iter().filter(|l| l.write_count > 0).count();
 

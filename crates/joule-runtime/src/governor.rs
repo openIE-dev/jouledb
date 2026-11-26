@@ -148,7 +148,7 @@ impl EnergyGovernor {
                 }
 
                 // Update tracked state
-                let mut states = self.instances.write().unwrap();
+                let mut states = self.instances.write().unwrap_or_else(|e| e.into_inner());
                 states.insert(
                     instance_id.clone(),
                     GovernanceState {
@@ -180,7 +180,7 @@ impl EnergyGovernor {
     pub fn get_current_action(&self, instance_id: &str) -> GovernanceAction {
         self.instances
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .get(instance_id)
             .map(|s| s.current_action.clone())
             .unwrap_or(GovernanceAction::Normal)
@@ -188,12 +188,23 @@ impl EnergyGovernor {
 
     /// Get governance state for all tracked instances.
     pub fn all_states(&self) -> Vec<GovernanceState> {
-        self.instances.read().unwrap().values().cloned().collect()
+        self.instances
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// Restore a single instance to normal (un-throttle, un-pause).
     pub async fn restore(&self, instance_id: &str) -> Result<(), crate::RuntimeError> {
-        let state = { self.instances.read().unwrap().get(instance_id).cloned() };
+        let state = {
+            self.instances
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(instance_id)
+                .cloned()
+        };
 
         if let Some(state) = state {
             if state.paused {
@@ -205,13 +216,22 @@ impl EnergyGovernor {
             }
         }
 
-        self.instances.write().unwrap().remove(instance_id);
+        self.instances
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(instance_id);
         Ok(())
     }
 
     /// Restore all instances to normal (shutdown path).
     pub async fn restore_all(&self) -> Result<(), crate::RuntimeError> {
-        let ids: Vec<String> = self.instances.read().unwrap().keys().cloned().collect();
+        let ids: Vec<String> = self
+            .instances
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .cloned()
+            .collect();
 
         for id in ids {
             if let Err(e) = self.restore(&id).await {

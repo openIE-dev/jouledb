@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Joule Runtime — Energy-Aware Container Daemon
 //!
 //! Runs databases, processes, and OCI containers with hardware energy

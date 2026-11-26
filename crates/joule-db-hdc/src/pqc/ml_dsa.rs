@@ -848,9 +848,15 @@ impl MlDsaCore {
 
         // Expand seed: H(seed) = (ρ, ρ', K)
         let expanded = Shake256::xof(seed, 128);
-        let rho: [u8; 32] = expanded[..32].try_into().unwrap();
-        let rho_prime: [u8; 64] = expanded[32..96].try_into().unwrap();
-        let kappa: [u8; 32] = expanded[96..128].try_into().unwrap();
+        let rho: [u8; 32] = expanded[..32]
+            .try_into()
+            .map_err(|_| PqcError::InvalidKey)?;
+        let rho_prime: [u8; 64] = expanded[32..96]
+            .try_into()
+            .map_err(|_| PqcError::InvalidKey)?;
+        let kappa: [u8; 32] = expanded[96..128]
+            .try_into()
+            .map_err(|_| PqcError::InvalidKey)?;
 
         // Expand A from ρ
         let a = expand_a(&rho, k, l);
@@ -926,10 +932,21 @@ impl MlDsaCore {
 
         // Parse signing key
         let sk_bytes = sk.as_bytes();
-        let rho: [u8; 32] = sk_bytes[..32].try_into().unwrap();
-        let kappa: [u8; 32] = sk_bytes[32..64].try_into().unwrap();
-        let tr: [u8; 64] = sk_bytes[64..128].try_into().unwrap();
-        let rho_prime: [u8; 64] = sk_bytes[128..192].try_into().unwrap();
+        if sk_bytes.len() < 192 {
+            return Err(PqcError::InvalidKey);
+        }
+        let rho: [u8; 32] = sk_bytes[..32]
+            .try_into()
+            .map_err(|_| PqcError::InvalidKey)?;
+        let kappa: [u8; 32] = sk_bytes[32..64]
+            .try_into()
+            .map_err(|_| PqcError::InvalidKey)?;
+        let tr: [u8; 64] = sk_bytes[64..128]
+            .try_into()
+            .map_err(|_| PqcError::InvalidKey)?;
+        let rho_prime: [u8; 64] = sk_bytes[128..192]
+            .try_into()
+            .map_err(|_| PqcError::InvalidKey)?;
 
         // Reconstruct s1, s2
         let mut s1 = PolyVec::new(l);
@@ -1085,15 +1102,19 @@ impl MlDsaCore {
 
         // Parse verification key
         let vk_bytes = vk.as_bytes();
-        let rho: [u8; 32] = vk_bytes[..32].try_into().unwrap();
+        let Some(rho) = vk_bytes.get(..32).and_then(|s| <[u8; 32]>::try_from(s).ok()) else {
+            return false;
+        };
         let t1 = PolyVec::decode_t1(&vk_bytes[32..], k);
 
         // Parse signature: c_tilde || z || hint
         let sig_bytes = sig.as_bytes();
-        if sig_bytes.len() < 32 {
+        let Some(c_tilde) = sig_bytes
+            .get(..32)
+            .and_then(|s| <[u8; 32]>::try_from(s).ok())
+        else {
             return false;
-        }
-        let c_tilde: [u8; 32] = sig_bytes[..32].try_into().unwrap();
+        };
 
         // Decode z
         let mut z = PolyVec::new(l);
@@ -1101,11 +1122,13 @@ impl MlDsaCore {
         for i in 0..l {
             for j in 0..N {
                 let idx = z_start + (i * N + j) * 4;
-                if idx + 4 > sig_bytes.len() {
+                let Some(coeff_bytes) = sig_bytes
+                    .get(idx..idx + 4)
+                    .and_then(|s| <[u8; 4]>::try_from(s).ok())
+                else {
                     return false;
-                }
-                z.polys[i].coeffs[j] =
-                    i32::from_le_bytes(sig_bytes[idx..idx + 4].try_into().unwrap());
+                };
+                z.polys[i].coeffs[j] = i32::from_le_bytes(coeff_bytes);
             }
         }
 

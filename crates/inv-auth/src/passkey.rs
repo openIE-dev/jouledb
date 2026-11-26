@@ -249,13 +249,13 @@ impl PasskeyService {
 
     /// Get an account by email.
     pub fn get_account(&self, email: &str) -> Option<PasskeyAccount> {
-        let accounts = self.accounts.read().unwrap();
+        let accounts = self.accounts.read().unwrap_or_else(|e| e.into_inner());
         accounts.get(&email.to_lowercase()).cloned()
     }
 
     /// Get an account by credential ID (for discoverable credential flows).
     pub fn get_account_by_credential_id(&self, credential_id: &str) -> Option<PasskeyAccount> {
-        let accounts = self.accounts.read().unwrap();
+        let accounts = self.accounts.read().unwrap_or_else(|e| e.into_inner());
         accounts
             .values()
             .find(|a| {
@@ -287,7 +287,7 @@ impl PasskeyService {
             email_verified: true,
         };
 
-        let mut accounts = self.accounts.write().unwrap();
+        let mut accounts = self.accounts.write().unwrap_or_else(|e| e.into_inner());
         accounts.insert(email.to_lowercase(), account.clone());
 
         info!(email = email, org = org, "Passkey account created");
@@ -300,7 +300,7 @@ impl PasskeyService {
         email: &str,
         credential: PasskeyCredential,
     ) -> Result<(), PasskeyError> {
-        let mut accounts = self.accounts.write().unwrap();
+        let mut accounts = self.accounts.write().unwrap_or_else(|e| e.into_inner());
         let account = accounts
             .get_mut(&email.to_lowercase())
             .ok_or(PasskeyError::AccountNotFound)?;
@@ -332,7 +332,7 @@ impl PasskeyService {
         credential_id: &str,
         new_count: u64,
     ) -> Result<(), PasskeyError> {
-        let mut accounts = self.accounts.write().unwrap();
+        let mut accounts = self.accounts.write().unwrap_or_else(|e| e.into_inner());
         let account = accounts
             .get_mut(&email.to_lowercase())
             .ok_or(PasskeyError::AccountNotFound)?;
@@ -358,7 +358,7 @@ impl PasskeyService {
 
     /// Revoke a specific credential.
     pub fn revoke_credential(&self, email: &str, credential_id: &str) -> Result<(), PasskeyError> {
-        let mut accounts = self.accounts.write().unwrap();
+        let mut accounts = self.accounts.write().unwrap_or_else(|e| e.into_inner());
         let account = accounts
             .get_mut(&email.to_lowercase())
             .ok_or(PasskeyError::AccountNotFound)?;
@@ -380,7 +380,7 @@ impl PasskeyService {
 
     /// List all credentials for an account.
     pub fn list_credentials(&self, email: &str) -> Result<Vec<PasskeyCredential>, PasskeyError> {
-        let accounts = self.accounts.read().unwrap();
+        let accounts = self.accounts.read().unwrap_or_else(|e| e.into_inner());
         let account = accounts
             .get(&email.to_lowercase())
             .ok_or(PasskeyError::AccountNotFound)?;
@@ -424,7 +424,7 @@ impl PasskeyService {
         };
 
         // Store nonce for single-use enforcement
-        let mut links = self.magic_links.write().unwrap();
+        let mut links = self.magic_links.write().unwrap_or_else(|e| e.into_inner());
         links.insert(nonce, token.clone());
 
         info!(email = email, org = org, "Magic link created");
@@ -443,7 +443,7 @@ impl PasskeyService {
 
         // Consume the nonce (single-use)
         let token = {
-            let mut links = self.magic_links.write().unwrap();
+            let mut links = self.magic_links.write().unwrap_or_else(|e| e.into_inner());
             links.remove(nonce).ok_or(PasskeyError::InvalidMagicLink)?
         };
 
@@ -489,7 +489,10 @@ impl PasskeyService {
 
         // Rate limit check
         {
-            let rates = self.otp_rate_limits.read().unwrap();
+            let rates = self
+                .otp_rate_limits
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
             if let Some(&last_sent) = rates.get(&email_lower)
                 && now - last_sent < self.otp_config.rate_limit_secs
             {
@@ -513,13 +516,16 @@ impl PasskeyService {
 
         // Store OTP
         {
-            let mut otps = self.otps.write().unwrap();
+            let mut otps = self.otps.write().unwrap_or_else(|e| e.into_inner());
             otps.insert(email_lower.clone(), otp);
         }
 
         // Update rate limiter
         {
-            let mut rates = self.otp_rate_limits.write().unwrap();
+            let mut rates = self
+                .otp_rate_limits
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             rates.insert(email_lower, now);
         }
 
@@ -532,7 +538,7 @@ impl PasskeyService {
         let now = current_timestamp();
         let email_lower = email.to_lowercase();
 
-        let mut otps = self.otps.write().unwrap();
+        let mut otps = self.otps.write().unwrap_or_else(|e| e.into_inner());
         let otp = otps.get_mut(&email_lower).ok_or(PasskeyError::InvalidOtp)?;
 
         // Check if already used
@@ -588,7 +594,7 @@ impl PasskeyService {
             expires_at: now + 300, // 5 minutes
         };
 
-        let mut challenges = self.challenges.write().unwrap();
+        let mut challenges = self.challenges.write().unwrap_or_else(|e| e.into_inner());
         challenges.insert(challenge_bytes, challenge.clone());
 
         challenge
@@ -628,7 +634,7 @@ impl PasskeyService {
             expires_at: now + 300,
         };
 
-        let mut challenges = self.challenges.write().unwrap();
+        let mut challenges = self.challenges.write().unwrap_or_else(|e| e.into_inner());
         challenges.insert(challenge_bytes, challenge.clone());
 
         Ok((challenge, credential_ids))
@@ -638,7 +644,7 @@ impl PasskeyService {
     pub fn consume_challenge(&self, challenge_id: &str) -> Result<WebAuthnChallenge, PasskeyError> {
         let now = current_timestamp();
 
-        let mut challenges = self.challenges.write().unwrap();
+        let mut challenges = self.challenges.write().unwrap_or_else(|e| e.into_inner());
         let challenge = challenges
             .remove(challenge_id)
             .ok_or(PasskeyError::InvalidChallenge)?;
@@ -678,7 +684,7 @@ impl PasskeyService {
             used: false,
         };
 
-        let mut codes = self.auth_codes.write().unwrap();
+        let mut codes = self.auth_codes.write().unwrap_or_else(|e| e.into_inner());
         codes.insert(code.clone(), auth_code);
 
         code
@@ -693,7 +699,7 @@ impl PasskeyService {
     ) -> Result<(String, String, Role, Vec<String>), PasskeyError> {
         let now = current_timestamp();
 
-        let mut codes = self.auth_codes.write().unwrap();
+        let mut codes = self.auth_codes.write().unwrap_or_else(|e| e.into_inner());
         let auth_code = codes.get_mut(code).ok_or(PasskeyError::InvalidAuthCode)?;
 
         if auth_code.used {
@@ -731,25 +737,25 @@ impl PasskeyService {
         let mut cleaned = 0;
 
         {
-            let mut links = self.magic_links.write().unwrap();
+            let mut links = self.magic_links.write().unwrap_or_else(|e| e.into_inner());
             let before = links.len();
             links.retain(|_, v| v.exp > now);
             cleaned += before - links.len();
         }
         {
-            let mut otps = self.otps.write().unwrap();
+            let mut otps = self.otps.write().unwrap_or_else(|e| e.into_inner());
             let before = otps.len();
             otps.retain(|_, v| v.expires_at > now);
             cleaned += before - otps.len();
         }
         {
-            let mut challenges = self.challenges.write().unwrap();
+            let mut challenges = self.challenges.write().unwrap_or_else(|e| e.into_inner());
             let before = challenges.len();
             challenges.retain(|_, v| v.expires_at > now);
             cleaned += before - challenges.len();
         }
         {
-            let mut codes = self.auth_codes.write().unwrap();
+            let mut codes = self.auth_codes.write().unwrap_or_else(|e| e.into_inner());
             let before = codes.len();
             codes.retain(|_, v| v.expires_at > now);
             cleaned += before - codes.len();
@@ -761,11 +767,27 @@ impl PasskeyService {
     /// Get statistics about the passkey service state.
     pub fn stats(&self) -> PasskeyStats {
         PasskeyStats {
-            total_accounts: self.accounts.read().unwrap().len(),
-            active_magic_links: self.magic_links.read().unwrap().len(),
-            active_otps: self.otps.read().unwrap().len(),
-            active_challenges: self.challenges.read().unwrap().len(),
-            active_auth_codes: self.auth_codes.read().unwrap().len(),
+            total_accounts: self
+                .accounts
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .len(),
+            active_magic_links: self
+                .magic_links
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .len(),
+            active_otps: self.otps.read().unwrap_or_else(|e| e.into_inner()).len(),
+            active_challenges: self
+                .challenges
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .len(),
+            active_auth_codes: self
+                .auth_codes
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .len(),
         }
     }
 }
@@ -848,7 +870,7 @@ pub enum PasskeyError {
 fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs()
 }
 

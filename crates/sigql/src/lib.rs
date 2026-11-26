@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # SigQL - Signal Query Language
 //!
 //! Query physical reality like a database.

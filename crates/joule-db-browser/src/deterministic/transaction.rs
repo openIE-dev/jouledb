@@ -70,7 +70,7 @@ impl DeterministicTransactionManager {
         use std::time::SystemTime;
         let timestamp = SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_millis();
         let tx_id = format!("tx_{}", timestamp);
         let tx = DeterministicTransaction {

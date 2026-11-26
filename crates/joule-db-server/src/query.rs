@@ -4258,10 +4258,26 @@ impl SimpleQueryExecutor {
                         {
                             return Ok(response);
                         }
+                        if let Some(response) = crate::columnar_join::try_execute_columnar_join(
+                            query,
+                            &self.amorphic,
+                            request_limit,
+                            start,
+                        ) {
+                            return Ok(response);
+                        }
                     } else if let Some(bound_q) = Self::bind_select_query_params(query, params) {
                         if let Some(response) =
                             self.try_vectorized_select(&bound_q, request_limit, start)
                         {
+                            return Ok(response);
+                        }
+                        if let Some(response) = crate::columnar_join::try_execute_columnar_join(
+                            &bound_q,
+                            &self.amorphic,
+                            request_limit,
+                            start,
+                        ) {
                             return Ok(response);
                         }
                     }
@@ -7411,11 +7427,7 @@ impl SimpleQueryExecutor {
         start: Instant,
     ) -> Option<QueryResponse> {
         let table = query.from.as_ref()?.table_name()?;
-        if self
-            .amorphic
-            .get_column_defs(table)
-            .is_ok_and(|ds| ds.iter().any(|d| d.computed_expr.is_some()))
-        {
+        if self.amorphic.has_computed_columns(table) {
             return None;
         }
         let t0 = Instant::now();
@@ -7456,14 +7468,36 @@ impl SimpleQueryExecutor {
         }
         let cols = match self.amorphic.cached_table_columns(table) {
             Some(c) => c,
-            None => match self.amorphic.try_selective_table_columns(
-                table,
-                query.where_clause.as_ref(),
-                4096,
-            ) {
-                Some(c) => c,
-                None => self.amorphic.table_columns(table)?,
-            },
+            None => {
+                // Fast O(1)/O(k) direct indexed OLTP point-read & aggregate probe when `col_cache` missed!
+                if let Some((columns, rows, truncated)) =
+                    self.amorphic.try_direct_indexed_eq_query(query, request_limit)
+                {
+                    return Some(QueryResponse {
+                        columns,
+                        rows,
+                        affected_rows: None,
+                        execution_time_ms: start.elapsed().as_millis() as u64,
+                        truncated,
+                        warnings: vec![],
+                        energy_joules: None,
+                        power_watts: None,
+                        device_target: None,
+                        algorithm_type: None,
+                        session_id: None,
+                        viz_hint: None,
+                        energy_receipt: None,
+                    });
+                }
+                match self.amorphic.try_selective_table_columns(
+                    table,
+                    query.where_clause.as_ref(),
+                    4096,
+                ) {
+                    Some(c) => c,
+                    None => self.amorphic.table_columns(table)?,
+                }
+            }
         };
         let t1 = Instant::now();
         let mut r = crate::columnar_exec::execute(query, &cols)?;
@@ -10462,6 +10496,10 @@ impl SimpleQueryExecutor {
     // =========================================================================
     // Predicate Pushdown - Convert comma-joins to hash-joinable INNER JOINs
     // =========================================================================
+
+    pub(crate) fn factor_common_or_conjuncts_pub(expr: &Expression) -> Expression {
+        Self::factor_common_or_conjuncts(expr)
+    }
 
     fn factor_common_or_conjuncts(expr: &Expression) -> Expression {
         fn flatten_or<'a>(e: &'a Expression, out: &mut Vec<&'a Expression>) {

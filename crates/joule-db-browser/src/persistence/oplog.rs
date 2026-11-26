@@ -73,11 +73,11 @@ impl OpfsOplogTailer {
 
         let sync_handle = create_sync_handle.call0(file_obj)?;
 
-        *self.oplog_handle.write().unwrap() = Some(sync_handle);
+        *self.oplog_handle.write().unwrap_or_else(|e| e.into_inner()) = Some(sync_handle);
 
         // Get current file size (for resuming)
         let size = self.get_file_size()?;
-        *self.current_offset.write().unwrap() = size;
+        *self.current_offset.write().unwrap_or_else(|e| e.into_inner()) = size;
 
         Ok(())
     }
@@ -91,7 +91,7 @@ impl OpfsOplogTailer {
 
     #[cfg(target_arch = "wasm32")]
     pub fn start_tailing(&self, callback: &js_sys::Function) -> Result<(), JsValue> {
-        let mut is_tailing = self.is_tailing.write().unwrap();
+        let mut is_tailing = self.is_tailing.write().unwrap_or_else(|e| e.into_inner());
         if *is_tailing {
             return Ok(()); // Already tailing
         }
@@ -106,33 +106,33 @@ impl OpfsOplogTailer {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn start_tailing(&self, _callback: &js_sys::Function) -> Result<(), JsValue> {
-        *self.is_tailing.write().unwrap() = true;
+        *self.is_tailing.write().unwrap_or_else(|e| e.into_inner()) = true;
         Ok(())
     }
 
     /// Stop tailing
 
     pub fn stop_tailing(&self) {
-        *self.is_tailing.write().unwrap() = false;
+        *self.is_tailing.write().unwrap_or_else(|e| e.into_inner()) = false;
     }
 
     /// Seek to offset (for resuming)
 
     pub fn seek(&self, offset: u64) -> Result<(), JsValue> {
-        *self.current_offset.write().unwrap() = offset;
+        *self.current_offset.write().unwrap_or_else(|e| e.into_inner()) = offset;
         Ok(())
     }
 
     /// Get current offset
 
     pub fn current_offset(&self) -> u64 {
-        *self.current_offset.read().unwrap()
+        *self.current_offset.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Check if tailing is active
 
     pub fn is_tailing(&self) -> bool {
-        *self.is_tailing.read().unwrap()
+        *self.is_tailing.read().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Poll loop (reads new entries)
@@ -153,15 +153,15 @@ impl OpfsOplogTailer {
         let closure_rc_clone = closure_rc.clone();
 
         let closure = wasm_bindgen::closure::Closure::wrap(Box::new(move || {
-            let is_running = *is_tailing.read().unwrap();
+            let is_running = *is_tailing.read().unwrap_or_else(|e| e.into_inner());
             if !is_running {
                 return;
             }
 
             // Read new data
-            if let Some(handle) = oplog_handle.read().unwrap().as_ref() {
-                let offset = *current_offset.read().unwrap();
-                let mut buf = buffer.write().unwrap();
+            if let Some(handle) = oplog_handle.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
+                let offset = *current_offset.read().unwrap_or_else(|e| e.into_inner());
+                let mut buf = buffer.write().unwrap_or_else(|e| e.into_inner());
 
                 // Read from current offset
                 if let Ok(bytes_read) = Self::read_at(handle, offset, &mut buf) {
@@ -175,13 +175,13 @@ impl OpfsOplogTailer {
                         }
 
                         // Update offset
-                        *current_offset.write().unwrap() += bytes_read as u64;
+                        *current_offset.write().unwrap_or_else(|e| e.into_inner()) += bytes_read as u64;
                     }
                 }
             }
 
             // Schedule next poll
-            let is_running = *is_tailing.read().unwrap();
+            let is_running = *is_tailing.read().unwrap_or_else(|e| e.into_inner());
             if is_running {
                 if let Some(window) = web_sys::window() {
                     let closure_borrow = closure_rc_clone.borrow();
@@ -368,7 +368,7 @@ impl OpfsOplogTailer {
     fn get_file_size(&self) -> Result<u64, JsValue> {
         #[cfg(target_arch = "wasm32")]
         {
-            if let Some(ref handle) = *self.oplog_handle.read().unwrap() {
+            if let Some(ref handle) = *self.oplog_handle.read().unwrap_or_else(|e| e.into_inner()) {
                 let handle_obj = handle
                     .dyn_ref::<js_sys::Object>()
                     .ok_or_else(|| JsValue::from_str("Invalid handle"))?;

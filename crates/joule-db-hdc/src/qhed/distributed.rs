@@ -53,8 +53,8 @@ impl VectorClock {
 
     /// Merge with another vector clock (take max of each component)
     pub fn merge(&self, other: &VectorClock) -> VectorClock {
-        let my_clock = self.clock.read().unwrap();
-        let other_clock = other.clock.read().unwrap();
+        let my_clock = self.clock.read().unwrap_or_else(|e| e.into_inner());
+        let other_clock = other.clock.read().unwrap_or_else(|e| e.into_inner());
 
         let mut merged = my_clock.clone();
         for (node, &time) in other_clock.iter() {
@@ -75,8 +75,8 @@ impl VectorClock {
     /// Returns true if all components of this clock are <= the other,
     /// with at least one strictly less.
     pub fn happens_before(&self, other: &VectorClock) -> bool {
-        let my_clock = self.clock.read().unwrap();
-        let other_clock = other.clock.read().unwrap();
+        let my_clock = self.clock.read().unwrap_or_else(|e| e.into_inner());
+        let other_clock = other.clock.read().unwrap_or_else(|e| e.into_inner());
 
         let mut at_least_one_less = false;
 
@@ -177,7 +177,11 @@ impl LWWRegister {
     /// as tie-breaker for concurrent updates.
     pub fn merge(&self, remote_value: Vec<u8>, remote_timestamp: &VectorClock) {
         // Get current timestamp and check ordering
-        let my_ts_clone = self.timestamp.read().unwrap().clone();
+        let my_ts_clone = self
+            .timestamp
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
 
         // If remote happened-before local, reject
         if remote_timestamp.happens_before(&my_ts_clone) {
@@ -208,7 +212,10 @@ impl LWWRegister {
 
     /// Get current timestamp
     pub fn timestamp(&self) -> VectorClock {
-        self.timestamp.read().unwrap().clone()
+        self.timestamp
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }
 
@@ -253,7 +260,7 @@ impl DistributedNode {
 
     /// Local write
     pub fn write(&self, key: &str, value: Vec<u8>) {
-        let clock = self.clock.read().unwrap();
+        let clock = self.clock.read().unwrap_or_else(|e| e.into_inner());
         let new_clock = clock.clone();
         drop(clock);
         new_clock.increment();
@@ -283,7 +290,7 @@ impl DistributedNode {
 
     /// Receive sync from peer
     pub fn receive_sync(&self, key: &str, value: Vec<u8>, remote_clock: &VectorClock) -> bool {
-        let mut data = self.data.write().unwrap();
+        let mut data = self.data.write().unwrap_or_else(|e| e.into_inner());
 
         // Check if we have an existing value for this key
         let existing = data.get(key).map(|(v, c)| (v.clone(), c.clone()));
@@ -316,7 +323,11 @@ impl DistributedNode {
             }
 
             // Update node clock
-            let node_clock = self.clock.read().unwrap().merge(&merged);
+            let node_clock = self
+                .clock
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .merge(&merged);
             if let Ok(mut clock) = self.clock.write() {
                 *clock = node_clock;
             }
@@ -327,7 +338,11 @@ impl DistributedNode {
             data.insert(key.to_string(), (value, remote_clock.clone()));
 
             // Update node clock
-            let node_clock = self.clock.read().unwrap().merge(remote_clock);
+            let node_clock = self
+                .clock
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .merge(remote_clock);
             if let Ok(mut clock) = self.clock.write() {
                 *clock = node_clock;
             }

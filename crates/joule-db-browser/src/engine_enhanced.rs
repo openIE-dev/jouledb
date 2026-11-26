@@ -142,19 +142,19 @@ impl EnhancedAsyncEngine {
 
     /// Get a value by key (delegates to base engine)
     pub async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, CoreError> {
-        let base = self.base.read().unwrap();
+        let base = self.base.read().unwrap_or_else(|e| e.into_inner());
         base.get(key).await
     }
 
     /// Put a key-value pair (delegates to base engine)
     pub async fn put(&self, key: &[u8], value: &[u8]) -> Result<(), CoreError> {
-        let base = self.base.read().unwrap();
+        let base = self.base.read().unwrap_or_else(|e| e.into_inner());
         base.put(key, value).await
     }
 
     /// Delete a key (delegates to base engine)
     pub async fn delete(&self, key: &[u8]) -> Result<bool, CoreError> {
-        let base = self.base.read().unwrap();
+        let base = self.base.read().unwrap_or_else(|e| e.into_inner());
         base.delete(key).await
     }
 
@@ -176,14 +176,14 @@ impl EnhancedAsyncEngine {
             read_only: false,
         };
 
-        let mut transactions = self.transactions.write().unwrap();
+        let mut transactions = self.transactions.write().unwrap_or_else(|e| e.into_inner());
         transactions.insert(tx_id, tx);
         Ok(tx_id)
     }
 
     /// Commit a transaction
     pub async fn commit(&self, tx_id: u64) -> Result<(), CoreError> {
-        let mut transactions = self.transactions.write().unwrap();
+        let mut transactions = self.transactions.write().unwrap_or_else(|e| e.into_inner());
         let mut tx = transactions
             .remove(&tx_id)
             .ok_or_else(|| CoreError::Transaction(TransactionError::NotFound { tx_id }))?;
@@ -195,7 +195,7 @@ impl EnhancedAsyncEngine {
         }
 
         // Apply writes to base engine
-        let base = self.base.write().unwrap();
+        let base = self.base.write().unwrap_or_else(|e| e.into_inner());
         for (key, value) in tx.write_set {
             match value {
                 Some(v) => {
@@ -213,7 +213,7 @@ impl EnhancedAsyncEngine {
 
     /// Rollback a transaction
     pub async fn rollback(&self, tx_id: u64) -> Result<(), CoreError> {
-        let mut transactions = self.transactions.write().unwrap();
+        let mut transactions = self.transactions.write().unwrap_or_else(|e| e.into_inner());
         let mut tx = transactions
             .remove(&tx_id)
             .ok_or_else(|| CoreError::Transaction(TransactionError::NotFound { tx_id }))?;
@@ -234,7 +234,7 @@ impl EnhancedAsyncEngine {
     pub async fn tx_get(&self, tx_id: u64, key: &[u8]) -> Result<Option<Vec<u8>>, CoreError> {
         // First check if the key is in the transaction's write set
         {
-            let transactions = self.transactions.read().unwrap();
+            let transactions = self.transactions.read().unwrap_or_else(|e| e.into_inner());
             if let Some(tx) = transactions.get(&tx_id) {
                 if tx.state != TxState::Active {
                     return Err(CoreError::Transaction(TransactionError::AlreadyCommitted {
@@ -256,7 +256,7 @@ impl EnhancedAsyncEngine {
 
     /// Put a value within a transaction
     pub async fn tx_put(&self, tx_id: u64, key: &[u8], value: &[u8]) -> Result<(), CoreError> {
-        let mut transactions = self.transactions.write().unwrap();
+        let mut transactions = self.transactions.write().unwrap_or_else(|e| e.into_inner());
         let tx = transactions
             .get_mut(&tx_id)
             .ok_or_else(|| CoreError::Transaction(TransactionError::NotFound { tx_id }))?;
@@ -274,7 +274,7 @@ impl EnhancedAsyncEngine {
 
     /// Delete a key within a transaction
     pub async fn tx_delete(&self, tx_id: u64, key: &[u8]) -> Result<bool, CoreError> {
-        let mut transactions = self.transactions.write().unwrap();
+        let mut transactions = self.transactions.write().unwrap_or_else(|e| e.into_inner());
         let tx = transactions
             .get_mut(&tx_id)
             .ok_or_else(|| CoreError::Transaction(TransactionError::NotFound { tx_id }))?;
@@ -327,8 +327,8 @@ impl EnhancedAsyncEngine {
         tx_id: Option<u64>,
     ) -> Result<AsyncRangeIterator, CoreError> {
         // Get all keys from index
-        let base = self.base.read().unwrap();
-        let index = base.key_index.read().unwrap();
+        let base = self.base.read().unwrap_or_else(|e| e.into_inner());
+        let index = base.key_index.read().unwrap_or_else(|e| e.into_inner());
 
         // Collect matching keys
         let mut keys: Vec<Vec<u8>> = index
@@ -382,8 +382,8 @@ impl EnhancedAsyncEngine {
         })?;
 
         // Get all keys from base engine
-        let base = self.base.read().unwrap();
-        let index = base.key_index.read().unwrap();
+        let base = self.base.read().unwrap_or_else(|e| e.into_inner());
+        let index = base.key_index.read().unwrap_or_else(|e| e.into_inner());
 
         // For now, use CPU-based filtering as the GPU range scan requires
         // complex trait implementations that don't fit well with async/await patterns.
@@ -706,8 +706,8 @@ impl EnhancedAsyncEngine {
 
         // Get all keys from the engine's key_index
         let keys: Vec<Vec<u8>> = {
-            let base = self.base.read().unwrap();
-            let index = base.key_index.read().unwrap();
+            let base = self.base.read().unwrap_or_else(|e| e.into_inner());
+            let index = base.key_index.read().unwrap_or_else(|e| e.into_inner());
             index
                 .keys()
                 .filter(|k| String::from_utf8_lossy(k).starts_with(&prefix))
@@ -906,7 +906,7 @@ impl EnhancedAsyncEngine {
 
     /// Create a secondary index
     pub async fn create_index(&self, name: &str, unique: bool) -> Result<(), CoreError> {
-        let mut indexes = self.indexes.write().unwrap();
+        let mut indexes = self.indexes.write().unwrap_or_else(|e| e.into_inner());
         if indexes.contains_key(name) {
             return Err(CoreError::Index(IndexError::Corrupted {
                 reason: format!("Index {} already exists", name),
@@ -927,7 +927,7 @@ impl EnhancedAsyncEngine {
 
     /// Drop an index
     pub async fn drop_index(&self, name: &str) -> Result<(), CoreError> {
-        let mut indexes = self.indexes.write().unwrap();
+        let mut indexes = self.indexes.write().unwrap_or_else(|e| e.into_inner());
         indexes.remove(name).ok_or_else(|| {
             CoreError::Index(IndexError::Corrupted {
                 reason: format!("Index {} not found", name),
@@ -962,7 +962,7 @@ impl AsyncRangeIterator {
     ) -> Self {
         // Clone internal Arcs from engine for lock-free async operations
         let (key_index, backend) = {
-            let eng = engine.read().unwrap();
+            let eng = engine.read().unwrap_or_else(|e| e.into_inner());
             eng.get_internal_arcs()
         };
 
@@ -982,7 +982,7 @@ impl AsyncRangeIterator {
     pub fn new(engine: Arc<RwLock<AsyncEngine>>, keys: Vec<Vec<u8>>, tx_id: Option<u64>) -> Self {
         // Clone internal Arcs from engine for lock-free async operations
         let (key_index, backend) = {
-            let eng = engine.read().unwrap();
+            let eng = engine.read().unwrap_or_else(|e| e.into_inner());
             eng.get_internal_arcs()
         };
 

@@ -120,7 +120,7 @@ impl crate::partition::ShardedAmorphicStore {
                 .iter()
                 .map(|shard| {
                     s.spawn(move || {
-                        let guard = shard.read().unwrap();
+                        let guard = shard.read().unwrap_or_else(|e| e.into_inner());
                         let mut found = Vec::new();
                         for (req_idx, key) in keys_ref.iter().enumerate() {
                             if let Some(id) = guard.name_to_id.get(key.as_str()) {

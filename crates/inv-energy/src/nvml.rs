@@ -111,7 +111,7 @@ impl EnergyMeter for NvmlMeter {
             let watts = total_milliwatts as f64 / 1000.0;
             let now_ms = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .as_millis() as u64;
 
             // Accumulate energy

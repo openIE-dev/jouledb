@@ -103,12 +103,12 @@ impl SimilarityIndex for HolographicIndex {
     }
 
     fn snr(&self) -> f32 {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
         inner.snr()
     }
 
     fn estimated_capacity(&self) -> usize {
-        let inner = self.inner.read().unwrap();
+        let inner = self.inner.read().unwrap_or_else(|e| e.into_inner());
         inner.capacity()
     }
 }

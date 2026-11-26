@@ -1064,7 +1064,7 @@ impl Runtime {
         let (max_bin, _max_mag) = spectrum
             .iter()
             .enumerate()
-            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .max_by(|(_, a), (_, b)| a.total_cmp(b))
             .unwrap_or((0, &0.0));
 
         let freq = max_bin as f64 * df;

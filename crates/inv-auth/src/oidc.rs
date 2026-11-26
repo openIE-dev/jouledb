@@ -285,13 +285,19 @@ impl OidcService {
     /// `.well-known/openid-configuration` endpoint. For testing and
     /// offline use, callers can inject a pre-built document.
     pub fn set_discovery(&self, provider_name: &str, discovery: OidcDiscovery) {
-        let mut cache = self.discovery_cache.write().unwrap();
+        let mut cache = self
+            .discovery_cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         cache.insert(provider_name.to_string(), discovery);
     }
 
     /// Get the cached discovery document for a provider
     pub fn get_discovery(&self, provider_name: &str) -> Option<OidcDiscovery> {
-        let cache = self.discovery_cache.read().unwrap();
+        let cache = self
+            .discovery_cache
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         cache.get(provider_name).cloned()
     }
 
@@ -333,7 +339,7 @@ impl OidcService {
         // Store auth state for callback verification
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         let auth_state = OidcAuthState {
@@ -346,7 +352,10 @@ impl OidcService {
         };
 
         {
-            let mut pending = self.pending_states.write().unwrap();
+            let mut pending = self
+                .pending_states
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             pending.insert(state.clone(), auth_state);
         }
 
@@ -358,12 +367,15 @@ impl OidcService {
     /// Called in the callback handler to verify the state parameter and
     /// retrieve the PKCE verifier and nonce.
     pub fn consume_state(&self, state: &str) -> Result<OidcAuthState, OidcError> {
-        let mut pending = self.pending_states.write().unwrap();
+        let mut pending = self
+            .pending_states
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let auth_state = pending.remove(state).ok_or(OidcError::InvalidState)?;
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         if now > auth_state.expires_at {
@@ -391,7 +403,7 @@ impl OidcService {
         // Build mock ID token claims
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
         let claims = serde_json::json!({
@@ -474,7 +486,7 @@ impl OidcService {
         // Verify expiration
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
         if claims.exp < now {
             return Err(OidcError::IdTokenInvalid("token expired".into()));
@@ -539,10 +551,13 @@ impl OidcService {
     pub fn cleanup_expired(&self) -> usize {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs();
 
-        let mut pending = self.pending_states.write().unwrap();
+        let mut pending = self
+            .pending_states
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let before = pending.len();
         pending.retain(|_, s| s.expires_at > now);
         before - pending.len()
@@ -550,7 +565,10 @@ impl OidcService {
 
     /// Number of pending auth states
     pub fn pending_count(&self) -> usize {
-        let pending = self.pending_states.read().unwrap();
+        let pending = self
+            .pending_states
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         pending.len()
     }
 }

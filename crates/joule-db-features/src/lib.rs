@@ -12,6 +12,8 @@
 //! - **Columnar** - Column-oriented storage
 //! - **SIMD** - SIMD-optimized distance calculations
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 /// SIMD-optimized distance calculations for vector similarity search.
 /// Available on all platforms with fallback scalar implementations.
 pub mod simd;

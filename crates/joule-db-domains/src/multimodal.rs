@@ -106,27 +106,29 @@ impl MultimodalLink {
     }
 
     fn get_token_vector(&mut self, token: &str) -> BinaryHV {
-        if !self.token_cache.contains_key(token) {
-            // Encode token using character n-grams
-            let lower = token.to_lowercase();
-            let chars: Vec<char> = lower.chars().collect();
-            let mut components = Vec::new();
-
-            for (i, c) in chars.iter().enumerate() {
-                if let Some(char_hv) = self.char_vectors.get(c) {
-                    components.push(char_hv.permute(i));
-                }
-            }
-
-            let token_hv = if components.is_empty() {
-                BinaryHV::from_hash(token.as_bytes(), DIMENSION)
-            } else {
-                self.core.bundle(&components)
-            };
-
-            self.token_cache.insert(token.to_string(), token_hv);
+        if let Some(cached) = self.token_cache.get(token) {
+            return cached.clone();
         }
-        self.token_cache.get(token).unwrap().clone()
+
+        // Encode token using character n-grams
+        let lower = token.to_lowercase();
+        let chars: Vec<char> = lower.chars().collect();
+        let mut components = Vec::new();
+
+        for (i, c) in chars.iter().enumerate() {
+            if let Some(char_hv) = self.char_vectors.get(c) {
+                components.push(char_hv.permute(i));
+            }
+        }
+
+        let token_hv = if components.is_empty() {
+            BinaryHV::from_hash(token.as_bytes(), DIMENSION)
+        } else {
+            self.core.bundle(&components)
+        };
+
+        self.token_cache.insert(token.to_string(), token_hv.clone());
+        token_hv
     }
 
     pub fn encode_text(&mut self, text: &TextData) -> BinaryHV {

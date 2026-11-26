@@ -44,8 +44,8 @@ impl MemoryBackend {
 
     /// Read a page synchronously
     pub fn read_page_sync(&self, page_id: PageId) -> Result<Vec<u8>, PersistenceError> {
-        let pages = self.pages.read().unwrap();
-        let mut stats = self.stats.write().unwrap();
+        let pages = self.pages.read().unwrap_or_else(|e| e.into_inner());
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
         stats.read_ops += 1;
 
         pages
@@ -63,8 +63,8 @@ impl MemoryBackend {
 
     /// Write a page synchronously
     pub fn write_page_sync(&self, page_id: PageId, data: &[u8]) -> Result<(), PersistenceError> {
-        let mut pages = self.pages.write().unwrap();
-        let mut stats = self.stats.write().unwrap();
+        let mut pages = self.pages.write().unwrap_or_else(|e| e.into_inner());
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
 
         let is_new = !pages.contains_key(&page_id);
         pages.insert(page_id, data.to_vec());
@@ -80,8 +80,8 @@ impl MemoryBackend {
 
     /// Delete a page
     pub fn delete_page(&self, page_id: PageId) -> Result<bool, PersistenceError> {
-        let mut pages = self.pages.write().unwrap();
-        let mut stats = self.stats.write().unwrap();
+        let mut pages = self.pages.write().unwrap_or_else(|e| e.into_inner());
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
 
         let existed = pages.remove(&page_id).is_some();
         if existed {
@@ -94,8 +94,8 @@ impl MemoryBackend {
 
     /// Clear all pages
     pub fn clear(&self) {
-        let mut pages = self.pages.write().unwrap();
-        let mut stats = self.stats.write().unwrap();
+        let mut pages = self.pages.write().unwrap_or_else(|e| e.into_inner());
+        let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
 
         pages.clear();
         stats.total_pages = 0;
@@ -104,7 +104,12 @@ impl MemoryBackend {
 
     /// Get all page IDs
     pub fn page_ids(&self) -> Vec<PageId> {
-        self.pages.read().unwrap().keys().copied().collect()
+        self.pages
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .copied()
+            .collect()
     }
 }
 
@@ -134,7 +139,7 @@ impl AsyncPersistenceBackend for MemoryBackend {
     > {
         let pages = Arc::clone(&self.pages);
         Box::pin(async move {
-            let pages_guard = pages.read().unwrap();
+            let pages_guard = pages.read().unwrap_or_else(|e| e.into_inner());
             pages_guard
                 .get(&page_id)
                 .cloned()
@@ -151,7 +156,7 @@ impl AsyncPersistenceBackend for MemoryBackend {
     > {
         let pages = Arc::clone(&self.pages);
         Box::pin(async move {
-            let pages_guard = pages.read().unwrap();
+            let pages_guard = pages.read().unwrap_or_else(|e| e.into_inner());
             pages_guard
                 .get(&page_id)
                 .cloned()
@@ -170,9 +175,9 @@ impl AsyncPersistenceBackend for MemoryBackend {
         let pages = Arc::clone(&self.pages);
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            let mut pages_guard = pages.write().unwrap();
+            let mut pages_guard = pages.write().unwrap_or_else(|e| e.into_inner());
             pages_guard.insert(page_id, data);
-            stats.write().unwrap().write_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
             Ok(())
         })
     }
@@ -189,9 +194,9 @@ impl AsyncPersistenceBackend for MemoryBackend {
         let pages = Arc::clone(&self.pages);
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            let mut pages_guard = pages.write().unwrap();
+            let mut pages_guard = pages.write().unwrap_or_else(|e| e.into_inner());
             pages_guard.insert(page_id, data);
-            stats.write().unwrap().write_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
             Ok(())
         })
     }
@@ -203,7 +208,7 @@ impl AsyncPersistenceBackend for MemoryBackend {
     {
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            stats.write().unwrap().sync_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).sync_ops += 1;
             Ok(())
         })
     }
@@ -216,13 +221,13 @@ impl AsyncPersistenceBackend for MemoryBackend {
     > {
         let stats = Arc::clone(&self.stats);
         Box::pin(async move {
-            stats.write().unwrap().sync_ops += 1;
+            stats.write().unwrap_or_else(|e| e.into_inner()).sync_ops += 1;
             Ok(())
         })
     }
 
     fn stats(&self) -> StorageStats {
-        self.stats.read().unwrap().clone()
+        self.stats.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 

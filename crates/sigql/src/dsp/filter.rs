@@ -450,7 +450,7 @@ impl MedianFilter {
                 window.push(input[j]);
             }
 
-            window.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            window.sort_by(|a, b| a.total_cmp(b));
             output.push(window[window.len() / 2]);
         }
 

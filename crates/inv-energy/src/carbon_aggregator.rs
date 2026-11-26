@@ -439,7 +439,7 @@ impl CarbonAggregator {
     }
 
     fn get_carbon_cache(&self, zone: &str) -> Option<CarbonIntensityResponse> {
-        let cache = self.carbon_cache.lock().unwrap();
+        let cache = self.carbon_cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(entry) = cache.get(zone)
             && entry.fetched_at.elapsed() < self.cache_ttl
         {
@@ -449,7 +449,7 @@ impl CarbonAggregator {
     }
 
     fn put_carbon_cache(&self, zone: &str, value: &CarbonIntensityResponse) {
-        let mut cache = self.carbon_cache.lock().unwrap();
+        let mut cache = self.carbon_cache.lock().unwrap_or_else(|e| e.into_inner());
         cache.insert(
             zone.to_string(),
             CacheEntry {
@@ -460,7 +460,7 @@ impl CarbonAggregator {
     }
 
     fn get_power_cache(&self, zone: &str) -> Option<RenewableEnergyResponse> {
-        let cache = self.power_cache.lock().unwrap();
+        let cache = self.power_cache.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(entry) = cache.get(zone)
             && entry.fetched_at.elapsed() < self.cache_ttl
         {
@@ -470,7 +470,7 @@ impl CarbonAggregator {
     }
 
     fn put_power_cache(&self, zone: &str, value: &RenewableEnergyResponse) {
-        let mut cache = self.power_cache.lock().unwrap();
+        let mut cache = self.power_cache.lock().unwrap_or_else(|e| e.into_inner());
         cache.insert(
             zone.to_string(),
             CacheEntry {
@@ -2813,8 +2813,12 @@ mod scraper_backends {
         /// Parse generation data from ONS HTML.
         pub fn parse_generation_html(html: &str) -> Vec<(String, f64)> {
             let doc = Html::parse_document(html);
-            let row_sel = Selector::parse("tr, .generation-row, [data-fuel]").unwrap();
-            let td_sel = Selector::parse("td, span, .value").unwrap();
+            let (Ok(row_sel), Ok(td_sel)) = (
+                Selector::parse("tr, .generation-row, [data-fuel]"),
+                Selector::parse("td, span, .value"),
+            ) else {
+                return Vec::new();
+            };
             let mut results = Vec::new();
 
             for row in doc.select(&row_sel) {
@@ -2981,8 +2985,12 @@ mod scraper_backends {
 
         pub fn parse_generation_html(html: &str) -> Vec<(String, f64)> {
             let doc = Html::parse_document(html);
-            let row_sel = Selector::parse("tr, .gen-row, [data-type]").unwrap();
-            let td_sel = Selector::parse("td, span, .value").unwrap();
+            let (Ok(row_sel), Ok(td_sel)) = (
+                Selector::parse("tr, .gen-row, [data-type]"),
+                Selector::parse("td, span, .value"),
+            ) else {
+                return Vec::new();
+            };
             let mut results = Vec::new();
 
             for row in doc.select(&row_sel) {
@@ -3148,8 +3156,12 @@ mod scraper_backends {
 
         pub fn parse_generation_html(html: &str) -> Vec<(String, f64)> {
             let doc = Html::parse_document(html);
-            let row_sel = Selector::parse("tr, .gen-item, [data-plant]").unwrap();
-            let td_sel = Selector::parse("td, span, .value").unwrap();
+            let (Ok(row_sel), Ok(td_sel)) = (
+                Selector::parse("tr, .gen-item, [data-plant]"),
+                Selector::parse("td, span, .value"),
+            ) else {
+                return Vec::new();
+            };
             let mut results = Vec::new();
 
             for row in doc.select(&row_sel) {
@@ -3313,8 +3325,12 @@ mod scraper_backends {
 
         pub fn parse_generation_html(html: &str) -> Vec<(String, f64)> {
             let doc = Html::parse_document(html);
-            let row_sel = Selector::parse("tr, .fuel-row, [data-source]").unwrap();
-            let td_sel = Selector::parse("td, span, .value").unwrap();
+            let (Ok(row_sel), Ok(td_sel)) = (
+                Selector::parse("tr, .fuel-row, [data-source]"),
+                Selector::parse("td, span, .value"),
+            ) else {
+                return Vec::new();
+            };
             let mut results = Vec::new();
 
             for row in doc.select(&row_sel) {
@@ -3509,7 +3525,7 @@ impl WattTimeBackend {
     async fn get_token(&self) -> Result<String, CarbonApiError> {
         // Check cached token
         {
-            let guard = self.token.lock().unwrap();
+            let guard = self.token.lock().unwrap_or_else(|e| e.into_inner());
             if let Some((ref tok, issued)) = *guard
                 && issued.elapsed() < Duration::from_secs(25 * 60)
             {
@@ -3542,7 +3558,7 @@ impl WattTimeBackend {
 
         let tok = body.token;
         {
-            let mut guard = self.token.lock().unwrap();
+            let mut guard = self.token.lock().unwrap_or_else(|e| e.into_inner());
             *guard = Some((tok.clone(), Instant::now()));
         }
         Ok(tok)

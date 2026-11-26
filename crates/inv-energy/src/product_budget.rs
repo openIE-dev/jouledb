@@ -109,11 +109,11 @@ impl ProductBudgetManager {
         let product_id = budget.product_id.clone();
         self.budgets
             .write()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(product_id.clone(), budget);
 
         // Initialize usage if needed
-        let mut usage = self.usage.write().unwrap();
+        let mut usage = self.usage.write().unwrap_or_else(|e| e.into_inner());
         usage.entry(product_id).or_insert_with(|| ProductUsage {
             daily_joules: 0.0,
             monthly_joules: 0.0,
@@ -131,7 +131,7 @@ impl ProductBudgetManager {
 
         // Update usage
         {
-            let mut usage = self.usage.write().unwrap();
+            let mut usage = self.usage.write().unwrap_or_else(|e| e.into_inner());
             let u = usage
                 .entry(product_id.to_string())
                 .or_insert_with(|| ProductUsage {
@@ -153,8 +153,8 @@ impl ProductBudgetManager {
 
     /// Check current budget status for a product.
     pub fn check_budget(&self, product_id: &str) -> BudgetStatus {
-        let budgets = self.budgets.read().unwrap();
-        let usage = self.usage.read().unwrap();
+        let budgets = self.budgets.read().unwrap_or_else(|e| e.into_inner());
+        let usage = self.usage.read().unwrap_or_else(|e| e.into_inner());
 
         let budget = match budgets.get(product_id) {
             Some(b) => b,
@@ -254,7 +254,7 @@ impl ProductBudgetManager {
 
         // Store alerts
         if !alerts.is_empty() {
-            let mut stored = self.alerts.write().unwrap();
+            let mut stored = self.alerts.write().unwrap_or_else(|e| e.into_inner());
             for alert in &alerts {
                 warn!(
                     product_id = %alert.product_id,
@@ -279,14 +279,14 @@ impl ProductBudgetManager {
 
     /// Get all triggered alerts.
     pub fn get_alerts(&self) -> Vec<BudgetAlert> {
-        self.alerts.read().unwrap().clone()
+        self.alerts.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Get alerts for a specific product.
     pub fn get_product_alerts(&self, product_id: &str) -> Vec<BudgetAlert> {
         self.alerts
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|a| a.product_id == product_id)
             .cloned()
@@ -295,7 +295,7 @@ impl ProductBudgetManager {
 
     /// Reset daily usage counters for all products.
     pub fn reset_daily(&self) {
-        let mut usage = self.usage.write().unwrap();
+        let mut usage = self.usage.write().unwrap_or_else(|e| e.into_inner());
         let now = SystemTime::now();
         for u in usage.values_mut() {
             u.daily_joules = 0.0;
@@ -305,7 +305,7 @@ impl ProductBudgetManager {
 
     /// Reset monthly usage counters for all products.
     pub fn reset_monthly(&self) {
-        let mut usage = self.usage.write().unwrap();
+        let mut usage = self.usage.write().unwrap_or_else(|e| e.into_inner());
         let now = SystemTime::now();
         for u in usage.values_mut() {
             u.monthly_joules = 0.0;
@@ -315,18 +315,33 @@ impl ProductBudgetManager {
 
     /// Get budget for a product.
     pub fn get_budget(&self, product_id: &str) -> Option<ProductBudget> {
-        self.budgets.read().unwrap().get(product_id).cloned()
+        self.budgets
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(product_id)
+            .cloned()
     }
 
     /// Remove a product budget.
     pub fn remove_budget(&self, product_id: &str) {
-        self.budgets.write().unwrap().remove(product_id);
-        self.usage.write().unwrap().remove(product_id);
+        self.budgets
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(product_id);
+        self.usage
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(product_id);
     }
 
     /// List all product budgets.
     pub fn list_budgets(&self) -> Vec<ProductBudget> {
-        self.budgets.read().unwrap().values().cloned().collect()
+        self.budgets
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// Total energy consumed by budget management operations.

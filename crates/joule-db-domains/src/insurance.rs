@@ -284,8 +284,8 @@ impl RiskAssessor {
     pub fn train(&mut self, profile: &RiskProfile) {
         let hv = self.encoder.encode_risk_profile(profile);
         self.risk_patterns
-            .get_mut(&profile.risk_category)
-            .unwrap()
+            .entry(profile.risk_category)
+            .or_insert_with(|| BundleAccumulator::new(DIMENSION))
             .add(&hv);
     }
 

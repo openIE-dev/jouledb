@@ -109,14 +109,14 @@ impl AcceleratorManager {
 
     /// List all detected devices.
     pub fn list_devices(&self) -> Vec<AcceleratorDevice> {
-        self.devices.read().unwrap().clone()
+        self.devices.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// List only devices of a specific kind.
     pub fn list_by_kind(&self, kind: &AcceleratorKind) -> Vec<AcceleratorDevice> {
         self.devices
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|d| &d.kind == kind)
             .cloned()
@@ -127,7 +127,7 @@ impl AcceleratorManager {
     pub fn list_available(&self) -> Vec<AcceleratorDevice> {
         self.devices
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter(|d| d.available && d.allocated_to.is_none())
             .cloned()
@@ -146,9 +146,12 @@ impl AcceleratorManager {
         instance_id: &str,
         bindings: &[AcceleratorBinding],
     ) -> Result<Vec<String>, RuntimeError> {
-        let mut devices = self.devices.write().unwrap();
-        let mut allocations = self.allocations.write().unwrap();
-        let mut energy = self.cumulative_energy.write().unwrap();
+        let mut devices = self.devices.write().unwrap_or_else(|e| e.into_inner());
+        let mut allocations = self.allocations.write().unwrap_or_else(|e| e.into_inner());
+        let mut energy = self
+            .cumulative_energy
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         let mut allocated_ids = Vec::new();
 
         for binding in bindings {
@@ -206,8 +209,8 @@ impl AcceleratorManager {
 
     /// Release all devices allocated to an instance.
     pub fn release(&self, instance_id: &str) {
-        let mut devices = self.devices.write().unwrap();
-        let mut allocations = self.allocations.write().unwrap();
+        let mut devices = self.devices.write().unwrap_or_else(|e| e.into_inner());
+        let mut allocations = self.allocations.write().unwrap_or_else(|e| e.into_inner());
 
         if let Some(device_ids) = allocations.remove(instance_id) {
             for id in &device_ids {
@@ -226,8 +229,8 @@ impl AcceleratorManager {
 
     /// Get devices allocated to a specific instance.
     pub fn devices_for_instance(&self, instance_id: &str) -> Vec<AcceleratorDevice> {
-        let devices = self.devices.read().unwrap();
-        let allocations = self.allocations.read().unwrap();
+        let devices = self.devices.read().unwrap_or_else(|e| e.into_inner());
+        let allocations = self.allocations.read().unwrap_or_else(|e| e.into_inner());
         match allocations.get(instance_id) {
             Some(ids) => devices
                 .iter()
@@ -249,8 +252,11 @@ impl AcceleratorManager {
         tpu_utilization: f64,
         lpu_utilization: f64,
     ) -> Vec<DeviceEnergy> {
-        let devices = self.devices.read().unwrap();
-        let energy = self.cumulative_energy.read().unwrap();
+        let devices = self.devices.read().unwrap_or_else(|e| e.into_inner());
+        let energy = self
+            .cumulative_energy
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
 
         devices
             .iter()
@@ -291,8 +297,11 @@ impl AcceleratorManager {
         tpu_utilization: f64,
         lpu_utilization: f64,
     ) {
-        let devices = self.devices.read().unwrap();
-        let mut energy = self.cumulative_energy.write().unwrap();
+        let devices = self.devices.read().unwrap_or_else(|e| e.into_inner());
+        let mut energy = self
+            .cumulative_energy
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
 
         for dev in devices.iter() {
             if dev.allocated_to.is_some() {
@@ -311,8 +320,11 @@ impl AcceleratorManager {
 
     /// Get total energy consumed by a specific instance across all its devices.
     pub fn energy_for_instance(&self, instance_id: &str) -> f64 {
-        let allocations = self.allocations.read().unwrap();
-        let energy = self.cumulative_energy.read().unwrap();
+        let allocations = self.allocations.read().unwrap_or_else(|e| e.into_inner());
+        let energy = self
+            .cumulative_energy
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         match allocations.get(instance_id) {
             Some(device_ids) => device_ids
                 .iter()
@@ -324,13 +336,13 @@ impl AcceleratorManager {
 
     /// Number of detected devices.
     pub fn device_count(&self) -> usize {
-        self.devices.read().unwrap().len()
+        self.devices.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Re-detect devices (e.g., after hot-plug).
     pub fn refresh(&self) {
         let new_devices = detect_devices();
-        let mut devices = self.devices.write().unwrap();
+        let mut devices = self.devices.write().unwrap_or_else(|e| e.into_inner());
 
         // Preserve allocation state for devices that still exist
         let allocations: HashMap<String, Option<String>> = devices

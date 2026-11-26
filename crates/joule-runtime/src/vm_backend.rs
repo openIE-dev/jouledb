@@ -157,7 +157,7 @@ impl RuntimeBackend for VmBackend {
             .map_err(|e| RuntimeError::VMError(format!("failed to spawn {}: {}", binary, e)))?;
 
         let pid = child.id();
-        let mut vms = self.vms.write().unwrap();
+        let mut vms = self.vms.write().unwrap_or_else(|e| e.into_inner());
         vms.insert(
             instance.id.0.clone(),
             VmProcess {
@@ -172,7 +172,7 @@ impl RuntimeBackend for VmBackend {
 
     async fn stop(&self, instance_id: &str) -> Result<(), RuntimeError> {
         let vm = {
-            let mut vms = self.vms.write().unwrap();
+            let mut vms = self.vms.write().unwrap_or_else(|e| e.into_inner());
             vms.remove(instance_id)
                 .ok_or_else(|| RuntimeError::InstanceNotFound(instance_id.into()))?
         };
@@ -205,7 +205,7 @@ impl RuntimeBackend for VmBackend {
     }
 
     async fn status(&self, instance_id: &str) -> Result<InstanceState, RuntimeError> {
-        let vms = self.vms.read().unwrap();
+        let vms = self.vms.read().unwrap_or_else(|e| e.into_inner());
         match vms.get(instance_id) {
             Some(vm) => {
                 if let Some(pid) = vm.pid {

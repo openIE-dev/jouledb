@@ -359,7 +359,9 @@ impl VectorIndex {
         let node_vector = self.vectors[node_index].vector.clone();
 
         // Find entry point and traverse down to the node's layer
-        let mut current = self.entry_point.unwrap();
+        let mut current = self
+            .entry_point
+            .ok_or_else(|| VectorError::IndexError("Index has no entry point".to_string()))?;
 
         // Traverse from top layer down to node_layer + 1
         for layer in (node_layer + 1..=self.max_layer).rev() {
@@ -634,7 +636,9 @@ impl VectorIndex {
             return Ok(self.brute_force_search(query, k));
         }
 
-        let entry_point = self.entry_point.unwrap();
+        let Some(entry_point) = self.entry_point else {
+            return Ok(Vec::new());
+        };
         let mut current = entry_point;
 
         // Traverse from top layer down to layer 1
@@ -766,7 +770,7 @@ fn rand_float() -> f32 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .subsec_nanos();
     (nanos as f32 / u32::MAX as f32).fract()
 }

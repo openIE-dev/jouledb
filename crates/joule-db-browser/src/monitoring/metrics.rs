@@ -53,11 +53,14 @@ impl PerformanceMonitor {
 
     /// Record query execution time
     pub fn record_query_time(&self, duration: Duration) {
-        let mut metrics = self.metrics.write().unwrap();
+        let mut metrics = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         metrics.total_queries += 1;
         metrics.query_times.push(duration);
 
-        let mut history = self.query_time_history.write().unwrap();
+        let mut history = self
+            .query_time_history
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
         history.push_back(duration);
         if history.len() > self.max_history {
             history.pop_front();
@@ -66,7 +69,7 @@ impl PerformanceMonitor {
 
     /// Record error
     pub fn record_error(&self) {
-        let mut metrics = self.metrics.write().unwrap();
+        let mut metrics = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         metrics.total_errors += 1;
         // Calculate error rate (simplified)
         if metrics.total_queries > 0 {
@@ -76,24 +79,30 @@ impl PerformanceMonitor {
 
     /// Update GPU utilization
     pub fn update_gpu_utilization(&self, utilization: f32) {
-        let mut metrics = self.metrics.write().unwrap();
+        let mut metrics = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         metrics.gpu_utilization = utilization;
     }
 
     /// Update memory usage
     pub fn update_memory_usage(&self, bytes: u64) {
-        let mut metrics = self.metrics.write().unwrap();
+        let mut metrics = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         metrics.memory_usage = bytes;
     }
 
     /// Get current metrics
     pub fn get_metrics(&self) -> Metrics {
-        self.metrics.read().unwrap().clone()
+        self.metrics
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Get average query time
     pub fn average_query_time(&self) -> Option<Duration> {
-        let history = self.query_time_history.read().unwrap();
+        let history = self
+            .query_time_history
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         if history.is_empty() {
             return None;
         }

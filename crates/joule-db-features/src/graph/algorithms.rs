@@ -55,9 +55,9 @@ impl GraphStore {
         max_iterations: usize,
         tolerance: f64,
     ) -> PageRankResult {
-        let nodes = self.nodes.read().unwrap();
-        let outgoing = self.outgoing.read().unwrap();
-        let incoming = self.incoming.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
 
         let num_nodes = nodes.len();
         if num_nodes == 0 {
@@ -89,7 +89,12 @@ impl GraphStore {
                 // Sum contributions from incoming edges
                 if let Some(incoming_edges) = incoming.get(node_id) {
                     for edge_id in incoming_edges {
-                        if let Some(edge) = self.edges.read().unwrap().get(edge_id) {
+                        if let Some(edge) = self
+                            .edges
+                            .read()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .get(edge_id)
+                        {
                             let source = edge.from;
                             if let Some(&source_score) = scores.get(&source) {
                                 let out_degree = out_degrees.get(&source).copied().unwrap_or(1);
@@ -130,10 +135,10 @@ impl GraphStore {
     ///
     /// Returns a map of node IDs to their community assignments.
     pub fn detect_communities(&self, resolution: f64) -> CommunityResult {
-        let nodes = self.nodes.read().unwrap();
-        let edges = self.edges.read().unwrap();
-        let outgoing = self.outgoing.read().unwrap();
-        let incoming = self.incoming.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
+        let outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
+        let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
 
         if nodes.is_empty() {
             return CommunityResult {
@@ -163,7 +168,9 @@ impl GraphStore {
 
             // Try moving each node to neighboring communities
             for node_id in nodes.keys() {
-                let current_community = communities.get(node_id).copied().unwrap();
+                let Some(current_community) = communities.get(node_id).copied() else {
+                    continue;
+                };
 
                 // Get neighboring communities
                 let mut neighbor_communities: HashMap<usize, usize> = HashMap::new();
@@ -172,8 +179,9 @@ impl GraphStore {
                 if let Some(edge_ids) = outgoing.get(node_id) {
                     for edge_id in edge_ids {
                         if let Some(edge) = edges.get(edge_id) {
-                            let neighbor_community = communities.get(&edge.to).copied().unwrap();
-                            *neighbor_communities.entry(neighbor_community).or_insert(0) += 1;
+                            if let Some(neighbor_community) = communities.get(&edge.to).copied() {
+                                *neighbor_communities.entry(neighbor_community).or_insert(0) += 1;
+                            }
                         }
                     }
                 }
@@ -182,8 +190,9 @@ impl GraphStore {
                 if let Some(edge_ids) = incoming.get(node_id) {
                     for edge_id in edge_ids {
                         if let Some(edge) = edges.get(edge_id) {
-                            let neighbor_community = communities.get(&edge.from).copied().unwrap();
-                            *neighbor_communities.entry(neighbor_community).or_insert(0) += 1;
+                            if let Some(neighbor_community) = communities.get(&edge.from).copied() {
+                                *neighbor_communities.entry(neighbor_community).or_insert(0) += 1;
+                            }
                         }
                     }
                 }
@@ -231,7 +240,7 @@ impl GraphStore {
             return 0.0;
         }
 
-        let edges = self.edges.read().unwrap();
+        let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
         let mut modularity = 0.0;
 
         for edge in edges.values() {
@@ -260,7 +269,7 @@ impl GraphStore {
     /// Betweenness centrality measures how often a node appears on shortest paths
     /// between other nodes.
     pub fn betweenness_centrality(&self) -> HashMap<NodeId, f64> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         let mut centrality: HashMap<NodeId, f64> = nodes.keys().map(|&id| (id, 0.0)).collect();
 
         // For each node, compute shortest paths through it
@@ -323,7 +332,7 @@ impl GraphStore {
     ///
     /// Closeness centrality measures how close a node is to all other nodes.
     pub fn closeness_centrality(&self) -> HashMap<NodeId, f64> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
         let mut centrality: HashMap<NodeId, f64> = HashMap::new();
 
         for node_id in nodes.keys() {
@@ -368,8 +377,8 @@ impl GraphStore {
 
     /// Compute eigenvector centrality (simplified power iteration)
     fn eigenvector_centrality(&self) -> HashMap<NodeId, f64> {
-        let nodes = self.nodes.read().unwrap();
-        let _outgoing = self.outgoing.read().unwrap();
+        let nodes = self.nodes.read().unwrap_or_else(|e| e.into_inner());
+        let _outgoing = self.outgoing.read().unwrap_or_else(|e| e.into_inner());
 
         let num_nodes = nodes.len();
         if num_nodes == 0 {
@@ -389,9 +398,9 @@ impl GraphStore {
             for node_id in nodes.keys() {
                 let mut score = 0.0;
 
-                let incoming = self.incoming.read().unwrap();
+                let incoming = self.incoming.read().unwrap_or_else(|e| e.into_inner());
                 if let Some(edge_ids) = incoming.get(node_id) {
-                    let edges = self.edges.read().unwrap();
+                    let edges = self.edges.read().unwrap_or_else(|e| e.into_inner());
                     for edge_id in edge_ids {
                         if let Some(edge) = edges.get(edge_id) {
                             score += scores.get(&edge.from).copied().unwrap_or(0.0);

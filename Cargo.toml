@@ -45,7 +45,7 @@ members = [
 ]
 
 [workspace.package]
-version      = "0.10.0"
+version      = "0.11.0"
 edition      = "2024"
 rust-version = "1.94.1"
 authors      = ["David Charlot <david@joulesperbit.com>"]
@@ -253,7 +253,7 @@ rustyline = { version = "17", features = ["derive"] }
 # ── WebAuthn / FIDO2 (LATTICE) ─────────────────────────────
 
 # ── Auth (LATTICE) ─────────────────────────────────────────
-jsonwebtoken  = "10"
+jsonwebtoken  = { version = "10", features = ["rust_crypto"] }
 argon2        = { version = "0.5", features = ["std"] }
 
 # ── Email (LATTICE) ────────────────────────────────────────

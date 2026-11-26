@@ -184,17 +184,24 @@ impl IndexedDBBatcher {
 
     /// Get current statistics
     pub fn stats(&self) -> BatchStats {
-        self.stats.read().unwrap().clone()
+        self.stats.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Get the number of pending operations
     pub fn pending_count(&self) -> usize {
-        self.pending_ops.read().unwrap().len()
+        self.pending_ops
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     /// Check if there are pending operations
     pub fn has_pending(&self) -> bool {
-        !self.pending_ops.read().unwrap().is_empty()
+        !self
+            .pending_ops
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty()
     }
 
     /// Queue a write operation
@@ -206,25 +213,25 @@ impl IndexedDBBatcher {
     pub fn queue_write(&self, page_id: PageId, data: Vec<u8>) {
         // Update write cache immediately for read consistency
         {
-            let mut cache = self.write_cache.write().unwrap();
+            let mut cache = self.write_cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(page_id, data.clone());
         }
 
         // Remove from deleted set if present
         {
-            let mut deleted = self.deleted_keys.write().unwrap();
+            let mut deleted = self.deleted_keys.write().unwrap_or_else(|e| e.into_inner());
             deleted.remove(&page_id);
         }
 
         // Add to pending operations
         {
-            let mut ops = self.pending_ops.write().unwrap();
+            let mut ops = self.pending_ops.write().unwrap_or_else(|e| e.into_inner());
             ops.push(BatchOperation::Write(PendingWrite { page_id, data }));
         }
 
         // Update stats
         {
-            let mut stats = self.stats.write().unwrap();
+            let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
             stats.operations_batched += 1;
         }
     }
@@ -233,25 +240,25 @@ impl IndexedDBBatcher {
     pub fn queue_delete(&self, page_id: PageId) {
         // Update cache immediately
         {
-            let mut cache = self.write_cache.write().unwrap();
+            let mut cache = self.write_cache.write().unwrap_or_else(|e| e.into_inner());
             cache.remove(&page_id);
         }
 
         // Mark as deleted
         {
-            let mut deleted = self.deleted_keys.write().unwrap();
+            let mut deleted = self.deleted_keys.write().unwrap_or_else(|e| e.into_inner());
             deleted.insert(page_id);
         }
 
         // Add to pending operations
         {
-            let mut ops = self.pending_ops.write().unwrap();
+            let mut ops = self.pending_ops.write().unwrap_or_else(|e| e.into_inner());
             ops.push(BatchOperation::Delete(PendingDelete { page_id }));
         }
 
         // Update stats
         {
-            let mut stats = self.stats.write().unwrap();
+            let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
             stats.operations_batched += 1;
         }
     }
@@ -260,20 +267,23 @@ impl IndexedDBBatcher {
     pub fn read_from_cache(&self, page_id: PageId) -> Option<Vec<u8>> {
         // Check if deleted
         {
-            let deleted = self.deleted_keys.read().unwrap();
+            let deleted = self.deleted_keys.read().unwrap_or_else(|e| e.into_inner());
             if deleted.contains(&page_id) {
                 return None;
             }
         }
 
         // Check write cache
-        let cache = self.write_cache.read().unwrap();
+        let cache = self.write_cache.read().unwrap_or_else(|e| e.into_inner());
         cache.get(&page_id).cloned()
     }
 
     /// Check if a page is pending deletion
     pub fn is_pending_delete(&self, page_id: PageId) -> bool {
-        self.deleted_keys.read().unwrap().contains(&page_id)
+        self.deleted_keys
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(&page_id)
     }
 
     /// Check if auto-flush should be triggered due to size
@@ -288,7 +298,7 @@ impl IndexedDBBatcher {
     #[cfg(target_arch = "wasm32")]
     pub async fn flush(&self, db: &IdbDatabase) -> Result<usize, PersistenceError> {
         let ops: Vec<BatchOperation> = {
-            let mut pending = self.pending_ops.write().unwrap();
+            let mut pending = self.pending_ops.write().unwrap_or_else(|e| e.into_inner());
             std::mem::take(&mut *pending)
         };
 
@@ -358,7 +368,7 @@ impl IndexedDBBatcher {
 
         // Update statistics
         {
-            let mut stats = self.stats.write().unwrap();
+            let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
             stats.batches_flushed += 1;
             stats.avg_batch_size = stats.operations_batched as f64 / stats.batches_flushed as f64;
         }
@@ -366,8 +376,8 @@ impl IndexedDBBatcher {
         // Clear the cache for items that were successfully written
         // (they're now in IndexedDB)
         {
-            let mut cache = self.write_cache.write().unwrap();
-            let mut deleted = self.deleted_keys.write().unwrap();
+            let mut cache = self.write_cache.write().unwrap_or_else(|e| e.into_inner());
+            let mut deleted = self.deleted_keys.write().unwrap_or_else(|e| e.into_inner());
 
             for op in &ops {
                 match op {
@@ -390,7 +400,7 @@ impl IndexedDBBatcher {
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn flush(&self, _db: &()) -> Result<usize, PersistenceError> {
         let ops: Vec<BatchOperation> = {
-            let mut pending = self.pending_ops.write().unwrap();
+            let mut pending = self.pending_ops.write().unwrap_or_else(|e| e.into_inner());
             std::mem::take(&mut *pending)
         };
 
@@ -398,7 +408,7 @@ impl IndexedDBBatcher {
 
         // Update statistics
         {
-            let mut stats = self.stats.write().unwrap();
+            let mut stats = self.stats.write().unwrap_or_else(|e| e.into_inner());
             stats.batches_flushed += 1;
             if stats.batches_flushed > 0 {
                 stats.avg_batch_size =
@@ -411,7 +421,7 @@ impl IndexedDBBatcher {
 
     /// Clear all pending operations without flushing
     pub fn clear_pending(&self) {
-        let mut ops = self.pending_ops.write().unwrap();
+        let mut ops = self.pending_ops.write().unwrap_or_else(|e| e.into_inner());
         ops.clear();
     }
 
@@ -419,7 +429,7 @@ impl IndexedDBBatcher {
     pub fn pending_write_pages(&self) -> Vec<PageId> {
         self.pending_ops
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter_map(|op| match op {
                 BatchOperation::Write(w) => Some(w.page_id),
@@ -432,7 +442,7 @@ impl IndexedDBBatcher {
     pub fn pending_delete_pages(&self) -> Vec<PageId> {
         self.pending_ops
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter_map(|op| match op {
                 BatchOperation::Delete(d) => Some(d.page_id),

@@ -100,7 +100,10 @@ impl NeurosymbolicDB {
 
     /// Get vector dimension
     pub fn dimension(&self) -> usize {
-        self.neural.read().unwrap().dimension()
+        self.neural
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .dimension()
     }
 
     // ========================================================================
@@ -109,12 +112,15 @@ impl NeurosymbolicDB {
 
     /// Add a neural pattern
     pub fn add_pattern(&self, name: &str, embedding: &[f32]) -> NeurosymbolicResult<usize> {
-        self.neural.read().unwrap().add_pattern(name, embedding)
+        self.neural
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .add_pattern(name, embedding)
     }
 
     /// Add pattern from raw data (generates embedding)
     pub fn add_pattern_from_data(&self, name: &str, data: &[u8]) -> NeurosymbolicResult<usize> {
-        let neural = self.neural.read().unwrap();
+        let neural = self.neural.read().unwrap_or_else(|e| e.into_inner());
         let embedding = neural.generate_embedding(data);
         neural.add_pattern(name, &embedding)
     }
@@ -125,7 +131,10 @@ impl NeurosymbolicDB {
         query: &[f32],
         top_k: usize,
     ) -> NeurosymbolicResult<Vec<PatternMatch>> {
-        self.neural.read().unwrap().match_pattern(query, top_k)
+        self.neural
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .match_pattern(query, top_k)
     }
 
     /// Match patterns from raw data
@@ -134,7 +143,7 @@ impl NeurosymbolicDB {
         data: &[u8],
         top_k: usize,
     ) -> NeurosymbolicResult<Vec<PatternMatch>> {
-        let neural = self.neural.read().unwrap();
+        let neural = self.neural.read().unwrap_or_else(|e| e.into_inner());
         let query = neural.generate_embedding(data);
         neural.match_pattern(&query, top_k)
     }
@@ -145,30 +154,42 @@ impl NeurosymbolicDB {
 
     /// Add a rule
     pub fn add_rule(&self, name: &str, rule_str: &str) -> NeurosymbolicResult<()> {
-        self.symbolic.read().unwrap().add_rule_str(name, rule_str)
+        self.symbolic
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .add_rule_str(name, rule_str)
     }
 
     /// Add a fact
     pub fn add_fact(&self, fact_str: &str) -> NeurosymbolicResult<()> {
-        self.symbolic.read().unwrap().add_fact_str(fact_str)
+        self.symbolic
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .add_fact_str(fact_str)
     }
 
     /// Add a simple fact
     pub fn add_simple_fact(&self, predicate: &str, args: Vec<&str>) {
         self.symbolic
             .read()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .add_simple_fact(predicate, args);
     }
 
     /// Run forward chaining
     pub fn infer(&self) -> usize {
-        self.symbolic.read().unwrap().forward_chain()
+        self.symbolic
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .forward_chain()
     }
 
     /// Query symbolic knowledge
     pub fn query_symbolic(&self, query: &str) -> NeurosymbolicResult<Vec<(Fact, Binding)>> {
-        self.symbolic.read().unwrap().query_str(query)
+        self.symbolic
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .query_str(query)
     }
 
     // ========================================================================
@@ -193,7 +214,7 @@ impl NeurosymbolicDB {
                     NeurosymbolicError::QueryError("neural query requires embedding".to_string())
                 })?;
 
-                let neural = self.neural.read().unwrap();
+                let neural = self.neural.read().unwrap_or_else(|e| e.into_inner());
                 let matches = neural.match_pattern(embedding, self.config.neural_top_k)?;
 
                 let confidence = matches.first().map(|m| m.similarity).unwrap_or(0.0);
@@ -206,7 +227,7 @@ impl NeurosymbolicDB {
                 })
             }
             QueryType::Symbolic => {
-                let symbolic = self.symbolic.read().unwrap();
+                let symbolic = self.symbolic.read().unwrap_or_else(|e| e.into_inner());
 
                 // First run forward chaining
                 symbolic.forward_chain();
@@ -225,8 +246,8 @@ impl NeurosymbolicDB {
             }
             QueryType::Hybrid => {
                 // Run both
-                let neural = self.neural.read().unwrap();
-                let symbolic = self.symbolic.read().unwrap();
+                let neural = self.neural.read().unwrap_or_else(|e| e.into_inner());
+                let symbolic = self.symbolic.read().unwrap_or_else(|e| e.into_inner());
 
                 // Neural matching
                 let neural_matches = if let Some(emb) = query_embedding {
@@ -267,8 +288,8 @@ impl NeurosymbolicDB {
         &self,
         query_embedding: &[f32],
     ) -> NeurosymbolicResult<Vec<(Fact, f32)>> {
-        let neural = self.neural.read().unwrap();
-        let symbolic = self.symbolic.read().unwrap();
+        let neural = self.neural.read().unwrap_or_else(|e| e.into_inner());
+        let symbolic = self.symbolic.read().unwrap_or_else(|e| e.into_inner());
 
         // Get neural matches
         let matches = neural.match_pattern(query_embedding, self.config.neural_top_k)?;
@@ -301,8 +322,8 @@ impl NeurosymbolicDB {
 
     /// Get statistics
     pub fn stats(&self) -> NeurosymbolicStats {
-        let neural = self.neural.read().unwrap();
-        let symbolic = self.symbolic.read().unwrap();
+        let neural = self.neural.read().unwrap_or_else(|e| e.into_inner());
+        let symbolic = self.symbolic.read().unwrap_or_else(|e| e.into_inner());
 
         NeurosymbolicStats {
             pattern_count: neural.len(),
@@ -329,8 +350,18 @@ pub struct NeurosymbolicStats {
 impl Clone for NeurosymbolicDB {
     fn clone(&self) -> Self {
         Self {
-            neural: Arc::new(RwLock::new(self.neural.read().unwrap().clone())),
-            symbolic: Arc::new(RwLock::new(self.symbolic.read().unwrap().clone())),
+            neural: Arc::new(RwLock::new(
+                self.neural
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone(),
+            )),
+            symbolic: Arc::new(RwLock::new(
+                self.symbolic
+                    .read()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone(),
+            )),
             config: self.config.clone(),
         }
     }
