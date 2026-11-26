@@ -31,6 +31,7 @@ pub mod query;
 pub mod rank_sweep_bench;
 pub mod synapse;
 pub mod transformer_encoder;
+pub mod waios_block64;
 
 use joule_db_core::error::Error;
 use joule_db_core::{BufferPoolConfig, DiskBackend, Engine, EngineConfig};
