@@ -26,5 +26,5 @@
 jouledb trust
 
 # Emit CycloneDX v1.6 JSON summary
-jouledb trust --sbom > sbom-v0.7.0.cdx.json
+jouledb trust --sbom > sbom-v0.8.0.cdx.json
 ```

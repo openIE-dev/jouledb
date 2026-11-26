@@ -3,6 +3,21 @@
 use super::conversions::*;
 use super::*;
 
+fn scalar_type_matches(def: &ColumnDefInfo, val: &AstValue) -> bool {
+    let dt = def.data_type.to_uppercase();
+    match val {
+        AstValue::Int(_) => matches!(
+            dt.as_str(),
+            "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "SERIAL" | "BIGSERIAL"
+        ),
+        AstValue::String(_) => {
+            matches!(dt.as_str(), "TEXT" | "VARCHAR" | "CHAR" | "STRING" | "UUID")
+        }
+        AstValue::Bool(_) => matches!(dt.as_str(), "BOOL" | "BOOLEAN"),
+        _ => false,
+    }
+}
+
 impl AmorphicTableStorage {
     /// Check PRIMARY KEY uniqueness for a row about to be inserted.
     /// Returns Ok(()) if no duplicate, Err with message if duplicate found.
@@ -33,8 +48,28 @@ impl AmorphicTableStorage {
             return Ok(()); // PK columns not in row -- skip
         }
 
-        // Scan table and check for duplicate PK
         let store = self.store.read().map_err(lock_error)?;
+        // Fast O(1) secondary-index probe for single scalar PK
+        if let [(col, val)] = pk_values.as_slice()
+            && let Some(def) = pk_cols.first()
+            && scalar_type_matches(def, val)
+        {
+            let aval = ast_to_amorphic(val);
+            let ttag = AmorphicValue::String(table.to_string());
+            let dup = store
+                .records_equal(col, &aval)
+                .iter()
+                .any(|r| r.get(TABLE_FIELD) == Some(&ttag));
+            if dup {
+                return Err(QueryError::ExecutionError(format!(
+                    "UNIQUE constraint failed: duplicate primary key ({} = {:?})",
+                    col, val
+                )));
+            }
+            return Ok(());
+        }
+
+        // Composite or float PK fallback: scan table
         let columns = self.get_schema_columns(&store, table)?;
         let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
 
@@ -70,7 +105,6 @@ impl AmorphicTableStorage {
             return Ok(());
         }
 
-        // Find UNIQUE columns (excluding primary keys, which are already checked)
         let unique_cols: Vec<&ColumnDefInfo> = column_defs
             .iter()
             .filter(|d| d.unique && !d.primary_key)
@@ -80,11 +114,10 @@ impl AmorphicTableStorage {
         }
 
         let store = self.store.read().map_err(lock_error)?;
-        let columns = self.get_schema_columns(&store, table)?;
-        let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
+        let ttag = AmorphicValue::String(table.to_string());
+        let mut fallback_rows: Option<Vec<RowData>> = None;
 
         for unique_def in &unique_cols {
-            // Get the value for this unique column from the new row
             let row_val = row
                 .columns
                 .iter()
@@ -93,22 +126,215 @@ impl AmorphicTableStorage {
 
             let Some(new_val) = row_val else { continue };
             if matches!(new_val, AstValue::Null) {
-                continue;
-            } // NULL is always unique
+                continue; // NULL is always unique
+            }
 
-            // Scan existing rows for duplicates
-            for record in result.records() {
-                let existing_row = Self::record_to_row(record, &columns);
-                if let Some(idx) = existing_row
-                    .columns
+            if scalar_type_matches(unique_def, new_val) {
+                let aval = ast_to_amorphic(new_val);
+                if store
+                    .records_equal(&unique_def.name, &aval)
                     .iter()
-                    .position(|c| c == &unique_def.name)
+                    .any(|r| r.get(TABLE_FIELD) == Some(&ttag))
                 {
-                    if &existing_row.values[idx] == new_val {
+                    return Err(QueryError::ExecutionError(format!(
+                        "UNIQUE constraint failed: column '{}' value {:?} already exists",
+                        unique_def.name, new_val
+                    )));
+                }
+                continue;
+            }
+
+            if fallback_rows.is_none() {
+                let columns = self.get_schema_columns(&store, table)?;
+                let existing: Vec<RowData> = store
+                    .records_equal(TABLE_FIELD, &ttag)
+                    .into_iter()
+                    .map(|r| Self::record_to_row(r, &columns))
+                    .collect();
+                fallback_rows = Some(existing);
+            }
+            if let Some(existing_rows) = fallback_rows.as_ref() {
+                for existing_row in existing_rows {
+                    if let Some(idx) = existing_row
+                        .columns
+                        .iter()
+                        .position(|c| c == &unique_def.name)
+                        && &existing_row.values[idx] == new_val
+                    {
                         return Err(QueryError::ExecutionError(format!(
                             "UNIQUE constraint failed: column '{}' value {:?} already exists",
                             unique_def.name, new_val
                         )));
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Validate PRIMARY KEY and UNIQUE constraints across an entire multi-row `INSERT`
+    /// batch (both intra-batch duplicates and collisions with existing table rows)
+    /// under a single store read lock, using `O(1)` `records_equal` index lookups for
+    /// scalar PK/UNIQUE columns.
+    pub fn check_batch_unique_constraints(
+        &self,
+        table: &str,
+        column_defs: &[ColumnDefInfo],
+        rows: &[RowData],
+    ) -> QueryResult<()> {
+        if column_defs.is_empty() || rows.is_empty() {
+            return Ok(());
+        }
+        let pk_cols: Vec<&ColumnDefInfo> = column_defs.iter().filter(|d| d.primary_key).collect();
+        let unique_cols: Vec<&ColumnDefInfo> = column_defs
+            .iter()
+            .filter(|d| d.unique && !d.primary_key)
+            .collect();
+        if pk_cols.is_empty() && unique_cols.is_empty() {
+            return Ok(());
+        }
+
+        let store = self.store.read().map_err(lock_error)?;
+        let ttag = AmorphicValue::String(table.to_string());
+        let mut cached_all: Option<Vec<RowData>> = None;
+
+        // 1. Check PRIMARY KEY (single or composite)
+        if !pk_cols.is_empty() {
+            let mut batch_seen: std::collections::HashSet<String> =
+                std::collections::HashSet::with_capacity(rows.len());
+            for row in rows {
+                let pk_vals: Vec<(&ColumnDefInfo, &AstValue)> = pk_cols
+                    .iter()
+                    .filter_map(|def| {
+                        row.columns
+                            .iter()
+                            .position(|c| c == &def.name)
+                            .map(|idx| (*def, &row.values[idx]))
+                    })
+                    .collect();
+                if pk_vals.is_empty() {
+                    continue;
+                }
+                let sig = format!(
+                    "{:?}",
+                    pk_vals.iter().map(|(_, v)| *v).collect::<Vec<_>>()
+                );
+                if !batch_seen.insert(sig) {
+                    let pk_desc: Vec<String> = pk_vals
+                        .iter()
+                        .map(|(d, v)| format!("{} = {:?}", d.name, v))
+                        .collect();
+                    return Err(QueryError::ExecutionError(format!(
+                        "UNIQUE constraint failed: duplicate primary key ({})",
+                        pk_desc.join(", ")
+                    )));
+                }
+                if let [(def, val)] = pk_vals.as_slice()
+                    && scalar_type_matches(def, val)
+                {
+                    let aval = ast_to_amorphic(val);
+                    if store
+                        .records_equal(&def.name, &aval)
+                        .iter()
+                        .any(|r| r.get(TABLE_FIELD) == Some(&ttag))
+                    {
+                        return Err(QueryError::ExecutionError(format!(
+                            "UNIQUE constraint failed: duplicate primary key ({} = {:?})",
+                            def.name, val
+                        )));
+                    }
+                } else {
+                    if cached_all.is_none() {
+                        let cols = self.get_schema_columns(&store, table)?;
+                        cached_all = Some(
+                            store
+                                .records_equal(TABLE_FIELD, &ttag)
+                                .into_iter()
+                                .map(|r| Self::record_to_row(r, &cols))
+                                .collect(),
+                        );
+                    }
+                    if let Some(existing) = cached_all.as_ref() {
+                        for ex in existing {
+                            let all_match = pk_vals.iter().all(|(d, v)| {
+                                ex.columns
+                                    .iter()
+                                    .position(|c| c == &d.name)
+                                    .is_some_and(|i| &ex.values[i] == *v)
+                            });
+                            if all_match {
+                                let pk_desc: Vec<String> = pk_vals
+                                    .iter()
+                                    .map(|(d, v)| format!("{} = {:?}", d.name, v))
+                                    .collect();
+                                return Err(QueryError::ExecutionError(format!(
+                                    "UNIQUE constraint failed: duplicate primary key ({})",
+                                    pk_desc.join(", ")
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Check non-PK UNIQUE columns
+        for udef in &unique_cols {
+            let mut batch_seen: std::collections::HashSet<String> =
+                std::collections::HashSet::with_capacity(rows.len());
+            for row in rows {
+                let Some(pos) = row.columns.iter().position(|c| c == &udef.name) else {
+                    continue;
+                };
+                let val = &row.values[pos];
+                if matches!(val, AstValue::Null) {
+                    continue;
+                }
+                let sig = format!("{:?}", val);
+                if !batch_seen.insert(sig) {
+                    return Err(QueryError::ExecutionError(format!(
+                        "UNIQUE constraint failed: column '{}' value {:?} already exists",
+                        udef.name, val
+                    )));
+                }
+                if scalar_type_matches(udef, val) {
+                    let aval = ast_to_amorphic(val);
+                    if store
+                        .records_equal(&udef.name, &aval)
+                        .iter()
+                        .any(|r| r.get(TABLE_FIELD) == Some(&ttag))
+                    {
+                        return Err(QueryError::ExecutionError(format!(
+                            "UNIQUE constraint failed: column '{}' value {:?} already exists",
+                            udef.name, val
+                        )));
+                    }
+                } else {
+                    if cached_all.is_none() {
+                        let cols = self.get_schema_columns(&store, table)?;
+                        cached_all = Some(
+                            store
+                                .records_equal(TABLE_FIELD, &ttag)
+                                .into_iter()
+                                .map(|r| Self::record_to_row(r, &cols))
+                                .collect(),
+                        );
+                    }
+                    if let Some(existing) = cached_all.as_ref() {
+                        for ex in existing {
+                            if ex
+                                .columns
+                                .iter()
+                                .position(|c| c == &udef.name)
+                                .is_some_and(|i| &ex.values[i] == val)
+                            {
+                                return Err(QueryError::ExecutionError(format!(
+                                    "UNIQUE constraint failed: column '{}' value {:?} already exists",
+                                    udef.name, val
+                                )));
+                            }
+                        }
                     }
                 }
             }
@@ -148,28 +374,27 @@ impl AmorphicTableStorage {
             }
 
             for record in result.records() {
-                if let Some(exclude_id) = exclude_record_id {
-                    if record.id == exclude_id {
-                        continue;
-                    }
+                if let Some(exclude_id) = exclude_record_id
+                    && record.id == exclude_id
+                {
+                    continue;
                 }
                 let existing_row = Self::record_to_row(record, columns);
                 if let Some(idx) = existing_row
                     .columns
                     .iter()
                     .position(|c| c == &unique_def.name)
+                    && &existing_row.values[idx] == new_val
                 {
-                    if &existing_row.values[idx] == new_val {
-                        let constraint_type = if unique_def.primary_key {
-                            "PRIMARY KEY"
-                        } else {
-                            "UNIQUE"
-                        };
-                        return Err(QueryError::ExecutionError(format!(
-                            "{} constraint failed: column '{}' value {:?} already exists",
-                            constraint_type, unique_def.name, new_val
-                        )));
-                    }
+                    let constraint_type = if unique_def.primary_key {
+                        "PRIMARY KEY"
+                    } else {
+                        "UNIQUE"
+                    };
+                    return Err(QueryError::ExecutionError(format!(
+                        "{} constraint failed: column '{}' value {:?} already exists",
+                        constraint_type, unique_def.name, new_val
+                    )));
                 }
             }
         }
@@ -184,7 +409,6 @@ impl AmorphicTableStorage {
         let store = self.store.read().map_err(lock_error)?;
         for def in &column_defs {
             if let Some(ref fk) = def.foreign_key {
-                // Get the value of the FK column in the row
                 let fk_val = row
                     .columns
                     .iter()
@@ -193,9 +417,8 @@ impl AmorphicTableStorage {
                 let Some(val) = fk_val else { continue };
                 if matches!(val, AstValue::Null) {
                     continue;
-                } // NULL FK is allowed
+                }
 
-                // Check if the referenced value exists in the referenced table
                 let ref_columns = self
                     .get_schema_columns(&store, &fk.ref_table)
                     .map_err(|_| {
@@ -234,9 +457,8 @@ impl AmorphicTableStorage {
         row: &RowData,
     ) -> QueryResult<Option<Vec<(String, String, String)>>> {
         let store = self.store.read().map_err(lock_error)?;
-        let mut cascade_actions: Vec<(String, String, String)> = Vec::new(); // (child_table, child_col, action)
+        let mut cascade_actions: Vec<(String, String, String)> = Vec::new();
 
-        // Scan all schemas to find FK references to this table
         let schema_result = store.query_equals(
             TABLE_FIELD,
             &AmorphicValue::String(SCHEMA_TABLE.to_string()),
@@ -254,64 +476,62 @@ impl AmorphicTableStorage {
             };
             if child_table == table {
                 continue;
-            } // skip self-references for now
+            }
 
             let child_defs = self
                 .get_column_defs_from_store(&store, &child_table)
                 .unwrap_or_default();
             for def in &child_defs {
-                if let Some(ref fk) = def.foreign_key {
-                    if fk.ref_table == table {
-                        // This child FK references our table -- check if the deleted row's value is referenced
-                        let ref_val = row
+                if let Some(ref fk) = def.foreign_key
+                    && fk.ref_table == table
+                {
+                    let ref_val = row
+                        .columns
+                        .iter()
+                        .position(|c| c == &fk.ref_column)
+                        .map(|idx| &row.values[idx]);
+                    let Some(val) = ref_val else { continue };
+                    if matches!(val, AstValue::Null) {
+                        continue;
+                    }
+
+                    let child_columns = self
+                        .get_schema_columns(&store, &child_table)
+                        .unwrap_or_default();
+                    let child_result = store
+                        .query_equals(TABLE_FIELD, &AmorphicValue::String(child_table.clone()));
+                    let has_ref = child_result.records().iter().any(|record| {
+                        let child_row = Self::record_to_row(record, &child_columns);
+                        child_row
                             .columns
                             .iter()
-                            .position(|c| c == &fk.ref_column)
-                            .map(|idx| &row.values[idx]);
-                        let Some(val) = ref_val else { continue };
-                        if matches!(val, AstValue::Null) {
-                            continue;
-                        }
+                            .position(|c| c == &def.name)
+                            .map(|idx| &child_row.values[idx] == val)
+                            .unwrap_or(false)
+                    });
 
-                        let child_columns = self
-                            .get_schema_columns(&store, &child_table)
-                            .unwrap_or_default();
-                        let child_result = store
-                            .query_equals(TABLE_FIELD, &AmorphicValue::String(child_table.clone()));
-                        let has_ref = child_result.records().iter().any(|record| {
-                            let child_row = Self::record_to_row(record, &child_columns);
-                            child_row
-                                .columns
-                                .iter()
-                                .position(|c| c == &def.name)
-                                .map(|idx| &child_row.values[idx] == val)
-                                .unwrap_or(false)
-                        });
-
-                        if has_ref {
-                            let action = fk.on_delete.as_deref().unwrap_or("RESTRICT");
-                            match action {
-                                "CASCADE" => {
-                                    cascade_actions.push((
-                                        child_table.clone(),
-                                        def.name.clone(),
-                                        "CASCADE".to_string(),
-                                    ));
-                                }
-                                "SET NULL" => {
-                                    cascade_actions.push((
-                                        child_table.clone(),
-                                        def.name.clone(),
-                                        "SET NULL".to_string(),
-                                    ));
-                                }
-                                _ => {
-                                    // RESTRICT / NO ACTION
-                                    return Err(QueryError::ExecutionError(format!(
-                                        "FOREIGN KEY constraint failed: cannot delete from '{}' because '{}' references it via column '{}'",
-                                        table, child_table, def.name
-                                    )));
-                                }
+                    if has_ref {
+                        let action = fk.on_delete.as_deref().unwrap_or("RESTRICT");
+                        match action {
+                            "CASCADE" => {
+                                cascade_actions.push((
+                                    child_table.clone(),
+                                    def.name.clone(),
+                                    "CASCADE".to_string(),
+                                ));
+                            }
+                            "SET NULL" => {
+                                cascade_actions.push((
+                                    child_table.clone(),
+                                    def.name.clone(),
+                                    "SET NULL".to_string(),
+                                ));
+                            }
+                            _ => {
+                                return Err(QueryError::ExecutionError(format!(
+                                    "FOREIGN KEY constraint failed: cannot delete from '{}' because '{}' references it via column '{}'",
+                                    table, child_table, def.name
+                                )));
                             }
                         }
                     }
@@ -352,10 +572,10 @@ impl AmorphicTableStorage {
                 .get_column_defs_from_store(&store, &child_table)
                 .unwrap_or_default();
             for def in &child_defs {
-                if let Some(ref fk) = def.foreign_key {
-                    if fk.ref_table == table {
-                        return Ok(Some((child_table, def.name.clone())));
-                    }
+                if let Some(ref fk) = def.foreign_key
+                    && fk.ref_table == table
+                {
+                    return Ok(Some((child_table, def.name.clone())));
                 }
             }
         }

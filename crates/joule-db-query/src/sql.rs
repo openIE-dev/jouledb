@@ -2176,8 +2176,8 @@ impl SqlParser {
             };
             // Walk to the deepest set_op to chain
             let mut target = &mut query;
-            while target.set_op.is_some() {
-                target = &mut target.set_op.as_mut().unwrap().query;
+            while let Some(ref mut so) = target.set_op {
+                target = &mut so.query;
             }
             target.set_op = Some(SetOp {
                 op_type: SetOperationType::UnionAll,
@@ -2713,12 +2713,10 @@ impl SqlParser {
             });
 
             // Store natural flag: for NATURAL joins, we set a special using_columns marker
-            if is_natural {
-                // Mark as natural by setting a sentinel empty vec (already empty)
-                // The executor checks: using_columns.is_empty() && condition.is_none() && join_type != Cross
-                // → that means NATURAL join. Let's use a more explicit approach.
-                // We'll repurpose the first element to signal NATURAL.
-                joins.last_mut().unwrap().using_columns = vec!["*".to_string()];
+            if is_natural
+                && let Some(last_join) = joins.last_mut()
+            {
+                last_join.using_columns = vec!["*".to_string()];
             }
         }
 

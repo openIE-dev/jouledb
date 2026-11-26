@@ -16,7 +16,7 @@
   "candid_finding_unbarriered_local_sm_read_stale_during_partition": true,
   "candid_note": "RaftNode::propose appends asynchronously to the leader log without awaiting quorum commit; callers requiring linearizable durability across partitions must use RaftNode::propose_and_commit (v0.6.0+). Linearizable reads use Raft §6.4 RaftNode::read_index / RaftNode::read_linearizable (v0.7.0+, zero WAL log writes); raw RaftNode::with_state_machine reads local memory without a quorum round-trip.",
   "cluster_nodes": 5,
-  "elapsed_ms": 4036,
+  "elapsed_ms": 4134,
   "elle_history_events": 76,
   "elle_history_file": "bench/results/raft_tcp_elle_history.edn",
   "engine_tested": "crates/joule-db-server/src/{raft.rs, raft_server.rs, raft_transport.rs}",
@@ -27,11 +27,11 @@
     "Follower stop + restart from on-disk raft.wal + partition heal"
   ],
   "harness": "raft_tcp_elle_fault_injection",
-  "initial_leader": "raft-tcp-5",
+  "initial_leader": "raft-tcp-2",
   "initial_term": 1,
   "lost_committed_writes": 0,
-  "new_majority_leader": "raft-tcp-4",
-  "new_majority_term": 2,
+  "new_majority_leader": "raft-tcp-5",
+  "new_majority_term": 3,
   "transport": "Real TCP loopback sockets via 20-link TcpPartitionMatrix fault-injection proxy",
   "wal_persistence": "On-disk RaftWal per node (CRC-32 records + restart recovery)"
 }

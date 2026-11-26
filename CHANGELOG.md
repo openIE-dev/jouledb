@@ -9,6 +9,25 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-25
+
+### Added
+- **Out-of-Core `.jcol` Columnar Segment Engine (`disk_col_segments.rs` + `execute_segmented`) & Full `99,997,497`-Row (`14.78 GB`) Official ClickBench Completion**:
+  - Added `crates/joule-db-server/src/disk_col_segments.rs` (`#![deny(clippy::unwrap_used)]`, `MAX_SEGMENT_ROWS = 262_144`, configurable via `JOULEDB_COL_SPILL_ROWS`): drains large columnar tables to immutable `.jcol` segment files with parallel Rayon column encoding, automatic `I8/I16/I32/I64` bit-width narrowing, bitpacked null masks, compact `u8/u16/u32` local string dictionaries, CRC-32 per-slice and `JCL1` footer checksums, Unix `pread` (`read_exact_at`) column-subset loading, startup manifest recovery, and `DROP TABLE` cleanup.
+  - Added `columnar_exec::execute_segmented` (`crates/joule-db-server/src/columnar_exec.rs`): zero-I/O metadata aggregates (`COUNT(*)`, `MIN`, `MAX`), segment-level ZoneMap pruning, two-phase `WHERE`-first column loading (skipping projection/grouping column reads on 0-match segments), two-phase Top-K `SELECT * ... ORDER BY ... LIMIT k` (`Q23`), 64-shard exact `COUNT(DISTINCT int/text)` (`Q4`, `Q5`), constant & functionally-determined `col ± k` group-key elimination (`Q34`, `Q35`), inline small-set `DistinctSet` (`Inline4`), and 4-pass Radix-64 parallel sharded `GROUP BY` with per-shard `HAVING`/Top-K reduction.
+  - Completed the **entire official `99,997,497`-row (`14.78 GB`, `105`-column) ClickBench `hits.parquet` dataset** (`bench/results/clickbench_official_100m.json`, `is_full_100m_dataset: true`, Linux `rapl-package` `reported_j`): **`6,199.0 MB` (`6.05 GiB`) post-load RSS** (`20,740.5 MB` kernel `VmHWM` peak), **`43 / 43` queries succeeded (`0` errors, `0` restarts), `43 / 43` SQL-valid matches (`31` byte-exact)**, **`4.854×` geomean latency** (`median 4.570×`) and **`4.246×` geomean `reported_j`** vs DuckDB `2.0.1` (`5 / 43` JouleDB wins at `100M` rows; `10 / 43` wins & `3.213×` geomean at `10M` rows vs `9.74×` in `v0.7.0`).
+- **Head-to-Head `100`-Warehouse TCP `pgwire` OLTP Benchmark vs. `PostgreSQL 16.16` & `SQLite 3.53.1` (`bench/oltp_pgwire.py`)**:
+  - Extended `bench/oltp_pgwire.py` (`bench/results/oltp_pgwire_100wh.json`) to benchmark `JouleDB 0.8.0` alongside real `PostgreSQL 16.16` (`fsync=on`, `synchronous_commit=on`) across both PostgreSQL v3 Simple Query (4-RTT) and `psycopg` Extended Query Pipeline (1-RTT) modes plus embedded `SQLite 3.53.1` WAL (`invariant_verified: true` across all 5 runs).
+
+### Fixed
+- **`O(1)` PK/UNIQUE Index Lookups, Multi-Row `INSERT` Batching & `pgwire` Extended Query Pipeline Recovery**:
+  - Upgraded `check_primary_key_unique` / `check_unique_constraints` (`crates/joule-db-server/src/amorphic_adapter/{indexes.rs, constraints.rs, crud.rs}`) to `O(1)` secondary-index `records_equal` verification plus `check_batch_unique_constraints` for multi-row PK/UNIQUE `INSERT`s, lifting JouleDB `100`-warehouse `pgwire` Simple Query throughput **2.54×** (`1,318.6 -> 3,353.5 TPS` at `c=16`; `1,659.5 TPS` at `c=1`).
+  - Added `bind_select_query_params` (`crates/joule-db-server/src/query.rs`) for parameterized `$1..$N` `SELECT` fast-path execution and PostgreSQL v3 §55.2.3 `discard_until_sync` Extended Query pipeline error recovery (`crates/joule-db-server/src/pgwire.rs`).
+
+### Changed
+- **Promoted `joule-db-query` to 7th `deny(clippy::unwrap_used)` Crate & Bumped Workspace to `0.8.0`**:
+  - Eliminated all 15 non-test `.unwrap()` calls across `crates/joule-db-query/src/{like.rs, sql.rs, functions.rs, geo.rs, graph.rs, wcoj.rs, storage_executor.rs}`, enforced `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` across **7 crates** in `.github/workflows/engine.yml`, and bumped all workspace, stub, Python, SDK, and Helm/Terraform manifests to `0.8.0`.
+
 ## [0.7.0] - 2026-11-25
 
 ### Added
@@ -144,7 +163,8 @@ All notable changes to this release surface are documented here. Format follows 
 ### Added
 - Initial public release surface, runnable `examples/`, and `mdBook` documentation site at `openie-dev.github.io/jouledb`.
 
-[Unreleased]: https://github.com/openIE-dev/jouledb/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/openIE-dev/jouledb/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/openIE-dev/jouledb/releases/tag/v0.8.0
 [0.7.0]: https://github.com/openIE-dev/jouledb/releases/tag/v0.7.0
 [0.6.0]: https://github.com/openIE-dev/jouledb/releases/tag/v0.6.0
 [0.1.0]: https://github.com/openIE-dev/jouledb/releases/tag/v0.1.0

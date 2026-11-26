@@ -366,6 +366,11 @@ where
         }
     }
 
+    // Per PostgreSQL Frontend/Backend Protocol §55.2.3: when an error occurs
+    // during an Extended Query Protocol message (`P`/`B`/`D`/`E`), discard
+    // subsequent pipelined extended messages until the next `Sync` (`S`).
+    let mut discard_until_sync = false;
+
     loop {
         // Read message type byte (with idle timeout to prevent connection hoarding)
         let msg_type =
@@ -403,8 +408,23 @@ where
             )));
         }
 
+        if discard_until_sync && matches!(msg_type, b'P' | b'B' | b'D' | b'E' | b'C' | b'H') {
+            if body_len > 0 {
+                let mut skipped = vec![0u8; body_len];
+                reader
+                    .read_exact(&mut skipped)
+                    .await
+                    .map_err(|e| PgWireError::Io(e.to_string()))?;
+            }
+            stats
+                .bytes_received
+                .fetch_add(body_len as u64 + 5, Ordering::Relaxed);
+            continue;
+        }
+
         match msg_type {
             b'Q' => {
+                discard_until_sync = false;
                 // Simple Query
                 let mut body = vec![0u8; body_len];
                 reader
@@ -527,6 +547,7 @@ where
                     offset += 2;
                     let skip = n.saturating_mul(2);
                     if offset + skip > body.len() {
+                        discard_until_sync = true;
                         write_error_response(
                             &mut writer,
                             "08P01",
@@ -627,6 +648,7 @@ where
                     );
                     write_message(&mut writer, b'2', &[]).await?; // BindComplete
                 } else {
+                    discard_until_sync = true;
                     write_error_response(
                         &mut writer,
                         "26000",
@@ -759,6 +781,9 @@ where
                         Some(r) => r,
                         None => run_statement(&sql, &executor, &mut conn_state, timeout),
                     };
+                    if res.is_err() {
+                        discard_until_sync = true;
+                    }
                     write_statement_result(
                         &sql,
                         res,
@@ -770,6 +795,7 @@ where
                     )
                     .await?;
                 } else {
+                    discard_until_sync = true;
                     write_error_response(
                         &mut writer,
                         "34000",
@@ -781,6 +807,7 @@ where
 
             b'S' => {
                 // Sync — marks end of extended query protocol message group
+                discard_until_sync = false;
                 if body_len > 0 {
                     let mut body = vec![0u8; body_len];
                     reader

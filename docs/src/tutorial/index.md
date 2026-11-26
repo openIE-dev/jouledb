@@ -1,6 +1,6 @@
-# Guided Tour (`v0.7.0` Preview)
+# Guided Tour (`v0.8.0` Preview)
 
-Explore JouleDB `v0.7.0` locally in six steps:
+Explore JouleDB `v0.8.0` locally in six steps:
 
 1. **SQL & PostgreSQL `pgwire` (`:8082`):** Start `jouledb --port 8080 --data ./jdb` and run SQL via `jouledb query` or `psql -h 127.0.0.1 -p 8082 -U postgres`.
 2. **Official ClickBench vs. DuckDB Harness (`bench/`):** Run `python3 bench/harness.py` or `python3 bench/clickbench_official.py` to compare `JouleDB` (`pgwire`) against `DuckDB` with hardware RAPL / `powermetrics` joules (`reported_j`), including queries where `DuckDB` wins.

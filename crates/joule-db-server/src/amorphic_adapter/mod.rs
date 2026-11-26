@@ -674,6 +674,7 @@ impl HoloLock {
 
 pub struct AmorphicTableStorage {
     store: HoloLock,
+    db_path: std::path::PathBuf,
     /// Columnar snapshots per table, keyed by the store generation they were built at
     col_cache: std::sync::Mutex<
         HashMap<
@@ -684,6 +685,10 @@ pub struct AmorphicTableStorage {
             ),
         >,
     >,
+    /// Out-of-core `.jcol` segmented tables for large analytical datasets (`> 262K` rows).
+    disk_cols: std::sync::RwLock<
+        HashMap<String, std::sync::Arc<crate::disk_col_segments::DiskColumnTable>>,
+    >,
 }
 
 impl AmorphicTableStorage {
@@ -692,11 +697,34 @@ impl AmorphicTableStorage {
         self.store.group_sync()
     }
 
-    pub fn new(store: DurableAmorphicStore) -> Self {
+    pub fn new(mut store: DurableAmorphicStore) -> Self {
+        let db_path = store.path().to_path_buf();
+        let recovered_disk = crate::disk_col_segments::DiskColumnTable::open_all(&db_path);
+        let max_seg_id = recovered_disk
+            .values()
+            .map(|dt| dt.max_record_id)
+            .max()
+            .unwrap_or(0);
+        if max_seg_id > 0 {
+            let cur_next = store.reserve_disk_segment_ids(0);
+            if max_seg_id > cur_next {
+                let _ = store.reserve_disk_segment_ids((max_seg_id - cur_next) as usize);
+            }
+        }
         Self {
             store: HoloLock::new(store),
+            db_path,
             col_cache: std::sync::Mutex::new(HashMap::new()),
+            disk_cols: std::sync::RwLock::new(recovered_disk),
         }
+    }
+
+    /// Return the out-of-core `.jcol` segmented handle for `table` if spilled to disk.
+    pub fn disk_column_table(
+        &self,
+        table: &str,
+    ) -> Option<std::sync::Arc<crate::disk_col_segments::DiskColumnTable>> {
+        self.disk_cols.read().ok()?.get(table).cloned()
     }
 
     /// Columnar rows not yet row records (tests and diagnostics).
@@ -969,11 +997,22 @@ impl TableStorage for AmorphicTableStorage {
         let store = self.store.read().map_err(conversions::lock_error)?;
         let columns = self.get_schema_columns(&store, table)?;
 
-        let rows = store
+        let mut rows: Vec<RowData> = store
             .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
             .into_iter()
             .map(|r| Self::record_to_row(r, &columns))
             .collect();
+        drop(store);
+
+        if let Some(dt) = self.disk_column_table(table) {
+            let disk_rows = dt
+                .scan_rows(&columns)
+                .map_err(|e| QueryError::ExecutionError(format!("disk segment scan failed: {e}")))?;
+            if rows.is_empty() {
+                return Ok(disk_rows);
+            }
+            rows.extend(disk_rows);
+        }
 
         Ok(rows)
     }

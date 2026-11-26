@@ -98,7 +98,7 @@ pub fn shortest_path(edges: &[(String, String)], start: &str, end: &str) -> Opti
     visited.insert(start.to_string());
     queue.push_back(vec![start.to_string()]);
     while let Some(path) = queue.pop_front() {
-        let node = path.last().unwrap();
+        let Some(node) = path.last() else { continue };
         if let Some(neighbors) = outgoing.get(node.as_str()) {
             for neighbor in neighbors {
                 if neighbor.as_str() == end {

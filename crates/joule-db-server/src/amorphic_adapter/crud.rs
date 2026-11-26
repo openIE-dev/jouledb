@@ -480,9 +480,22 @@ impl AmorphicTableStorage {
         let mut store = self.store.write().map_err(lock_error)?;
         let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
         let ids: Vec<RecordId> = result.records().iter().map(|r| r.id).collect();
-        let count = ids.len();
-        for id in ids {
-            let _ = store.delete(id);
+        let mut count = ids.len();
+        if !ids.is_empty() {
+            let _ = store.delete_batch(&ids);
+        }
+        drop(store);
+        if let Ok(mut c) = self.col_cache.lock() {
+            c.remove(table);
+        }
+        if let Ok(mut dc) = self.disk_cols.write()
+            && let Some(dt) = dc.remove(table)
+        {
+            count += dt.total_rows;
+            let _ = crate::disk_col_segments::DiskColumnTable::remove_table_files(
+                &self.db_path,
+                table,
+            );
         }
         Ok(count)
     }
@@ -734,6 +747,118 @@ impl AmorphicTableStorage {
         let t0 = std::time::Instant::now();
         batch.table_field = TABLE_FIELD.to_string();
         batch.table = table.to_string();
+        let n = batch.len;
+
+        // Check whether this table is already backed by out-of-core `.jcol` segments,
+        // or should transition to `.jcol` segments now to bound RAM on multi-million-row loads.
+        let already_disk = self
+            .disk_cols
+            .read()
+            .ok()
+            .is_some_and(|dc| dc.contains_key(table));
+
+        let should_spill = if already_disk {
+            true
+        } else {
+            let spill_thresh = crate::disk_col_segments::disk_segment_spill_rows();
+            let cached_rows = self
+                .col_cache
+                .lock()
+                .ok()
+                .and_then(|c| c.get(table).map(|(_, t)| t.len))
+                .unwrap_or(0);
+            let existing_rows = cached_rows.max(
+                store
+                    .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
+                    .len(),
+            );
+            if existing_rows.saturating_add(n) > spill_thresh {
+                let defs = self
+                    .get_column_defs_from_store(&store, table)
+                    .unwrap_or_default();
+                let has_constraints = defs.iter().any(|d| {
+                    d.primary_key
+                        || d.unique
+                        || d.foreign_key.is_some()
+                        || d.computed_expr.is_some()
+                });
+                let has_btree_idx = store
+                    .query_equals(INDEX_TABLE_REF, &AmorphicValue::String(table.to_string()))
+                    .records()
+                    .iter()
+                    .any(|r| {
+                        r.get(TABLE_FIELD) == Some(&AmorphicValue::String(INDEX_TABLE.to_string()))
+                    });
+                !has_constraints && !has_btree_idx
+            } else {
+                false
+            }
+        };
+
+        if should_spill {
+            batch
+                .validate()
+                .map_err(|e| QueryError::ExecutionError(format!("invalid column batch: {e}")))?;
+            let (drained_batches, drained_recs) = if already_disk {
+                (Vec::new(), Vec::new())
+            } else {
+                store
+                    .drain_table_for_disk_spill(TABLE_FIELD, table)
+                    .map_err(amorphic_error)?
+            };
+            let first_id = store.reserve_disk_segment_ids(n);
+            drop(store);
+
+            if let Ok(mut c) = self.col_cache.lock() {
+                c.remove(table);
+            }
+
+            let sync_on = sync_commit_enabled();
+            let mut dc_guard = self.disk_cols.write().map_err(lock_error)?;
+            let mut dt_owned = match dc_guard.get(table) {
+                Some(existing) => (**existing).clone(),
+                None => crate::disk_col_segments::DiskColumnTable::create_new(
+                    &self.db_path,
+                    table,
+                    &columns,
+                )
+                .map_err(|e| QueryError::ExecutionError(format!("create .jcol dir failed: {e}")))?,
+            };
+
+            if !drained_recs.is_empty() {
+                let mut refs: Vec<&AmorphicRecord> = drained_recs.iter().collect();
+                refs.sort_unstable_by_key(|r| r.id);
+                dt_owned
+                    .append_amorphic_records(&refs, sync_on)
+                    .map_err(|e| {
+                        QueryError::ExecutionError(format!("spill records to .jcol failed: {e}"))
+                    })?;
+            }
+            for (off, pb) in drained_batches {
+                dt_owned
+                    .append_column_batch_from(&pb, off, pb.first_id + off as u64, sync_on)
+                    .map_err(|e| {
+                        QueryError::ExecutionError(format!("spill pending to .jcol failed: {e}"))
+                    })?;
+            }
+            dt_owned
+                .append_column_batch_from(&batch, 0, first_id, sync_on)
+                .map_err(|e| QueryError::ExecutionError(format!("append .jcol failed: {e}")))?;
+
+            dc_guard.insert(table.to_string(), std::sync::Arc::new(dt_owned));
+            drop(dc_guard);
+
+            if std::env::var_os("JOULEDB_INGEST_TRACE").is_some() {
+                eprintln!(
+                    "insert_columns_disk n={} lock={:?} write_jcol={:?}",
+                    n,
+                    lock_wait,
+                    t0.elapsed()
+                );
+            }
+            return Ok(n);
+        }
+
         let gen_before = store.generation();
         let snap = self
             .col_cache
@@ -749,7 +874,6 @@ impl AmorphicTableStorage {
             && store
                 .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
                 .is_empty();
-        let n = batch.len;
         let (_, snap) = store
             .ingest_column_batch_with(batch, move |b| match snap {
                 Some(mut t) => std::sync::Arc::make_mut(&mut t)

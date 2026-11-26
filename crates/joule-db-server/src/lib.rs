@@ -16,6 +16,7 @@ pub mod backup;
 pub mod binary_protocol;
 pub mod columnar_exec;
 pub mod config;
+pub mod disk_col_segments;
 pub mod cost_model;
 pub mod cql_executor;
 pub mod cxl_memory;

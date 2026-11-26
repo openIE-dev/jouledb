@@ -3847,10 +3847,19 @@ impl SimpleQueryExecutor {
                 static VEC_ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
                 let vec_on = *VEC_ON
                     .get_or_init(|| std::env::var("JOULEDB_VECTORIZED").map_or(true, |v| v != "0"));
-                if vec_on && session_id.is_none() && params.is_empty() {
-                    if let Some(response) = self.try_vectorized_select(query, request_limit, start)
-                    {
-                        return Ok(response);
+                if vec_on && session_id.is_none() {
+                    if params.is_empty() {
+                        if let Some(response) =
+                            self.try_vectorized_select(query, request_limit, start)
+                        {
+                            return Ok(response);
+                        }
+                    } else if let Some(bound_q) = Self::bind_select_query_params(query, params) {
+                        if let Some(response) =
+                            self.try_vectorized_select(&bound_q, request_limit, start)
+                        {
+                            return Ok(response);
+                        }
                     }
                 }
 
@@ -3944,6 +3953,8 @@ impl SimpleQueryExecutor {
                                 &column_defs,
                             )
                             .map_err(|e| QueryErrorResponse::execution_error(&e))?;
+                            validate_check_constraints(&column_defs, &row)
+                                .map_err(|e| QueryErrorResponse::execution_error(&e))?;
                             if has_returning {
                                 inserted_rows.push(
                                     table_columns
@@ -3960,6 +3971,9 @@ impl SimpleQueryExecutor {
                             }
                             rows.push(row);
                         }
+                        self.amorphic
+                            .check_batch_unique_constraints(table_name, &column_defs, &rows)
+                            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
                         let ids = self
                             .amorphic
                             .insert_rows(table_name, &rows)
@@ -6790,18 +6804,102 @@ impl SimpleQueryExecutor {
     /// per-row checks that need earlier rows to be visible (PK/UNIQUE/FK),
     /// no CHECK, sequences, or computed columns, and no secondary indexes
     /// that are updated per record id.
+    fn bind_expr_params(expr: &mut Expression, params: &[serde_json::Value]) -> bool {
+        match expr {
+            Expression::Parameter(idx) => {
+                let Some(jv) = idx.checked_sub(1).and_then(|i| params.get(i)) else {
+                    return false;
+                };
+                *expr = Expression::Literal(json_to_ast_value(jv));
+                true
+            }
+            Expression::NamedParameter(_) => false,
+            Expression::Binary { left, right, .. } => {
+                Self::bind_expr_params(left, params) && Self::bind_expr_params(right, params)
+            }
+            Expression::Unary { expr: inner, .. }
+            | Expression::IsNull { expr: inner, .. }
+            | Expression::Like { expr: inner, .. }
+            | Expression::RegexMatch { expr: inner, .. }
+            | Expression::SimilarTo { expr: inner, .. }
+            | Expression::LikeMeaning { expr: inner, .. }
+            | Expression::Cast { expr: inner, .. } => Self::bind_expr_params(inner, params),
+            Expression::Function { args, .. } | Expression::WindowFunction { args, .. } => {
+                args.iter_mut().all(|a| Self::bind_expr_params(a, params))
+            }
+            Expression::Case {
+                operand,
+                when_clauses,
+                else_clause,
+            } => {
+                operand
+                    .as_mut()
+                    .is_none_or(|op| Self::bind_expr_params(op, params))
+                    && when_clauses.iter_mut().all(|(w, t)| {
+                        Self::bind_expr_params(w, params) && Self::bind_expr_params(t, params)
+                    })
+                    && else_clause
+                        .as_mut()
+                        .is_none_or(|el| Self::bind_expr_params(el, params))
+            }
+            Expression::In {
+                expr: inner, list, ..
+            } => {
+                Self::bind_expr_params(inner, params)
+                    && list.iter_mut().all(|x| Self::bind_expr_params(x, params))
+            }
+            Expression::Between {
+                expr: inner,
+                low,
+                high,
+                ..
+            } => {
+                Self::bind_expr_params(inner, params)
+                    && Self::bind_expr_params(low, params)
+                    && Self::bind_expr_params(high, params)
+            }
+            Expression::Subquery(_) | Expression::Exists(_) => false,
+            _ => true,
+        }
+    }
+
+    fn bind_select_query_params(query: &SqlQuery, params: &[serde_json::Value]) -> Option<SqlQuery> {
+        let mut q = query.clone();
+        if let Some(ref mut w) = q.where_clause
+            && !Self::bind_expr_params(w, params)
+        {
+            return None;
+        }
+        for sc in &mut q.columns {
+            if !Self::bind_expr_params(&mut sc.expr, params) {
+                return None;
+            }
+        }
+        for ge in &mut q.group_by {
+            if !Self::bind_expr_params(ge, params) {
+                return None;
+            }
+        }
+        if let Some(ref mut h) = q.having
+            && !Self::bind_expr_params(h, params)
+        {
+            return None;
+        }
+        for ob in &mut q.order_by {
+            if !Self::bind_expr_params(&mut ob.expr, params) {
+                return None;
+            }
+        }
+        Some(q)
+    }
+
     fn bulk_insert_eligible(
         &self,
         table: &str,
         defs: &[crate::amorphic_adapter::ColumnDefInfo],
     ) -> bool {
         if defs.iter().any(|d| {
-            d.primary_key
-                || d.unique
-                || d.auto_increment
-                || d.check_expr.is_some()
-                || d.foreign_key.is_some()
-                || d.computed_expr.is_some()
+            d.auto_increment || d.foreign_key.is_some() || d.computed_expr.is_some()
         }) {
             return false;
         }
@@ -6823,9 +6921,9 @@ impl SimpleQueryExecutor {
         }
     }
 
-    /// Run a single-table analytic SELECT on cached typed columns
-    /// (crate::columnar_exec). `None` means "not this shape": the general
-    /// executor handles it with identical semantics.
+    /// Run a single-table analytic SELECT on cached typed columns or out-of-core
+    /// `.jcol` segments (crate::columnar_exec). `None` means "not this shape":
+    /// the general executor handles it with identical semantics.
     fn try_vectorized_select(
         &self,
         query: &SqlQuery,
@@ -6841,6 +6939,41 @@ impl SimpleQueryExecutor {
             return None;
         }
         let t0 = Instant::now();
+        if let Some(dt) = self.amorphic.disk_column_table(table) {
+            let t1 = Instant::now();
+            let mut r = crate::columnar_exec::execute_segmented(query, &dt)?;
+            let mut truncated = false;
+            if query.limit.is_none()
+                && let Some(req_lim) = request_limit
+                && r.rows.len() > req_lim
+            {
+                r.rows.truncate(req_lim);
+                truncated = true;
+            }
+            if std::env::var_os("JOULEDB_VEC_TRACE").is_some() {
+                eprintln!(
+                    "vec_seg meta={:?} exec={:?} since_start={:?}",
+                    t1 - t0,
+                    t1.elapsed(),
+                    start.elapsed()
+                );
+            }
+            return Some(QueryResponse {
+                columns: r.columns,
+                rows: r.rows,
+                affected_rows: None,
+                execution_time_ms: start.elapsed().as_millis() as u64,
+                truncated,
+                warnings: vec![],
+                energy_joules: None,
+                power_watts: None,
+                device_target: None,
+                algorithm_type: None,
+                session_id: None,
+                viz_hint: None,
+                energy_receipt: None,
+            });
+        }
         let cols = match self.amorphic.cached_table_columns(table) {
             Some(c) => c,
             None => match self.amorphic.try_selective_table_columns(
@@ -6936,9 +7069,15 @@ impl SimpleQueryExecutor {
                     let col_name = match args.first() {
                         Some(Expression::Column(c)) => c.as_str(),
                         Some(Expression::Wildcard) if upper == "COUNT" => {
-                            // COUNT(*) — use any available column or row count
+                            // COUNT(*) — use disk segment metadata if spilled, else row count
                             let alias = col.alias.clone().unwrap_or_else(|| format!("{}(*)", name));
-                            // For COUNT(*), we get the table scan count
+                            if let Some(dt) = self.amorphic.disk_column_table(table_name) {
+                                result_columns.push(alias);
+                                result_values.push(serde_json::Value::Number(
+                                    serde_json::Number::from(dt.total_rows),
+                                ));
+                                continue;
+                            }
                             if let Ok(rows) = self.amorphic.scan(table_name) {
                                 result_columns.push(alias);
                                 result_values.push(serde_json::Value::Number(

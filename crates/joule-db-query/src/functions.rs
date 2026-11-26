@@ -2716,16 +2716,15 @@ pub fn eval_scalar_function(
         "ST_MAKEBBOX3D" => {
             // ST_MAKEBBOX3D(x1, y1, z1, x2, y2, z2) → 'BBOX3(x1 y1 z1, x2 y2 z2)'
             if args.len() >= 6 {
-                let coords: Vec<Option<f64>> = args[..6]
+                if let Some(c) = args[..6]
                     .iter()
                     .map(|a| match a {
                         Value::Float(f) => Some(*f),
                         Value::Int(i) => Some(*i as f64),
                         _ => None,
                     })
-                    .collect();
-                if coords.iter().all(|c| c.is_some()) {
-                    let c: Vec<f64> = coords.into_iter().map(|c| c.unwrap()).collect();
+                    .collect::<Option<Vec<f64>>>()
+                {
                     return Ok(Value::String(format!(
                         "BBOX3({} {} {}, {} {} {})",
                         c[0], c[1], c[2], c[3], c[4], c[5]

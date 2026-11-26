@@ -19,6 +19,8 @@
 //! let query = parser.parse("SELECT * FROM users WHERE id = 1")?;
 //! ```
 
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
+
 pub mod ast;
 pub mod error;
 pub mod like;

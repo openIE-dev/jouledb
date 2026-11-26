@@ -129,6 +129,43 @@ impl AmorphicTableStorage {
 
     /// Collect real statistics for a table (row count, column cardinality, min/max).
     pub fn get_table_statistics(&self, table: &str) -> QueryResult<TableStatistics> {
+        if let Some(dt) = self.disk_column_table(table) {
+            let row_count = dt.total_rows;
+            let mut col_stats = HashMap::new();
+            for col_name in &dt.col_order {
+                let (nulls, min_v, max_v) = match dt.global_col_summary(col_name) {
+                    Some((_, nulls, Some(lo), Some(hi), _, _)) => {
+                        (nulls, Some(lo.to_string()), Some(hi.to_string()))
+                    }
+                    Some((_, nulls, _, _, Some(lo), Some(hi))) => {
+                        (nulls, Some(lo.to_string()), Some(hi.to_string()))
+                    }
+                    Some((_, nulls, ..)) => (nulls, None, None),
+                    None => (0, None, None),
+                };
+                let non_null = (row_count as u64).saturating_sub(nulls) as usize;
+                col_stats.insert(
+                    col_name.clone(),
+                    ColumnStatistics {
+                        distinct_count: non_null.min(65_536),
+                        null_fraction: if row_count > 0 {
+                            nulls as f64 / row_count as f64
+                        } else {
+                            0.0
+                        },
+                        min_value: min_v,
+                        max_value: max_v,
+                    },
+                );
+            }
+            let indexes = self.list_indexes(table).unwrap_or_default();
+            return Ok(TableStatistics {
+                row_count,
+                columns: col_stats,
+                indexes,
+            });
+        }
+
         let store = self.store.read().map_err(lock_error)?;
         let columns = self.get_schema_columns(&store, table)?;
 

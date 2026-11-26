@@ -1,11 +1,11 @@
-# API, Query & 49-Tool MCP Reference (`v0.7.0`)
+# API, Query & 49-Tool MCP Reference (`v0.8.0`)
 
 ## 1. Query Languages (`docs/jouledb/QUERY-*.md`)
 - [SQL Subset (`SELECT`, Joins, Window Frames, `CUBE`, `WITH RECURSIVE`, `COPY`)](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-SQL.md)
 - [Cypher](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-CYPHER.md) · [Datalog](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-DATALOG.md) · [SPARQL](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-SPARQL.md) · [Gremlin](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-GREMLIN.md) · [CQL](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-CQL.md) · [GraphQL](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-GRAPHQL.md)
 - [Time-Series, `SigQL` & Causal `ASOF`](https://github.com/openIE-dev/jouledb/blob/main/docs/jouledb/QUERY-TIMESERIES.md) · [TLV Framing & WAL `PITR`](../pitr-and-abi.md)
 
-## 2. Primary HTTP & Wire Endpoints (`v0.7.0`)
+## 2. Primary HTTP & Wire Endpoints (`v0.8.0`)
 - **Core SQL, KV & CoW Branching:** `POST /api/v1/query`, `GET|POST|DELETE /api/v1/keys/{key}`, `GET|POST /api/v1/branches`, `POST /api/v1/branches/{name}/merge`
 - **Amorphous Continuum & MorphRules:** `POST /api/v1/amorphic/unsilo_morph`, `POST /api/v1/amorphic/morph_rules_and_lens`, `POST /api/v1/amorphic/stream_corpus_scale`
 - **Import & In-Process Subsystem Smoke Checks:** `POST /api/v1/migrate/run`, `POST /api/v1/certify/v1_abi_pitr`, `POST /api/v1/bench/sql2023_powerhouse`, `POST /api/v1/certify/geo_raft_jepsen` *(5-struct in-memory sim)*, `POST /api/v1/bench/v1_powerhouse` *(6-check smoke runner)*

@@ -38,19 +38,18 @@ impl LikePattern {
         } else {
             pattern.to_string()
         };
-        let mut segs = vec![Vec::new()];
+        let mut cur = Vec::new();
+        let mut segs = Vec::new();
         let mut it = pat.chars();
         while let Some(c) = it.next() {
             match c {
-                '\\' => segs
-                    .last_mut()
-                    .unwrap()
-                    .push(Tok::Lit(it.next().unwrap_or('\\'))),
-                '%' => segs.push(Vec::new()),
-                '_' => segs.last_mut().unwrap().push(Tok::Any1),
-                c => segs.last_mut().unwrap().push(Tok::Lit(c)),
+                '\\' => cur.push(Tok::Lit(it.next().unwrap_or('\\'))),
+                '%' => segs.push(std::mem::take(&mut cur)),
+                '_' => cur.push(Tok::Any1),
+                c => cur.push(Tok::Lit(c)),
             }
         }
+        segs.push(cur);
         let segs = segs
             .into_iter()
             .map(|toks| {

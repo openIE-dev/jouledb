@@ -270,6 +270,75 @@ impl TableColumns {
         self.zones = zones;
     }
 
+    pub fn empty_with_len(len: usize, col_order: Vec<String>) -> Self {
+        Self {
+            len,
+            col_order,
+            cols: HashMap::new(),
+            text_index: HashMap::new(),
+            zones: HashMap::new(),
+        }
+    }
+
+    pub fn insert_decoded_columns(&mut self, len: usize, decoded: Vec<(String, Col)>) {
+        self.len = len;
+        for (name, col) in decoded {
+            if matches!(&col, Col::Int(..) | Col::Float(..)) {
+                let mut z = Vec::with_capacity(len.div_ceil(ZONE));
+                let mut ok = true;
+                for zi in 0..len.div_ceil(ZONE) {
+                    match zone_of(&col, zi * ZONE, ((zi + 1) * ZONE).min(len)) {
+                        Some(x) => z.push(x),
+                        None => {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+                if ok {
+                    self.zones.insert(name.clone(), z);
+                }
+            }
+            self.cols.insert(name, col);
+        }
+    }
+
+    pub fn from_proto_cols(
+        col_order: Vec<String>,
+        cols: HashMap<String, Col>,
+        int_mm: HashMap<String, (i64, i64)>,
+        float_mm: HashMap<String, (f64, f64)>,
+    ) -> Self {
+        let mut zones = HashMap::new();
+        for (k, (lo, hi)) in int_mm {
+            zones.insert(
+                k,
+                vec![Zone {
+                    lo: Some(Num::I(lo)),
+                    hi: Some(Num::I(hi)),
+                    nulls: 0,
+                }],
+            );
+        }
+        for (k, (lo, hi)) in float_mm {
+            zones.insert(
+                k,
+                vec![Zone {
+                    lo: Some(Num::F(lo)),
+                    hi: Some(Num::F(hi)),
+                    nulls: 0,
+                }],
+            );
+        }
+        Self {
+            len: 0,
+            col_order,
+            cols,
+            text_index: HashMap::new(),
+            zones,
+        }
+    }
+
     pub fn build(columns: &[String], records: &[&joule_db_amorphic::AmorphicRecord]) -> Self {
         use joule_db_amorphic::Value as V;
         let n = records.len();
@@ -2103,6 +2172,112 @@ enum OutCol {
 }
 
 #[derive(Clone, Default)]
+enum DistinctSet {
+    #[default]
+    Empty,
+    Inline4([u64; 4], u8),
+    Heap(Box<rustc_hash::FxHashSet<u64>>),
+    HeapStr(Box<rustc_hash::FxHashSet<Arc<str>>>),
+}
+
+impl DistinctSet {
+    #[inline]
+    fn insert_u64(&mut self, v: u64) {
+        match self {
+            DistinctSet::Empty => {
+                *self = DistinctSet::Inline4([v, 0, 0, 0], 1);
+            }
+            DistinctSet::Inline4(arr, n) => {
+                let len = *n as usize;
+                for &x in &arr[..len] {
+                    if x == v {
+                        return;
+                    }
+                }
+                if len < 4 {
+                    arr[len] = v;
+                    *n += 1;
+                } else {
+                    let mut set: rustc_hash::FxHashSet<u64> =
+                        rustc_hash::FxHashSet::with_capacity_and_hasher(16, Default::default());
+                    for &x in arr.iter() {
+                        set.insert(x);
+                    }
+                    set.insert(v);
+                    *self = DistinctSet::Heap(Box::new(set));
+                }
+            }
+            DistinctSet::Heap(set) => {
+                set.insert(v);
+            }
+            DistinctSet::HeapStr(_) => {}
+        }
+    }
+
+    #[inline]
+    fn insert_str(&mut self, s: Arc<str>) {
+        match self {
+            DistinctSet::HeapStr(set) => {
+                set.insert(s);
+            }
+            _ => {
+                let mut set: rustc_hash::FxHashSet<Arc<str>> =
+                    rustc_hash::FxHashSet::with_capacity_and_hasher(8, Default::default());
+                set.insert(s);
+                *self = DistinctSet::HeapStr(Box::new(set));
+            }
+        }
+    }
+
+    fn merge_from(&mut self, other: &DistinctSet) {
+        match other {
+            DistinctSet::Empty => {}
+            DistinctSet::Inline4(arr, n) => {
+                for &x in &arr[..(*n as usize)] {
+                    self.insert_u64(x);
+                }
+            }
+            DistinctSet::Heap(oset) => match self {
+                DistinctSet::Empty => {
+                    *self = DistinctSet::Heap(oset.clone());
+                }
+                DistinctSet::Heap(set) => {
+                    set.extend(oset.iter().copied());
+                }
+                DistinctSet::Inline4(arr, n) => {
+                    let mut set = oset.clone();
+                    for &x in &arr[..(*n as usize)] {
+                        set.insert(x);
+                    }
+                    *self = DistinctSet::Heap(set);
+                }
+                DistinctSet::HeapStr(_) => {}
+            },
+            DistinctSet::HeapStr(oset) => match self {
+                DistinctSet::HeapStr(set) => {
+                    for s in oset.iter() {
+                        set.insert(s.clone());
+                    }
+                }
+                _ => {
+                    *self = DistinctSet::HeapStr(oset.clone());
+                }
+            },
+        }
+    }
+
+    #[inline]
+    fn len(&self) -> u64 {
+        match self {
+            DistinctSet::Empty => 0,
+            DistinctSet::Inline4(_, n) => *n as u64,
+            DistinctSet::Heap(s) => s.len() as u64,
+            DistinctSet::HeapStr(s) => s.len() as u64,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
 struct Acc {
     count: u64,
     isum: i128,
@@ -2112,7 +2287,7 @@ struct Acc {
     max: Option<Num>,
     smin: Option<Arc<str>>,
     smax: Option<Arc<str>>,
-    distinct: Option<Box<HashSet<u64>>>,
+    distinct: DistinctSet,
     bits: Vec<u64>,
 }
 
@@ -2279,9 +2454,7 @@ impl Acc {
         {
             self.smax = Some(s.clone());
         }
-        if let (Some(d), Some(od)) = (self.distinct.as_mut(), o.distinct.as_ref()) {
-            d.extend(od.iter().copied());
-        }
+        self.distinct.merge_from(&o.distinct);
         if !o.bits.is_empty() {
             if self.bits.is_empty() {
                 self.bits = o.bits.clone();
@@ -2789,17 +2962,7 @@ fn aggregate<'a>(
         })
         .collect();
 
-    let proto: Vec<Acc> = aggs
-        .iter()
-        .zip(&bit_base)
-        .map(|(ag, bb)| {
-            let mut a = Acc::default();
-            if matches!(ag.kind, AggKind::CountDistinct) && bb.is_none() {
-                a.distinct = Some(Box::default());
-            }
-            a
-        })
-        .collect();
+    let proto: Vec<Acc> = (0..aggs.len()).map(|_| Acc::default()).collect();
 
     let dense = grouping.slots();
     let nagg = aggs.len();
@@ -3108,10 +3271,8 @@ fn aggregate<'a>(
                     }
                     for (k, r) in rows().enumerate() {
                         let (code, is_n) = vc.group_code_at(r as usize);
-                        if !is_n
-                            && let Some(d) = accs[g(k) * nagg + oi].distinct.as_mut()
-                        {
-                            d.insert(code);
+                        if !is_n {
+                            accs[g(k) * nagg + oi].distinct.insert_u64(code);
                         }
                     }
                 }
@@ -3886,9 +4047,7 @@ fn execute_inner(query: &SqlQuery, t: &TableColumns) -> Option<VecResult> {
                     AggKind::CountDistinct if !a.bits.is_empty() => {
                         Sv::U(a.bits.iter().map(|w| w.count_ones() as u64).sum())
                     }
-                    AggKind::CountDistinct => {
-                        Sv::U(a.distinct.as_ref().map_or(0, |d| d.len() as u64))
-                    }
+                    AggKind::CountDistinct => Sv::U(a.distinct.len()),
                     AggKind::Sum if a.count == 0 => Sv::Null,
                     AggKind::Sum if is_int => {
                         let shifted = a.isum + (spec.const_add as i128) * (a.count as i128);
@@ -4054,6 +4213,2179 @@ fn mk_cmp<'a>(
         }
         ia.cmp(&ib)
     }
+}
+
+// ============================================================================
+// Out-of-Core Segmented Execution (`execute_segmented` over `DiskColumnTable`)
+// ============================================================================
+
+fn empty_arc_str() -> Arc<str> {
+    static EMPTY: std::sync::OnceLock<Arc<str>> = std::sync::OnceLock::new();
+    EMPTY.get_or_init(|| Arc::from("")).clone()
+}
+
+fn collect_expr_cols<'a>(e: &'a Expression, valid: &HashMap<String, usize>, out: &mut HashSet<String>) {
+    match e {
+        Expression::Column(c) => {
+            if valid.contains_key(c) {
+                out.insert(c.clone());
+            }
+        }
+        Expression::QualifiedColumn { column, .. } => {
+            if valid.contains_key(column) {
+                out.insert(column.clone());
+            }
+        }
+        Expression::Binary { left, right, .. } => {
+            collect_expr_cols(left, valid, out);
+            collect_expr_cols(right, valid, out);
+        }
+        Expression::Unary { expr, .. }
+        | Expression::IsNull { expr, .. }
+        | Expression::Like { expr, .. }
+        | Expression::RegexMatch { expr, .. }
+        | Expression::SimilarTo { expr, .. }
+        | Expression::LikeMeaning { expr, .. }
+        | Expression::Cast { expr, .. } => {
+            collect_expr_cols(expr, valid, out);
+        }
+        Expression::Function { args, .. } | Expression::WindowFunction { args, .. } => {
+            for a in args {
+                collect_expr_cols(a, valid, out);
+            }
+        }
+        Expression::Case {
+            operand,
+            when_clauses,
+            else_clause,
+        } => {
+            if let Some(op) = operand {
+                collect_expr_cols(op, valid, out);
+            }
+            for (w, t) in when_clauses {
+                collect_expr_cols(w, valid, out);
+                collect_expr_cols(t, valid, out);
+            }
+            if let Some(el) = else_clause {
+                collect_expr_cols(el, valid, out);
+            }
+        }
+        Expression::In { expr, list, .. } => {
+            collect_expr_cols(expr, valid, out);
+            for x in list {
+                collect_expr_cols(x, valid, out);
+            }
+        }
+        Expression::Between {
+            expr, low, high, ..
+        } => {
+            collect_expr_cols(expr, valid, out);
+            collect_expr_cols(low, valid, out);
+            collect_expr_cols(high, valid, out);
+        }
+        _ => {}
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SegVerdict {
+    Skip,
+    AllMatch,
+    Maybe,
+}
+
+fn seg_pred_one(
+    dt: &crate::disk_col_segments::DiskColumnTable,
+    proto_tc: &TableColumns,
+    seg_idx: usize,
+    p: &Pred,
+) -> Option<bool> {
+    use crate::disk_col_segments::DiskColKind;
+    let seg = &dt.segments[seg_idx];
+    if seg.len == 0 {
+        return Some(false);
+    }
+    match p {
+        Pred::IsNull { col, negated } => {
+            let &ci = dt.col_index.get(*col)?;
+            let m = &seg.cols[ci];
+            if *negated {
+                if m.null_count >= seg.len {
+                    Some(false)
+                } else if m.null_count == 0 {
+                    Some(true)
+                } else {
+                    None
+                }
+            } else if m.null_count == 0 {
+                Some(false)
+            } else if m.null_count >= seg.len {
+                Some(true)
+            } else {
+                None
+            }
+        }
+        Pred::Cmp { col, op, lit } => {
+            let &ci = dt.col_index.get(*col)?;
+            let m = &seg.cols[ci];
+            if m.null_count >= seg.len {
+                return Some(false);
+            }
+            let global_kind = dt.inferred_col_kind(ci);
+            match global_kind {
+                DiskColKind::I8 | DiskColKind::I16 | DiskColKind::I32 | DiskColKind::I64 => {
+                    let (lo, hi) = (m.min_int(seg.len)?, m.max_int(seg.len)?);
+                    let x_num = match lit {
+                        Lit::N(n) => *n,
+                        Lit::S(s) => Num::I(coerce_iso_temporal_for_int(proto_tc, col, s)?),
+                    };
+                    let (cl, ch) = (num_cmp(Num::I(lo), x_num)?, num_cmp(Num::I(hi), x_num)?);
+                    use Ordering::*;
+                    let (all, none) = match op {
+                        Operator::Lt => (ch == Less, cl != Less),
+                        Operator::Le => (ch != Greater, cl == Greater),
+                        Operator::Gt => (cl == Greater, ch != Greater),
+                        Operator::Ge => (cl != Less, ch == Less),
+                        Operator::Eq => (cl == Equal && ch == Equal, cl == Greater || ch == Less),
+                        Operator::Ne => (cl == Greater || ch == Less, cl == Equal && ch == Equal),
+                        _ => return None,
+                    };
+                    if none {
+                        Some(false)
+                    } else if all && m.null_count == 0 {
+                        Some(true)
+                    } else {
+                        None
+                    }
+                }
+                DiskColKind::F64 => {
+                    let (lo, hi) = match (m.min_float(seg.len), m.max_float(seg.len)) {
+                        (Some(a), Some(b)) => (a, b),
+                        _ => match (m.min_int(seg.len), m.max_int(seg.len)) {
+                            (Some(a), Some(b)) => (a as f64, b as f64),
+                            _ => return None,
+                        },
+                    };
+                    let Lit::N(x_num) = lit else { return None };
+                    let (cl, ch) = (num_cmp(Num::F(lo), *x_num)?, num_cmp(Num::F(hi), *x_num)?);
+                    use Ordering::*;
+                    let (all, none) = match op {
+                        Operator::Lt => (ch == Less, cl != Less),
+                        Operator::Le => (ch != Greater, cl == Greater),
+                        Operator::Gt => (cl == Greater, ch != Greater),
+                        Operator::Ge => (cl != Less, ch == Less),
+                        Operator::Eq => (cl == Equal && ch == Equal, cl == Greater || ch == Less),
+                        Operator::Ne => (cl == Greater || ch == Less, cl == Equal && ch == Equal),
+                        _ => return None,
+                    };
+                    if none {
+                        Some(false)
+                    } else if all && m.null_count == 0 {
+                        Some(true)
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        }
+        Pred::In {
+            col,
+            lits,
+            negated: false,
+        } => {
+            let &ci = dt.col_index.get(*col)?;
+            let m = &seg.cols[ci];
+            if m.null_count >= seg.len {
+                return Some(false);
+            }
+            if matches!(
+                dt.inferred_col_kind(ci),
+                DiskColKind::I8 | DiskColKind::I16 | DiskColKind::I32 | DiskColKind::I64
+            ) && let (Some(lo), Some(hi)) = (m.min_int(seg.len), m.max_int(seg.len))
+            {
+                let mut any_in_range = false;
+                for l in lits {
+                    let v = match l {
+                        Lit::N(Num::I(x)) => *x,
+                        Lit::S(s) => coerce_iso_temporal_for_int(proto_tc, col, s)?,
+                        _ => return None,
+                    };
+                    if v >= lo && v <= hi {
+                        any_in_range = true;
+                        break;
+                    }
+                }
+                if !any_in_range {
+                    return Some(false);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn seg_verdict(
+    dt: &crate::disk_col_segments::DiskColumnTable,
+    proto_tc: &TableColumns,
+    seg_idx: usize,
+    preds: &[Pred],
+) -> SegVerdict {
+    if dt.segments[seg_idx].len == 0 {
+        return SegVerdict::Skip;
+    }
+    let mut all = true;
+    for p in preds {
+        match seg_pred_one(dt, proto_tc, seg_idx, p) {
+            Some(false) => return SegVerdict::Skip,
+            Some(true) => {}
+            None => all = false,
+        }
+    }
+    if all {
+        SegVerdict::AllMatch
+    } else {
+        SegVerdict::Maybe
+    }
+}
+
+fn eval_segment_where(seg_tc: &TableColumns, raw_preds: &[Pred]) -> Option<Option<Vec<u32>>> {
+    if raw_preds.is_empty() {
+        return Some(None);
+    }
+    let preds = prepare_preds(seg_tc, raw_preds)?;
+    let n = seg_tc.len;
+    let mut sel = Vec::new();
+    let mut all_matched = true;
+    for s in (0..n).step_by(ZONE) {
+        let e = (s + ZONE).min(n);
+        match morsel_sel_prep(seg_tc, &preds, s, e) {
+            None => {
+                if !all_matched {
+                    sel.extend(s as u32..e as u32);
+                }
+            }
+            Some(v) => {
+                if all_matched && v.len() < e - s {
+                    all_matched = false;
+                    sel.reserve(s + v.len());
+                    sel.extend(0..s as u32);
+                }
+                if !all_matched {
+                    sel.extend(v);
+                }
+            }
+        }
+    }
+    if all_matched {
+        Some(None)
+    } else {
+        Some(Some(sel))
+    }
+}
+
+#[inline]
+fn mix64(mut h: u64) -> u64 {
+    h ^= h >> 30;
+    h = h.wrapping_mul(0xbf58476d1ce4e5b9);
+    h ^= h >> 27;
+    h = h.wrapping_mul(0x94d049bb133111eb);
+    h ^= h >> 31;
+    h
+}
+
+#[inline]
+fn hash_bytes64(bytes: &[u8]) -> u64 {
+    let mut h = 0xcbf29ce484222325u64 ^ (bytes.len() as u64);
+    let mut chunks = bytes.chunks_exact(8);
+    for ch in &mut chunks {
+        let w = u64::from_le_bytes([ch[0], ch[1], ch[2], ch[3], ch[4], ch[5], ch[6], ch[7]]);
+        h = (h ^ w).wrapping_mul(0x100000001b3);
+    }
+    for &b in chunks.remainder() {
+        h = (h ^ (b as u64)).wrapping_mul(0x100000001b3);
+    }
+    mix64(h)
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum GVal {
+    Null,
+    I(i64),
+    F(u64),
+    S(Arc<str>),
+}
+
+impl GVal {
+    fn to_sv(&self) -> Sv {
+        match self {
+            GVal::Null => Sv::Null,
+            GVal::I(i) => Sv::I(*i),
+            GVal::F(bits) => Sv::F(f64::from_bits(*bits)),
+            GVal::S(s) => Sv::S(s.clone()),
+        }
+    }
+
+    #[inline]
+    fn slot_hash(&self) -> u64 {
+        match self {
+            GVal::Null => 0x9e3779b97f4a7c15,
+            GVal::I(i) => mix64((*i as u64) ^ 0x517cc1b727220a95),
+            GVal::F(bits) => mix64(*bits ^ 0x2545f4914f6cdd1d),
+            GVal::S(s) => hash_bytes64(s.as_bytes()),
+        }
+    }
+}
+
+/// Cross-segment canonical group key with inline zero-Box layouts for 1-, 2-, and 3-key ClickBench shapes.
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum GKey {
+    I1(i64, bool),
+    I2(i64, i64, u8),
+    S1(Option<Arc<str>>),
+    IS(i64, bool, Option<Arc<str>>),
+    IIS(i64, i64, u8, Option<Arc<str>>),
+    Many(Box<[GVal]>),
+}
+
+#[derive(Clone, Copy)]
+enum GKeyShape {
+    I1,
+    I2,
+    S1,
+    IS,
+    IIS,
+    Many,
+}
+
+impl GKey {
+    fn slot_sv(&self, idx: usize) -> Sv {
+        match (self, idx) {
+            (GKey::I1(a, na), 0) => {
+                if *na {
+                    Sv::Null
+                } else {
+                    Sv::I(*a)
+                }
+            }
+            (GKey::I2(a, _, m), 0) => {
+                if m & 1 != 0 {
+                    Sv::Null
+                } else {
+                    Sv::I(*a)
+                }
+            }
+            (GKey::I2(_, b, m), 1) => {
+                if m & 2 != 0 {
+                    Sv::Null
+                } else {
+                    Sv::I(*b)
+                }
+            }
+            (GKey::S1(s), 0) => match s {
+                Some(v) => Sv::S(v.clone()),
+                None => Sv::Null,
+            },
+            (GKey::IS(a, na, _), 0) => {
+                if *na {
+                    Sv::Null
+                } else {
+                    Sv::I(*a)
+                }
+            }
+            (GKey::IS(_, _, s), 1) => match s {
+                Some(v) => Sv::S(v.clone()),
+                None => Sv::Null,
+            },
+            (GKey::IIS(a, _, m, _), 0) => {
+                if m & 1 != 0 {
+                    Sv::Null
+                } else {
+                    Sv::I(*a)
+                }
+            }
+            (GKey::IIS(_, b, m, _), 1) => {
+                if m & 2 != 0 {
+                    Sv::Null
+                } else {
+                    Sv::I(*b)
+                }
+            }
+            (GKey::IIS(_, _, _, s), 2) => match s {
+                Some(v) => Sv::S(v.clone()),
+                None => Sv::Null,
+            },
+            (GKey::Many(vs), i) => vs.get(i).map_or(Sv::Null, GVal::to_sv),
+            _ => Sv::Null,
+        }
+    }
+
+    fn slot_int(&self, idx: usize) -> Option<i64> {
+        match self.slot_sv(idx) {
+            Sv::I(x) => Some(x),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    fn canonical_hash(&self) -> u64 {
+        let step = |acc: u64, sh: u64| mix64(acc.wrapping_mul(0x9e3779b97f4a7c15) ^ sh);
+        let h_int = |v: i64, is_n: bool| {
+            if is_n {
+                0x9e3779b97f4a7c15
+            } else {
+                mix64((v as u64) ^ 0x517cc1b727220a95)
+            }
+        };
+        let h_str = |s: &Option<Arc<str>>| match s {
+            None => 0x9e3779b97f4a7c15,
+            Some(v) => hash_bytes64(v.as_bytes()),
+        };
+        match self {
+            GKey::I1(a, na) => step(0, h_int(*a, *na)),
+            GKey::I2(a, b, m) => step(step(0, h_int(*a, m & 1 != 0)), h_int(*b, m & 2 != 0)),
+            GKey::S1(s) => step(0, h_str(s)),
+            GKey::IS(a, na, s) => step(step(0, h_int(*a, *na)), h_str(s)),
+            GKey::IIS(a, b, m, s) => step(
+                step(step(0, h_int(*a, m & 1 != 0)), h_int(*b, m & 2 != 0)),
+                h_str(s),
+            ),
+            GKey::Many(vs) => {
+                let mut acc = 0u64;
+                for v in vs.iter() {
+                    acc = step(acc, v.slot_hash());
+                }
+                acc
+            }
+        }
+    }
+}
+
+#[inline]
+fn row_canonical_hash(vcols: &[VCol], ri: usize) -> u64 {
+    let mut acc = 0u64;
+    for vc in vcols {
+        let sh = if vc.is_int_like() {
+            match vc.int_at(ri) {
+                Some(v) => mix64((v as u64) ^ 0x517cc1b727220a95),
+                None => 0x9e3779b97f4a7c15,
+            }
+        } else if matches!(vc, VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_)) {
+            match vc.float_at(ri) {
+                Some(f) => {
+                    let bits = if f == 0.0 { 0u64 } else { f.to_bits() };
+                    mix64(bits ^ 0x2545f4914f6cdd1d)
+                }
+                None => 0x9e3779b97f4a7c15,
+            }
+        } else {
+            match vc.str_ref_at(ri) {
+                Some(s) => hash_bytes64(s.as_bytes()),
+                None => 0x9e3779b97f4a7c15,
+            }
+        };
+        acc = mix64(acc.wrapping_mul(0x9e3779b97f4a7c15) ^ sh);
+    }
+    acc
+}
+
+#[inline]
+fn opt_arc_at(vc: &VCol, ri: usize) -> Option<Arc<str>> {
+    let sr = vc.str_ref_at(ri)?;
+    if sr.is_empty() {
+        Some(empty_arc_str())
+    } else {
+        vc.arc_str_at(ri)
+    }
+}
+
+#[inline]
+fn build_gkey(shape: GKeyShape, vcols: &[VCol], ri: usize) -> GKey {
+    match shape {
+        GKeyShape::I1 => match vcols[0].int_at(ri) {
+            Some(a) => GKey::I1(a, false),
+            None => GKey::I1(0, true),
+        },
+        GKeyShape::I2 => {
+            let (a, na) = match vcols[0].int_at(ri) {
+                Some(x) => (x, 0u8),
+                None => (0, 1u8),
+            };
+            let (b, nb) = match vcols[1].int_at(ri) {
+                Some(x) => (x, 0u8),
+                None => (0, 2u8),
+            };
+            GKey::I2(a, b, na | nb)
+        }
+        GKeyShape::S1 => GKey::S1(opt_arc_at(&vcols[0], ri)),
+        GKeyShape::IS => {
+            let (a, na) = match vcols[0].int_at(ri) {
+                Some(x) => (x, false),
+                None => (0, true),
+            };
+            GKey::IS(a, na, opt_arc_at(&vcols[1], ri))
+        }
+        GKeyShape::IIS => {
+            let (a, na) = match vcols[0].int_at(ri) {
+                Some(x) => (x, 0u8),
+                None => (0, 1u8),
+            };
+            let (b, nb) = match vcols[1].int_at(ri) {
+                Some(x) => (x, 0u8),
+                None => (0, 2u8),
+            };
+            GKey::IIS(a, b, na | nb, opt_arc_at(&vcols[2], ri))
+        }
+        GKeyShape::Many => {
+            let vs: Box<[GVal]> = vcols
+                .iter()
+                .map(|vc| {
+                    if vc.is_int_like() {
+                        vc.int_at(ri).map_or(GVal::Null, GVal::I)
+                    } else if matches!(vc, VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_)) {
+                        vc.float_at(ri).map_or(GVal::Null, |f| {
+                            GVal::F(if f == 0.0 { 0u64 } else { f.to_bits() })
+                        })
+                    } else {
+                        opt_arc_at(vc, ri).map_or(GVal::Null, GVal::S)
+                    }
+                })
+                .collect();
+            GKey::Many(vs)
+        }
+    }
+}
+
+#[derive(Clone)]
+enum GroupKeyMap {
+    Slot(usize),
+    Const(Sv),
+    DerivedInt {
+        base_slot: usize,
+        op: ArithOp,
+        rhs: i64,
+    },
+}
+
+fn compile_having_seg<'b>(
+    e: &'b Expression,
+    proto_tc: &'b TableColumns,
+    names: &[String],
+    group_exprs: &[&'b Expression],
+    out_exprs: &mut Vec<Option<&'b Expression>>,
+    outs: &mut Vec<OutCol>,
+    agg_exprs: &mut Vec<(&'b Expression, AggKind, i64, bool, bool)>,
+) -> Option<HavingPred> {
+    match e {
+        Expression::Binary {
+            left,
+            op: Operator::And,
+            right,
+        } => Some(HavingPred::And(
+            Box::new(compile_having_seg(
+                left,
+                proto_tc,
+                names,
+                group_exprs,
+                out_exprs,
+                outs,
+                agg_exprs,
+            )?),
+            Box::new(compile_having_seg(
+                right,
+                proto_tc,
+                names,
+                group_exprs,
+                out_exprs,
+                outs,
+                agg_exprs,
+            )?),
+        )),
+        Expression::Binary {
+            left,
+            op: Operator::Or,
+            right,
+        } => Some(HavingPred::Or(
+            Box::new(compile_having_seg(
+                left,
+                proto_tc,
+                names,
+                group_exprs,
+                out_exprs,
+                outs,
+                agg_exprs,
+            )?),
+            Box::new(compile_having_seg(
+                right,
+                proto_tc,
+                names,
+                group_exprs,
+                out_exprs,
+                outs,
+                agg_exprs,
+            )?),
+        )),
+        Expression::Unary {
+            op: UnaryOperator::Not,
+            expr,
+        } => Some(HavingPred::Not(Box::new(compile_having_seg(
+            expr,
+            proto_tc,
+            names,
+            group_exprs,
+            out_exprs,
+            outs,
+            agg_exprs,
+        )?))),
+        Expression::Binary { left, op, right } => {
+            let mut resolve_side = |side: &'b Expression| -> Option<usize> {
+                if let Some(pos) = out_exprs.iter().position(|oe| *oe == Some(side)) {
+                    return Some(pos);
+                }
+                if let Some(cn) = column(side)
+                    && let Some(pos) = names.iter().position(|n| n == cn)
+                {
+                    return Some(pos);
+                }
+                if let Some(gpos) = group_exprs.iter().position(|&ge| ge == side) {
+                    let idx = outs.len();
+                    outs.push(OutCol::Group(gpos));
+                    out_exprs.push(Some(side));
+                    return Some(idx);
+                }
+                if let Some((kind, vc_proto, const_add, _)) = parse_agg_expr(proto_tc, side) {
+                    let is_int = vc_proto.as_ref().is_some_and(VCol::is_int_like);
+                    let is_txt = vc_proto.as_ref().is_some_and(VCol::is_text_like);
+                    let ai = agg_exprs.len();
+                    agg_exprs.push((side, kind, const_add, is_int, is_txt));
+                    let idx = outs.len();
+                    outs.push(OutCol::Agg(ai));
+                    out_exprs.push(Some(side));
+                    return Some(idx);
+                }
+                None
+            };
+            if let Some(lit) = literal(right)
+                && let Some(out_idx) = resolve_side(left)
+            {
+                flip(op)?;
+                return Some(HavingPred::Cmp {
+                    out_idx,
+                    op: *op,
+                    lit: lit_to_sv(lit),
+                });
+            }
+            if let Some(lit) = literal(left)
+                && let Some(out_idx) = resolve_side(right)
+            {
+                return Some(HavingPred::Cmp {
+                    out_idx,
+                    op: flip(op)?,
+                    lit: lit_to_sv(lit),
+                });
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn render_acc_cell(a: &Acc, kind: AggKind, const_add: i64, is_int: bool, is_txt: bool) -> Sv {
+    match kind {
+        AggKind::CountStar | AggKind::Count => Sv::U(a.count),
+        AggKind::CountDistinct if !a.bits.is_empty() => {
+            Sv::U(a.bits.iter().map(|w| w.count_ones() as u64).sum())
+        }
+        AggKind::CountDistinct => Sv::U(a.distinct.len()),
+        AggKind::Sum if a.count == 0 => Sv::Null,
+        AggKind::Sum if is_int => {
+            let shifted = a.isum + (const_add as i128) * (a.count as i128);
+            match i64::try_from(shifted) {
+                Ok(v) => Sv::I(v),
+                Err(_) => Sv::F(shifted as f64),
+            }
+        }
+        AggKind::Sum => Sv::F((a.fsum + a.fcomp) + (const_add as f64) * (a.count as f64)),
+        AggKind::Avg if a.count == 0 => Sv::Null,
+        AggKind::Avg => {
+            let s = if is_int {
+                a.isum as f64
+            } else {
+                a.fsum + a.fcomp
+            };
+            Sv::F(s / a.count as f64 + const_add as f64)
+        }
+        AggKind::Min if is_txt => match &a.smin {
+            Some(s) => Sv::S(s.clone()),
+            None => Sv::Null,
+        },
+        AggKind::Max if is_txt => match &a.smax {
+            Some(s) => Sv::S(s.clone()),
+            None => Sv::Null,
+        },
+        AggKind::Min => Sv::from_num_offset(a.min, const_add),
+        AggKind::Max => Sv::from_num_offset(a.max, const_add),
+    }
+}
+
+fn update_acc_row(a: &mut Acc, kind: AggKind, vc: Option<&VCol>, ri: usize) {
+    match (kind, vc) {
+        (AggKind::CountStar, _) => a.count += 1,
+        (AggKind::Count, Some(c)) => {
+            if !c.is_null_at(ri) {
+                a.count += 1;
+            }
+        }
+        (AggKind::CountDistinct, Some(c)) => {
+            if c.is_text_like() {
+                if let Some(s) = opt_arc_at(c, ri) {
+                    a.distinct.insert_str(s);
+                }
+            } else {
+                let (code, is_n) = c.group_code_at(ri);
+                if !is_n {
+                    a.distinct.insert_u64(code);
+                }
+            }
+        }
+        (AggKind::Sum | AggKind::Avg | AggKind::Min | AggKind::Max, Some(c)) if c.is_int_like() => {
+            if let Some(x) = c.int_at(ri) {
+                a.count += 1;
+                a.isum += x as i128;
+                if matches!(kind, AggKind::Min | AggKind::Max) {
+                    if a.min.is_none_or(|m| num_lt(Num::I(x), m)) {
+                        a.min = Some(Num::I(x));
+                    }
+                    if a.max.is_none_or(|m| num_lt(m, Num::I(x))) {
+                        a.max = Some(Num::I(x));
+                    }
+                }
+            }
+        }
+        (AggKind::Sum | AggKind::Avg | AggKind::Min | AggKind::Max, Some(c)) if c.is_numeric() => {
+            if let Some(x) = c.float_at(ri) {
+                a.count += 1;
+                neumaier(&mut a.fsum, &mut a.fcomp, x);
+                if matches!(kind, AggKind::Min | AggKind::Max) {
+                    if a.min.is_none_or(|m| num_lt(Num::F(x), m)) {
+                        a.min = Some(Num::F(x));
+                    }
+                    if a.max.is_none_or(|m| num_lt(m, Num::F(x))) {
+                        a.max = Some(Num::F(x));
+                    }
+                }
+            }
+        }
+        (AggKind::Min | AggKind::Max, Some(c)) if c.is_text_like() => {
+            if let Some(sr) = c.str_ref_at(ri) {
+                a.count += 1;
+                if matches!(kind, AggKind::Min) && a.smin.as_deref().is_none_or(|cur| sr < cur) {
+                    a.smin = opt_arc_at(c, ri);
+                }
+                if matches!(kind, AggKind::Max) && a.smax.as_deref().is_none_or(|cur| sr > cur) {
+                    a.smax = opt_arc_at(c, ri);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Two-phase Top-K / plain scan across `.jcol` segments (`Q19, Q23, Q24, Q25, Q26`).
+/// Reads ONLY `WHERE` + `ORDER BY` columns across segments, then loads `SELECT`
+/// projection columns (`SELECT *` = 105 cols!) ONLY for segments containing winning rows!
+fn execute_scan_segmented(
+    query: &SqlQuery,
+    dt: &crate::disk_col_segments::DiskColumnTable,
+    proto_tc: &TableColumns,
+    raw_preds: &[Pred],
+) -> Option<VecResult> {
+    use rayon::prelude::*;
+    let mut names = Vec::new();
+    let mut has_wildcard = false;
+    let mut proj_col_set: HashSet<String> = HashSet::new();
+
+    for sc in &query.columns {
+        match &sc.expr {
+            Expression::Wildcard | Expression::QualifiedWildcard(_) => {
+                if sc.alias.is_some() {
+                    return None;
+                }
+                for cn in &dt.col_order {
+                    if matches!(proto_tc.cols.get(cn)?, Col::Other) {
+                        return None;
+                    }
+                    names.push(cn.clone());
+                }
+                has_wildcard = true;
+            }
+            e => {
+                let _ = build_vcol(proto_tc, e)?;
+                collect_expr_cols(e, &dt.col_index, &mut proj_col_set);
+                let default_name = match e {
+                    Expression::Column(n) => n.clone(),
+                    Expression::QualifiedColumn { column, .. } => column.clone(),
+                    Expression::Function { name, .. } => name.clone(),
+                    _ => "expr".to_string(),
+                };
+                names.push(sc.alias.clone().unwrap_or(default_name));
+            }
+        }
+    }
+    if names.is_empty() {
+        return None;
+    }
+
+    let mut order_exprs: Vec<(&Expression, bool, Option<bool>)> =
+        Vec::with_capacity(query.order_by.len());
+    let mut order_col_set: HashSet<String> = HashSet::new();
+    for ob in &query.order_by {
+        let resolved: &Expression = match &ob.expr {
+            Expression::Literal(AstValue::Int(i))
+                if *i >= 1 && (*i as usize) <= query.columns.len() =>
+            {
+                &query.columns[*i as usize - 1].expr
+            }
+            e => {
+                if let Some(n) = column(e)
+                    && !proto_tc.cols.contains_key(n)
+                    && !has_wildcard
+                    && let Some(pos) = names.iter().position(|x| x == n)
+                    && pos < query.columns.len()
+                {
+                    &query.columns[pos].expr
+                } else {
+                    e
+                }
+            }
+        };
+        let _ = build_vcol(proto_tc, resolved)?;
+        collect_expr_cols(resolved, &dt.col_index, &mut order_col_set);
+        order_exprs.push((resolved, ob.descending, ob.nulls_first));
+    }
+
+    let off = query.offset.unwrap_or(0);
+    let take = query.limit.map(|l| off.saturating_add(l));
+    if raw_preds.is_empty() && take.is_none() && dt.total_rows > 250_000 {
+        return None;
+    }
+    if take == Some(0) {
+        return Some(VecResult {
+            columns: names,
+            rows: Vec::new(),
+        });
+    }
+
+    let mut where_col_set: HashSet<String> = HashSet::new();
+    if let Some(w) = &query.where_clause {
+        collect_expr_cols(w, &dt.col_index, &mut where_col_set);
+    }
+    let where_cols: Vec<&str> = where_col_set.iter().map(String::as_str).collect();
+    let order_only_cols: Vec<&str> = order_col_set
+        .iter()
+        .filter(|c| !where_col_set.contains(*c))
+        .map(String::as_str)
+        .collect();
+
+    let active_segs: Vec<usize> = (0..dt.segments.len())
+        .filter(|&si| seg_verdict(dt, proto_tc, si, raw_preds) != SegVerdict::Skip)
+        .collect();
+
+    let winners: Vec<(usize, u32)> = if order_exprs.is_empty() {
+        let mut collected: Vec<(usize, u32)> = Vec::new();
+        for &si in &active_segs {
+            let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+            let sel = eval_segment_where(&seg_tc, raw_preds)?;
+            match sel {
+                None => {
+                    let need = take.map_or(seg_tc.len, |k| k.saturating_sub(collected.len()));
+                    let lim = seg_tc.len.min(need);
+                    for r in 0..lim {
+                        collected.push((si, r as u32));
+                    }
+                }
+                Some(v) => {
+                    let need = take.map_or(v.len(), |k| k.saturating_sub(collected.len()));
+                    for &r in v.iter().take(need) {
+                        collected.push((si, r));
+                    }
+                }
+            }
+            seg_tc.cols.clear();
+            if let Some(k) = take
+                && collected.len() >= k
+            {
+                collected.truncate(k);
+                break;
+            }
+        }
+        collected
+    } else {
+        let nv = order_exprs.len();
+        let order_spec: Vec<(usize, bool, Option<bool>)> = order_exprs
+            .iter()
+            .enumerate()
+            .map(|(j, (_, d, nf))| (j, *d, *nf))
+            .collect();
+
+        let seg_cands: Vec<Vec<(Vec<Sv>, usize, u32)>> = active_segs
+            .par_iter()
+            .map(|&si| -> Option<Vec<(Vec<Sv>, usize, u32)>> {
+                let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                let sel = eval_segment_where(&seg_tc, raw_preds)?;
+                if let Some(ref v) = sel
+                    && v.is_empty()
+                {
+                    return Some(Vec::new());
+                }
+                if !order_only_cols.is_empty() {
+                    dt.load_columns_into(si, &order_only_cols, &mut seg_tc).ok()?;
+                }
+                let o_vcols: Vec<(VCol, bool, Option<bool>)> = order_exprs
+                    .iter()
+                    .map(|(e, d, nf)| Some((build_vcol(&seg_tc, e)?, *d, *nf)))
+                    .collect::<Option<_>>()?;
+
+                let cmp_seg = |&ra: &u32, &rb: &u32| -> Ordering {
+                    let (ia, ib) = (ra as usize, rb as usize);
+                    for (vc, desc, nulls_first) in &o_vcols {
+                        let (na, nb) = (vc.is_null_at(ia), vc.is_null_at(ib));
+                        let nf = nulls_first.unwrap_or(*desc);
+                        let o = match (na, nb) {
+                            (true, true) => Ordering::Equal,
+                            (true, false) => {
+                                if nf {
+                                    Ordering::Less
+                                } else {
+                                    Ordering::Greater
+                                }
+                            }
+                            (false, true) => {
+                                if nf {
+                                    Ordering::Greater
+                                } else {
+                                    Ordering::Less
+                                }
+                            }
+                            (false, false) => {
+                                let ord = if let (Some(xa), Some(xb)) = (vc.int_at(ia), vc.int_at(ib))
+                                {
+                                    xa.cmp(&xb)
+                                } else if let (Some(sa), Some(sb)) =
+                                    (vc.str_ref_at(ia), vc.str_ref_at(ib))
+                                {
+                                    sa.cmp(sb)
+                                } else if let (Some(fa), Some(fb)) =
+                                    (vc.float_at(ia), vc.float_at(ib))
+                                {
+                                    fa.partial_cmp(&fb).unwrap_or(Ordering::Equal)
+                                } else {
+                                    Ordering::Equal
+                                };
+                                if *desc { ord.reverse() } else { ord }
+                            }
+                        };
+                        if o != Ordering::Equal {
+                            return o;
+                        }
+                    }
+                    ra.cmp(&rb)
+                };
+
+                let mut v: Vec<u32> = match sel {
+                    Some(v) => v,
+                    None => (0..seg_tc.len as u32).collect(),
+                };
+                if let Some(k) = take
+                    && k > 0
+                    && k < v.len()
+                {
+                    v.select_nth_unstable_by(k - 1, &cmp_seg);
+                    v.truncate(k);
+                }
+                let out = v
+                    .into_iter()
+                    .map(|ri| {
+                        let keys: Vec<Sv> =
+                            o_vcols.iter().map(|(vc, _, _)| vc.sv_at(ri as usize)).collect();
+                        (keys, si, ri)
+                    })
+                    .collect();
+                Some(out)
+            })
+            .collect::<Option<_>>()?;
+
+        let mut flat: Vec<(Vec<Sv>, usize, u32)> = seg_cands.into_iter().flatten().collect();
+        let cmp_global = |a: &(Vec<Sv>, usize, u32), b: &(Vec<Sv>, usize, u32)| -> Ordering {
+            for &(j, desc, nulls_first) in &order_spec {
+                let (x, y) = (&a.0[j], &b.0[j]);
+                let nf = nulls_first.unwrap_or(desc);
+                let o = match (x.is_null(), y.is_null()) {
+                    (true, true) => Ordering::Equal,
+                    (true, false) => {
+                        if nf {
+                            Ordering::Less
+                        } else {
+                            Ordering::Greater
+                        }
+                    }
+                    (false, true) => {
+                        if nf {
+                            Ordering::Greater
+                        } else {
+                            Ordering::Less
+                        }
+                    }
+                    (false, false) => {
+                        let ord = x.cmp_val(y);
+                        if desc { ord.reverse() } else { ord }
+                    }
+                };
+                if o != Ordering::Equal {
+                    return o;
+                }
+            }
+            let _ = nv;
+            (a.1, a.2).cmp(&(b.1, b.2))
+        };
+        if let Some(k) = take
+            && k > 0
+            && k < flat.len()
+        {
+            flat.select_nth_unstable_by(k - 1, &cmp_global);
+            flat.truncate(k);
+        }
+        flat.sort_unstable_by(&cmp_global);
+        flat.into_iter().map(|(_, si, ri)| (si, ri)).collect()
+    };
+
+    let end = take.unwrap_or(usize::MAX).min(winners.len());
+    let final_slice = &winners[off.min(end)..end];
+    if final_slice.is_empty() {
+        return Some(VecResult {
+            columns: names,
+            rows: Vec::new(),
+        });
+    }
+
+    let proj_cols: Vec<&str> = if has_wildcard {
+        dt.col_order.iter().map(String::as_str).collect()
+    } else {
+        proj_col_set.iter().map(String::as_str).collect()
+    };
+
+    // Group winning rows by segment so each touched segment is loaded at most once
+    let mut touched_segs: Vec<usize> = final_slice.iter().map(|&(si, _)| si).collect();
+    touched_segs.sort_unstable();
+    touched_segs.dedup();
+    let mut loaded_segs: HashMap<usize, TableColumns> = HashMap::with_capacity(touched_segs.len());
+    for si in touched_segs {
+        loaded_segs.insert(si, dt.load_segment_columns(si, &proj_cols).ok()?);
+    }
+
+    let mut rows = Vec::with_capacity(final_slice.len());
+    for &(si, ri) in final_slice {
+        let seg_tc = loaded_segs.get(&si)?;
+        let mut row = Vec::with_capacity(names.len());
+        for sc in &query.columns {
+            match &sc.expr {
+                Expression::Wildcard | Expression::QualifiedWildcard(_) => {
+                    for cn in &dt.col_order {
+                        let col = seg_tc.cols.get(cn)?;
+                        row.push(VCol::Phys(col).sv_at(ri as usize).json());
+                    }
+                }
+                e => {
+                    let vc = build_vcol(seg_tc, e)?;
+                    row.push(vc.sv_at(ri as usize).json());
+                }
+            }
+        }
+        rows.push(row);
+    }
+
+    Some(VecResult {
+        columns: names,
+        rows,
+    })
+}
+
+/// Vectorized out-of-core execution over a `DiskColumnTable` (`.jcol` segments).
+pub fn execute_segmented(
+    query: &SqlQuery,
+    dt: &crate::disk_col_segments::DiskColumnTable,
+) -> Option<VecResult> {
+    use rayon::prelude::*;
+    if !query.joins.is_empty()
+        || !query.ctes.is_empty()
+        || query.set_op.is_some()
+        || query.distinct
+        || query.as_of_timestamp.is_some()
+    {
+        return None;
+    }
+
+    let proto_tc = dt.proto_table_columns();
+    let mut raw_preds = Vec::new();
+    if let Some(w) = &query.where_clause {
+        collect_preds(w, &mut raw_preds)?;
+    }
+    let _ = prepare_preds(&proto_tc, &raw_preds)?;
+
+    let mut group_exprs: Vec<&Expression> = Vec::with_capacity(query.group_by.len());
+    for ge in &query.group_by {
+        let resolved: &Expression = match ge {
+            Expression::Literal(AstValue::Int(n))
+                if *n >= 1 && (*n as usize) <= query.columns.len() =>
+            {
+                &query.columns[*n as usize - 1].expr
+            }
+            Expression::Column(alias_candidate)
+                if !proto_tc.cols.contains_key(alias_candidate.as_str()) =>
+            {
+                query
+                    .columns
+                    .iter()
+                    .find(|sc| sc.alias.as_deref() == Some(alias_candidate.as_str()))
+                    .map(|sc| &sc.expr)?
+            }
+            other => other,
+        };
+        let _ = build_vcol(&proto_tc, resolved)?;
+        group_exprs.push(resolved);
+    }
+
+    let query_has_agg = query
+        .columns
+        .iter()
+        .any(|c| parse_agg_expr(&proto_tc, &c.expr).is_some())
+        || query.having.is_some();
+
+    if !query_has_agg && group_exprs.is_empty() {
+        return execute_scan_segmented(query, dt, &proto_tc, &raw_preds);
+    }
+
+    let mut outs: Vec<OutCol> = Vec::with_capacity(query.columns.len());
+    let mut out_exprs: Vec<Option<&Expression>> = Vec::with_capacity(query.columns.len());
+    let mut names: Vec<String> = Vec::with_capacity(query.columns.len());
+    // (full_agg_expr, kind, const_add, is_int, is_txt)
+    let mut agg_defs: Vec<(&Expression, AggKind, i64, bool, bool)> = Vec::new();
+
+    for c in &query.columns {
+        if let Some(gpos) = group_exprs.iter().position(|&ge| ge == &c.expr) {
+            let default_name = match &c.expr {
+                Expression::Column(n) => n.clone(),
+                Expression::QualifiedColumn { column, .. } => column.clone(),
+                Expression::Function { name, .. } => name.clone(),
+                _ => "expr".to_string(),
+            };
+            outs.push(OutCol::Group(gpos));
+            out_exprs.push(Some(&c.expr));
+            names.push(c.alias.clone().unwrap_or(default_name));
+        } else if let Some((kind, vc_proto, const_add, default_name)) =
+            parse_agg_expr(&proto_tc, &c.expr)
+        {
+            let is_int = vc_proto.as_ref().is_some_and(VCol::is_int_like);
+            let is_txt = vc_proto.as_ref().is_some_and(VCol::is_text_like);
+            let ai = agg_defs.len();
+            agg_defs.push((&c.expr, kind, const_add, is_int, is_txt));
+            outs.push(OutCol::Agg(ai));
+            out_exprs.push(Some(&c.expr));
+            names.push(c.alias.clone().unwrap_or(default_name));
+        } else {
+            return None;
+        }
+    }
+
+    let visible_no = outs.len();
+    let having_pred = match &query.having {
+        Some(h) => Some(compile_having_seg(
+            h,
+            &proto_tc,
+            &names,
+            &group_exprs,
+            &mut out_exprs,
+            &mut outs,
+            &mut agg_defs,
+        )?),
+        None => None,
+    };
+
+    let mut order = Vec::with_capacity(query.order_by.len());
+    for ob in &query.order_by {
+        let idx = match &ob.expr {
+            Expression::Literal(AstValue::Int(i)) if *i >= 1 && (*i as usize) <= visible_no => {
+                *i as usize - 1
+            }
+            e => {
+                if let Some(n) = column(e)
+                    && let Some(pos) = names.iter().position(|x| x == n)
+                {
+                    pos
+                } else if let Some(pos) = out_exprs.iter().position(|oe| *oe == Some(e)) {
+                    pos
+                } else if let Some(gpos) = group_exprs.iter().position(|&ge| ge == e) {
+                    let pos = outs.len();
+                    outs.push(OutCol::Group(gpos));
+                    out_exprs.push(Some(e));
+                    pos
+                } else if let Some((kind, vc_proto, const_add, _)) = parse_agg_expr(&proto_tc, e) {
+                    let is_int = vc_proto.as_ref().is_some_and(VCol::is_int_like);
+                    let is_txt = vc_proto.as_ref().is_some_and(VCol::is_text_like);
+                    let ai = agg_defs.len();
+                    agg_defs.push((e, kind, const_add, is_int, is_txt));
+                    let pos = outs.len();
+                    outs.push(OutCol::Agg(ai));
+                    out_exprs.push(Some(e));
+                    pos
+                } else {
+                    return None;
+                }
+            }
+        };
+        order.push((idx, ob.descending, ob.nulls_first));
+    }
+
+    let total_no = outs.len();
+    let nagg = agg_defs.len();
+    let off = query.offset.unwrap_or(0);
+    let take = query.limit.map(|l| off.saturating_add(l));
+
+    // ------------------------------------------------------------------------
+    // Fast Path 1: Zero-I/O Metadata Aggregates (`Q0: COUNT(*)`, `Q6: MIN/MAX`)
+    // ------------------------------------------------------------------------
+    if raw_preds.is_empty()
+        && group_exprs.is_empty()
+        && agg_defs.iter().all(|(_, _, ca, _, _)| *ca == 0)
+    {
+        let mut meta_accs = Vec::with_capacity(nagg);
+        let mut all_meta_ok = true;
+        for &(ae, kind, _, _, _) in &agg_defs {
+            let mut a = Acc::default();
+            match kind {
+                AggKind::CountStar => a.count = dt.total_rows as u64,
+                AggKind::Count | AggKind::Min | AggKind::Max => {
+                    let Expression::Function { args, .. } = ae else {
+                        all_meta_ok = false;
+                        break;
+                    };
+                    let Some(cn) = args.first().and_then(column) else {
+                        all_meta_ok = false;
+                        break;
+                    };
+                    let Some((dk, nulls, min_i, max_i, min_f, max_f)) = dt.global_col_summary(cn)
+                    else {
+                        all_meta_ok = false;
+                        break;
+                    };
+                    if matches!(kind, AggKind::Min | AggKind::Max)
+                        && matches!(
+                            dk,
+                            crate::disk_col_segments::DiskColKind::Text
+                                | crate::disk_col_segments::DiskColKind::Other
+                        )
+                    {
+                        all_meta_ok = false;
+                        break;
+                    }
+                    a.count = (dt.total_rows as u64).saturating_sub(nulls);
+                    if let (Some(lo), Some(hi)) = (min_i, max_i) {
+                        a.min = Some(Num::I(lo));
+                        a.max = Some(Num::I(hi));
+                    } else if let (Some(lo), Some(hi)) = (min_f, max_f) {
+                        a.min = Some(Num::F(lo));
+                        a.max = Some(Num::F(hi));
+                    } else if a.count > 0 && matches!(kind, AggKind::Min | AggKind::Max) {
+                        all_meta_ok = false;
+                        break;
+                    }
+                }
+                _ => {
+                    all_meta_ok = false;
+                    break;
+                }
+            }
+            meta_accs.push(a);
+        }
+        if all_meta_ok {
+            let cell = |oi: usize| match &outs[oi] {
+                OutCol::Group(_) => Sv::Null,
+                OutCol::Agg(ai) => {
+                    let (_, kind, ca, is_int, is_txt) = agg_defs[*ai];
+                    render_acc_cell(&meta_accs[*ai], kind, ca, is_int, is_txt)
+                }
+            };
+            if having_pred.as_ref().is_some_and(|hp| !eval_having(hp, &cell)) {
+                return Some(VecResult {
+                    columns: names,
+                    rows: Vec::new(),
+                });
+            }
+            let row: Vec<serde_json::Value> =
+                (0..visible_no).map(|oi| cell(oi).json()).collect();
+            let all_rows = vec![row];
+            let end = take.unwrap_or(usize::MAX).min(all_rows.len());
+            return Some(VecResult {
+                columns: names,
+                rows: all_rows[off.min(end)..end].to_vec(),
+            });
+        }
+    }
+
+    let mut where_col_set: HashSet<String> = HashSet::new();
+    if let Some(w) = &query.where_clause {
+        collect_expr_cols(w, &dt.col_index, &mut where_col_set);
+    }
+    let mut rest_col_set: HashSet<String> = HashSet::new();
+    for &ge in &group_exprs {
+        collect_expr_cols(ge, &dt.col_index, &mut rest_col_set);
+    }
+    for &(ae, _, _, _, _) in &agg_defs {
+        collect_expr_cols(ae, &dt.col_index, &mut rest_col_set);
+    }
+    rest_col_set.retain(|c| !where_col_set.contains(c));
+    let where_cols: Vec<&str> = where_col_set.iter().map(String::as_str).collect();
+    let rest_cols: Vec<&str> = rest_col_set.iter().map(String::as_str).collect();
+
+    // ------------------------------------------------------------------------
+    // Fast Path 2: `SELECT COUNT(*) FROM t WHERE ...` (`Q1`, `Q20`)
+    // ------------------------------------------------------------------------
+    if group_exprs.is_empty() && agg_defs.iter().all(|(_, k, _, _, _)| *k == AggKind::CountStar) {
+        let total: Option<u64> = (0..dt.segments.len())
+            .into_par_iter()
+            .map(|si| -> Option<u64> {
+                match seg_verdict(dt, &proto_tc, si, &raw_preds) {
+                    SegVerdict::Skip => Some(0),
+                    SegVerdict::AllMatch => Some(dt.segments[si].len as u64),
+                    SegVerdict::Maybe => {
+                        let seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                        let preds = prepare_preds(&seg_tc, &raw_preds)?;
+                        Some(count_where(&seg_tc, &preds))
+                    }
+                }
+            })
+            .try_fold(|| 0u64, |a, b| b.map(|v| a + v))
+            .try_reduce(|| 0u64, |a, b| Some(a + b));
+        let c = total?;
+        let cell = |oi: usize| match &outs[oi] {
+            OutCol::Group(_) => Sv::Null,
+            OutCol::Agg(_) => Sv::U(c),
+        };
+        if having_pred.as_ref().is_some_and(|hp| !eval_having(hp, &cell)) {
+            return Some(VecResult {
+                columns: names,
+                rows: Vec::new(),
+            });
+        }
+        let row: Vec<serde_json::Value> = (0..visible_no).map(|oi| cell(oi).json()).collect();
+        let all_rows = vec![row];
+        let end = take.unwrap_or(usize::MAX).min(all_rows.len());
+        return Some(VecResult {
+            columns: names,
+            rows: all_rows[off.min(end)..end].to_vec(),
+        });
+    }
+
+    let active_segs: Vec<usize> = (0..dt.segments.len())
+        .filter(|&si| seg_verdict(dt, &proto_tc, si, &raw_preds) != SegVerdict::Skip)
+        .collect();
+
+    // ------------------------------------------------------------------------
+    // Case A: Ungrouped Aggregations (`Q2, Q3, Q4, Q5, Q29`)
+    // ------------------------------------------------------------------------
+    if group_exprs.is_empty() {
+        const D_SHARDS: usize = 64;
+        let has_distinct = agg_defs
+            .iter()
+            .any(|(_, k, _, _, _)| *k == AggKind::CountDistinct);
+        let int_d_shards: Vec<Vec<std::sync::Mutex<rustc_hash::FxHashSet<u64>>>> = (0..nagg)
+            .map(|ai| {
+                if agg_defs[ai].1 == AggKind::CountDistinct && !agg_defs[ai].4 {
+                    (0..D_SHARDS)
+                        .map(|_| std::sync::Mutex::new(rustc_hash::FxHashSet::default()))
+                        .collect()
+                } else {
+                    Vec::new()
+                }
+            })
+            .collect();
+        let str_d_shards: Vec<Vec<std::sync::Mutex<rustc_hash::FxHashSet<Arc<str>>>>> = (0..nagg)
+            .map(|ai| {
+                if agg_defs[ai].1 == AggKind::CountDistinct && agg_defs[ai].4 {
+                    (0..D_SHARDS)
+                        .map(|_| std::sync::Mutex::new(rustc_hash::FxHashSet::default()))
+                        .collect()
+                } else {
+                    Vec::new()
+                }
+            })
+            .collect();
+
+        let seg_accs: Vec<Vec<Acc>> = active_segs
+            .par_iter()
+            .map(|&si| -> Option<Vec<Acc>> {
+                let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                let sel = eval_segment_where(&seg_tc, &raw_preds)?;
+                if let Some(ref v) = sel
+                    && v.is_empty()
+                {
+                    return Some((0..nagg).map(|_| Acc::default()).collect());
+                }
+                if !rest_cols.is_empty() {
+                    dt.load_columns_into(si, &rest_cols, &mut seg_tc).ok()?;
+                }
+                let specs: Vec<(AggKind, Option<VCol>, i64)> = agg_defs
+                    .iter()
+                    .map(|(ae, _, _, _, _)| {
+                        let (k, vc, ca, _) = parse_agg_expr(&seg_tc, ae)?;
+                        Some((k, vc, ca))
+                    })
+                    .collect::<Option<_>>()?;
+
+                let mut accs: Vec<Acc> = (0..nagg).map(|_| Acc::default()).collect();
+                for (oi, (kind, vc_opt, _)) in specs.iter().enumerate() {
+                    // Share identical physical `SUM`/`AVG` scans (`Q29` 90 projections!)
+                    if matches!(kind, AggKind::Sum | AggKind::Avg)
+                        && let Some(VCol::Phys(col)) = vc_opt
+                        && let Some(oj) = (0..oi).find(|&oj| {
+                            matches!(specs[oj].0, AggKind::Sum | AggKind::Avg)
+                                && matches!(&specs[oj].1, Some(VCol::Phys(c)) if std::ptr::eq(*c, *col))
+                        })
+                    {
+                        accs[oi] = accs[oj].clone();
+                        continue;
+                    }
+
+                    if *kind == AggKind::CountDistinct && has_distinct {
+                        let Some(vc) = vc_opt.as_ref() else { continue };
+                        if agg_defs[oi].4 {
+                            // Text COUNT(DISTINCT): deduplicate segment dictionary first!
+                            if let VCol::Phys(Col::Text(codes, dict)) = vc {
+                                let mut seen_code = vec![false; dict.len()];
+                                match &sel {
+                                    None => {
+                                        for &c in codes {
+                                            if c != NULL_CODE {
+                                                seen_code[c as usize] = true;
+                                            }
+                                        }
+                                    }
+                                    Some(rows) => {
+                                        for &r in rows {
+                                            let c = codes[r as usize];
+                                            if c != NULL_CODE {
+                                                seen_code[c as usize] = true;
+                                            }
+                                        }
+                                    }
+                                }
+                                let mut buckets: Vec<Vec<Arc<str>>> =
+                                    (0..D_SHARDS).map(|_| Vec::new()).collect();
+                                for (ci, &ok) in seen_code.iter().enumerate() {
+                                    if ok {
+                                        let s = if dict[ci].is_empty() {
+                                            empty_arc_str()
+                                        } else {
+                                            dict[ci].clone()
+                                        };
+                                        let b = (hash_bytes64(s.as_bytes()) as usize)
+                                            & (D_SHARDS - 1);
+                                        buckets[b].push(s);
+                                    }
+                                }
+                                for (b, items) in buckets.into_iter().enumerate() {
+                                    if !items.is_empty()
+                                        && let Ok(mut g) = str_d_shards[oi][b].lock()
+                                    {
+                                        for s in items {
+                                            g.insert(s);
+                                        }
+                                    }
+                                }
+                            } else {
+                                let mut local: rustc_hash::FxHashSet<Arc<str>> =
+                                    rustc_hash::FxHashSet::default();
+                                match &sel {
+                                    None => {
+                                        for ri in 0..seg_tc.len {
+                                            if let Some(s) = opt_arc_at(vc, ri) {
+                                                local.insert(s);
+                                            }
+                                        }
+                                    }
+                                    Some(rows) => {
+                                        for &r in rows {
+                                            if let Some(s) = opt_arc_at(vc, r as usize) {
+                                                local.insert(s);
+                                            }
+                                        }
+                                    }
+                                }
+                                for s in local {
+                                    let b =
+                                        (hash_bytes64(s.as_bytes()) as usize) & (D_SHARDS - 1);
+                                    if let Ok(mut g) = str_d_shards[oi][b].lock() {
+                                        g.insert(s);
+                                    }
+                                }
+                            }
+                        } else {
+                            let mut local: rustc_hash::FxHashSet<u64> =
+                                rustc_hash::FxHashSet::default();
+                            match &sel {
+                                None => {
+                                    for ri in 0..seg_tc.len {
+                                        let (code, is_n) = vc.group_code_at(ri);
+                                        if !is_n {
+                                            local.insert(code);
+                                        }
+                                    }
+                                }
+                                Some(rows) => {
+                                    for &r in rows {
+                                        let (code, is_n) = vc.group_code_at(r as usize);
+                                        if !is_n {
+                                            local.insert(code);
+                                        }
+                                    }
+                                }
+                            }
+                            let mut buckets: Vec<Vec<u64>> =
+                                (0..D_SHARDS).map(|_| Vec::new()).collect();
+                            for code in local {
+                                let b = (mix64(code) as usize) & (D_SHARDS - 1);
+                                buckets[b].push(code);
+                            }
+                            for (b, items) in buckets.into_iter().enumerate() {
+                                if !items.is_empty()
+                                    && let Ok(mut g) = int_d_shards[oi][b].lock()
+                                {
+                                    g.extend(items);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Fast ungrouped slice scan
+                    match (kind, vc_opt.as_ref()) {
+                        (AggKind::CountStar, _) => {
+                            accs[oi].count = sel.as_ref().map_or(seg_tc.len, Vec::len) as u64;
+                        }
+                        (
+                            AggKind::Sum | AggKind::Avg | AggKind::Min | AggKind::Max,
+                            Some(VCol::Phys(Col::Int(ints, nulls))),
+                        ) if sel.is_none() && nulls.is_empty() => {
+                            with_ints!(ints, |v| {
+                                accs[oi].count = v.len() as u64;
+                                accs[oi].isum = v.iter().map(|&x| x as i128).sum();
+                                if matches!(kind, AggKind::Min | AggKind::Max)
+                                    && let (Some(&lo), Some(&hi)) = (v.iter().min(), v.iter().max())
+                                {
+                                    accs[oi].min = Some(Num::I(lo as i64));
+                                    accs[oi].max = Some(Num::I(hi as i64));
+                                }
+                            });
+                        }
+                        _ => match &sel {
+                            None => {
+                                for ri in 0..seg_tc.len {
+                                    update_acc_row(&mut accs[oi], *kind, vc_opt.as_ref(), ri);
+                                }
+                            }
+                            Some(rows) => {
+                                for &r in rows {
+                                    update_acc_row(
+                                        &mut accs[oi],
+                                        *kind,
+                                        vc_opt.as_ref(),
+                                        r as usize,
+                                    );
+                                }
+                            }
+                        },
+                    }
+                }
+                Some(accs)
+            })
+            .collect::<Option<_>>()?;
+
+        let mut merged: Vec<Acc> = (0..nagg).map(|_| Acc::default()).collect();
+        for sa in &seg_accs {
+            for oi in 0..nagg {
+                merged[oi].merge(&sa[oi]);
+            }
+        }
+        for oi in 0..nagg {
+            if agg_defs[oi].1 == AggKind::CountDistinct {
+                let cnt: u64 = if agg_defs[oi].4 {
+                    str_d_shards[oi]
+                        .iter()
+                        .map(|m| m.lock().map_or(0, |s| s.len() as u64))
+                        .sum()
+                } else {
+                    int_d_shards[oi]
+                        .iter()
+                        .map(|m| m.lock().map_or(0, |s| s.len() as u64))
+                        .sum()
+                };
+                // Store distinct total into `bits`-free synthetic count via `render_acc_cell`
+                merged[oi].count = cnt;
+            }
+        }
+
+        let cell = |oi: usize| match &outs[oi] {
+            OutCol::Group(_) => Sv::Null,
+            OutCol::Agg(ai) => {
+                let (_, kind, ca, is_int, is_txt) = agg_defs[*ai];
+                if kind == AggKind::CountDistinct {
+                    Sv::U(merged[*ai].count)
+                } else {
+                    render_acc_cell(&merged[*ai], kind, ca, is_int, is_txt)
+                }
+            }
+        };
+        if having_pred.as_ref().is_some_and(|hp| !eval_having(hp, &cell)) {
+            return Some(VecResult {
+                columns: names,
+                rows: Vec::new(),
+            });
+        }
+        let row: Vec<serde_json::Value> = (0..visible_no).map(|oi| cell(oi).json()).collect();
+        let all_rows = vec![row];
+        let end = take.unwrap_or(usize::MAX).min(all_rows.len());
+        return Some(VecResult {
+            columns: names,
+            rows: all_rows[off.min(end)..end].to_vec(),
+        });
+    }
+
+    // ------------------------------------------------------------------------
+    // Case B: Grouped Aggregations (`GROUP BY` — `Q7..Q18`, `Q21..Q22`, `Q27..Q42`)
+    // ------------------------------------------------------------------------
+    if active_segs.is_empty() {
+        return Some(VecResult {
+            columns: names,
+            rows: Vec::new(),
+        });
+    }
+
+    // Eliminate constant & functionally-determined `col ± k` keys (`Q34`, `Q35`!)
+    let mut key_exprs: Vec<&Expression> = Vec::new();
+    let mut key_phys_cols: Vec<Option<&str>> = Vec::new();
+    let mut group_map: Vec<GroupKeyMap> = Vec::with_capacity(group_exprs.len());
+
+    for &ge in &group_exprs {
+        let proto_vc = build_vcol(&proto_tc, ge)?;
+        match proto_vc {
+            VCol::ConstInt(i) => group_map.push(GroupKeyMap::Const(Sv::I(i))),
+            VCol::ConstFloat(f) => group_map.push(GroupKeyMap::Const(Sv::F(f))),
+            VCol::ConstText(s) => group_map.push(GroupKeyMap::Const(Sv::S(s))),
+            VCol::IntArith {
+                op: op @ (ArithOp::Add | ArithOp::Sub),
+                rhs,
+                ..
+            } => {
+                let base_cn = match ge {
+                    Expression::Binary { left, right, .. } => column(left).or_else(|| column(right)),
+                    _ => None,
+                };
+                if let Some(cn) = base_cn
+                    && let Some(base_slot) = key_phys_cols.iter().position(|&c| c == Some(cn))
+                {
+                    group_map.push(GroupKeyMap::DerivedInt {
+                        base_slot,
+                        op,
+                        rhs,
+                    });
+                } else {
+                    let slot = key_exprs.len();
+                    key_exprs.push(ge);
+                    key_phys_cols.push(None);
+                    group_map.push(GroupKeyMap::Slot(slot));
+                }
+            }
+            _ => {
+                let phys_cn = column(ge).filter(|&cn| matches!(proto_tc.cols.get(cn), Some(Col::Int(..))));
+                if let Some(existing_slot) = key_exprs.iter().position(|&ke| ke == ge) {
+                    group_map.push(GroupKeyMap::Slot(existing_slot));
+                } else {
+                    let slot = key_exprs.len();
+                    key_exprs.push(ge);
+                    key_phys_cols.push(phys_cn);
+                    group_map.push(GroupKeyMap::Slot(slot));
+                }
+            }
+        }
+    }
+    // Backfill `DerivedInt` even if `ClientIP - 1` appeared before `ClientIP` (or keep ≥1 key if all const)
+    if key_exprs.is_empty() {
+        key_exprs.push(group_exprs[0]);
+        group_map[0] = GroupKeyMap::Slot(0);
+    }
+
+    let key_proto_vcols: Vec<VCol> = key_exprs
+        .iter()
+        .map(|&ke| build_vcol(&proto_tc, ke))
+        .collect::<Option<_>>()?;
+    let gkey_shape = match key_proto_vcols.as_slice() {
+        [a] if a.is_int_like() => GKeyShape::I1,
+        [a] if a.is_text_like() => GKeyShape::S1,
+        [a, b] if a.is_int_like() && b.is_int_like() => GKeyShape::I2,
+        [a, b] if a.is_int_like() && b.is_text_like() => GKeyShape::IS,
+        [a, b, c] if a.is_int_like() && b.is_int_like() && c.is_text_like() => GKeyShape::IIS,
+        _ => GKeyShape::Many,
+    };
+
+    let count_star_only = nagg == 1 && agg_defs[0].1 == AggKind::CountStar;
+    const SHARDS: usize = 64;
+
+    // Helper that scans one segment and emits `(hash, GKey, first_ord, count_or_accs)`
+    // Either using segment-local `HKey` pre-aggregation or direct row scatter (`bypass_local`).
+    let scan_one_seg = |si: usize,
+                        bypass_local: bool,
+                        hash_mask: u64,
+                        hash_target: u64|
+     -> Option<(usize, Vec<(u64, GKey, u64, u64, Vec<Acc>)>)> {
+        let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+        let sel = eval_segment_where(&seg_tc, &raw_preds)?;
+        if let Some(ref v) = sel
+            && v.is_empty()
+        {
+            return Some((0, Vec::new()));
+        }
+        if !rest_cols.is_empty() {
+            dt.load_columns_into(si, &rest_cols, &mut seg_tc).ok()?;
+        }
+        let key_vcols: Vec<VCol> = key_exprs
+            .iter()
+            .map(|&ke| build_vcol(&seg_tc, ke))
+            .collect::<Option<_>>()?;
+        let seg_aggs: Vec<(AggKind, Option<VCol>)> = agg_defs
+            .iter()
+            .map(|(ae, _, _, _, _)| {
+                let (k, vc, _, _) = parse_agg_expr(&seg_tc, ae)?;
+                Some((k, vc))
+            })
+            .collect::<Option<_>>()?;
+
+        let seg_base_ord = (si as u64) << 32;
+
+        if bypass_local {
+            let cap = sel.as_ref().map_or(seg_tc.len, Vec::len)
+                / (if hash_mask > 0 { (hash_mask as usize) + 1 } else { 1 }).max(1);
+            let mut out = Vec::with_capacity(cap.min(262_144));
+            let mut push_row = |ri: usize| {
+                let h = row_canonical_hash(&key_vcols, ri);
+                if (h & hash_mask) != hash_target {
+                    return;
+                }
+                let gk = build_gkey(gkey_shape, &key_vcols, ri);
+                let ord = seg_base_ord | (ri as u64);
+                if count_star_only {
+                    out.push((h, gk, ord, 1u64, Vec::new()));
+                } else {
+                    let mut accs = Vec::with_capacity(nagg);
+                    for &(kind, ref vc_opt) in &seg_aggs {
+                        let mut a = Acc::default();
+                        update_acc_row(&mut a, kind, vc_opt.as_ref(), ri);
+                        accs.push(a);
+                    }
+                    out.push((h, gk, ord, 1u64, accs));
+                }
+            };
+            match &sel {
+                None => {
+                    for ri in 0..seg_tc.len {
+                        push_row(ri);
+                    }
+                }
+                Some(rows) => {
+                    for &r in rows {
+                        push_row(r as usize);
+                    }
+                }
+            }
+            let n_emitted = out.len();
+            return Some((n_emitted, out));
+        }
+
+        // Segment-local pre-aggregation using zero-alloc `HKey`!
+        let mut local_map: FxMap<HKey, u32> = FxMap::default();
+        let mut local_first: Vec<u32> = Vec::new();
+        let mut local_cnt: Vec<u64> = Vec::new();
+        let mut local_accs: Vec<Acc> = Vec::new();
+
+        let mut add_row = |ri: usize| {
+            let hk = make_hkey(&key_vcols, ri);
+            let gi = match local_map.get(&hk) {
+                Some(&g) => g as usize,
+                None => {
+                    let g = local_first.len();
+                    local_map.insert(hk, g as u32);
+                    local_first.push(ri as u32);
+                    if count_star_only {
+                        local_cnt.push(0);
+                    } else {
+                        local_accs.extend((0..nagg).map(|_| Acc::default()));
+                    }
+                    g
+                }
+            };
+            if count_star_only {
+                local_cnt[gi] += 1;
+            } else {
+                for (oi, &(kind, ref vc_opt)) in seg_aggs.iter().enumerate() {
+                    update_acc_row(&mut local_accs[gi * nagg + oi], kind, vc_opt.as_ref(), ri);
+                }
+            }
+        };
+
+        match &sel {
+            None => {
+                for ri in 0..seg_tc.len {
+                    add_row(ri);
+                }
+            }
+            Some(rows) => {
+                for &r in rows {
+                    add_row(r as usize);
+                }
+            }
+        }
+
+        let total_local_groups = local_first.len();
+        drop(local_map);
+        let mut out = Vec::with_capacity(total_local_groups);
+        let mut acc_drain = local_accs.into_iter();
+        for (gi, &first_ri) in local_first.iter().enumerate() {
+            let group_accs: Vec<Acc> = if count_star_only {
+                Vec::new()
+            } else {
+                acc_drain.by_ref().take(nagg).collect()
+            };
+            let gk = build_gkey(gkey_shape, &key_vcols, first_ri as usize);
+            let h = gk.canonical_hash();
+            if (h & hash_mask) != hash_target {
+                continue;
+            }
+            let ord = seg_base_ord | (first_ri as u64);
+            let c = if count_star_only { local_cnt[gi] } else { 0 };
+            out.push((h, gk, ord, c, group_accs));
+        }
+        Some((total_local_groups, out))
+    };
+
+    let render_group_cell = |gk: &GKey, gpos: usize| -> Sv {
+        match &group_map[gpos] {
+            GroupKeyMap::Slot(s) => gk.slot_sv(*s),
+            GroupKeyMap::Const(sv) => sv.clone(),
+            GroupKeyMap::DerivedInt {
+                base_slot,
+                op,
+                rhs,
+            } => match gk.slot_int(*base_slot) {
+                Some(x) => Sv::I(match op {
+                    ArithOp::Add => x.wrapping_add(*rhs),
+                    ArithOp::Sub => x.wrapping_sub(*rhs),
+                    ArithOp::Mul => x.wrapping_mul(*rhs),
+                }),
+                None => Sv::Null,
+            },
+        }
+    };
+
+    let eval_and_render_group = |gk: &GKey, cnt: u64, accs: &[Acc]| -> Option<Vec<Sv>> {
+        let cell = |oi: usize| -> Sv {
+            match &outs[oi] {
+                OutCol::Group(gpos) => render_group_cell(gk, *gpos),
+                OutCol::Agg(ai) => {
+                    if count_star_only {
+                        Sv::U(cnt)
+                    } else {
+                        let (_, kind, ca, is_int, is_txt) = agg_defs[*ai];
+                        render_acc_cell(&accs[*ai], kind, ca, is_int, is_txt)
+                    }
+                }
+            }
+        };
+        if let Some(ref hp) = having_pred
+            && !eval_having(hp, &cell)
+        {
+            return None;
+        }
+        Some((0..total_no).map(cell).collect())
+    };
+
+    let cmp_rendered = |a: &(Vec<Sv>, u64), b: &(Vec<Sv>, u64)| -> Ordering {
+        for &(i, desc, nulls_first) in &order {
+            let (x, y) = (&a.0[i], &b.0[i]);
+            let nf = nulls_first.unwrap_or(desc);
+            let o = match (x.is_null(), y.is_null()) {
+                (true, true) => Ordering::Equal,
+                (true, false) => {
+                    if nf {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }
+                }
+                (false, true) => {
+                    if nf {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Less
+                    }
+                }
+                (false, false) => {
+                    let ord = x.cmp_val(y);
+                    if desc { ord.reverse() } else { ord }
+                }
+            };
+            if o != Ordering::Equal {
+                return o;
+            }
+        }
+        a.1.cmp(&b.1)
+    };
+
+    // Probe first non-empty segment to gauge cardinality
+    let mut probe_seg_idx = 0usize;
+    let mut seg0_groups = 0usize;
+    let mut seg0_items = Vec::new();
+    while probe_seg_idx < active_segs.len() {
+        let (ng, items) = scan_one_seg(active_segs[probe_seg_idx], false, 0, 0)?;
+        if ng > 0 {
+            seg0_groups = ng;
+            seg0_items = items;
+            break;
+        }
+        probe_seg_idx += 1;
+    }
+    if seg0_groups == 0 {
+        return Some(VecResult {
+            columns: names,
+            rows: Vec::new(),
+        });
+    }
+
+    let rem_segs = &active_segs[probe_seg_idx + 1..];
+    let active_rows: usize = active_segs[probe_seg_idx..]
+        .iter()
+        .map(|&si| dt.segments[si].len as usize)
+        .sum();
+    let bypass_local = seg0_groups > 65_536 && rem_segs.len() >= 2;
+
+    // Special Fast Path: Unordered `GROUP BY ... LIMIT k` without `HAVING` (`Q17`)!
+    if order.is_empty()
+        && having_pred.is_none()
+        && let Some(k) = take
+        && seg0_groups > 4_096
+        && !rem_segs.is_empty()
+    {
+        const Q17_MASK: u64 = 63;
+        let mut shard0: FxMap<GKey, (u64, u64, Vec<Acc>)> = FxMap::default();
+        for (h, gk, ord, cnt, accs) in &seg0_items {
+            if (*h & Q17_MASK) == 0 {
+                shard0.insert(gk.clone(), (*ord, *cnt, accs.clone()));
+            }
+        }
+        let shard0_mtx = std::sync::Mutex::new(shard0);
+        let ok_q17 = rem_segs
+            .par_iter()
+            .map(|&si| -> Option<()> {
+                let (_, items) = scan_one_seg(si, bypass_local, Q17_MASK, 0)?;
+                if !items.is_empty()
+                    && let Ok(mut g) = shard0_mtx.lock()
+                {
+                    for (_, gk, ord, cnt, accs) in items {
+                        match g.get_mut(&gk) {
+                            Some((e_ord, e_cnt, e_accs)) => {
+                                *e_ord = (*e_ord).min(ord);
+                                if count_star_only {
+                                    *e_cnt += cnt;
+                                } else {
+                                    for (a, b) in e_accs.iter_mut().zip(&accs) {
+                                        a.merge(b);
+                                    }
+                                }
+                            }
+                            None => {
+                                g.insert(gk, (ord, cnt, accs));
+                            }
+                        }
+                    }
+                }
+                Some(())
+            })
+            .collect::<Option<Vec<()>>>();
+
+        if ok_q17.is_some()
+            && let Ok(map) = shard0_mtx.into_inner()
+            && map.len() >= k
+        {
+            let mut cands: Vec<(Vec<Sv>, u64)> = map
+                .into_iter()
+                .filter_map(|(gk, (ord, cnt, accs))| {
+                    Some((eval_and_render_group(&gk, cnt, &accs)?, ord))
+                })
+                .collect();
+            cands.sort_unstable_by_key(|(_, ord)| *ord);
+            let end = k.min(cands.len());
+            let rows = cands[off.min(end)..end]
+                .iter()
+                .map(|(svs, _)| svs[..visible_no].iter().map(Sv::json).collect())
+                .collect();
+            return Some(VecResult {
+                columns: names,
+                rows,
+            });
+        }
+    }
+
+    // Multi-pass Radix-64 sharding when `active_rows > 20M` and high cardinality (`Q15, Q16, Q18, Q32, Q33, Q34, Q35`)
+    let n_passes: usize = if active_rows > 20_000_000 && seg0_groups > 32_768 {
+        4
+    } else {
+        1
+    };
+    let pass_mask = (n_passes as u64) - 1;
+    let pass_bits = n_passes.trailing_zeros();
+
+    let mut global_cands: Vec<(Vec<Sv>, u64)> = Vec::new();
+
+    for pass in 0..n_passes {
+        let shards: Vec<std::sync::Mutex<FxMap<GKey, (u64, u64, Vec<Acc>)>>> = (0..SHARDS)
+            .map(|_| std::sync::Mutex::new(FxMap::default()))
+            .collect();
+
+        // Seed from already-decoded `seg0_items`!
+        {
+            let mut buckets: Vec<Vec<(GKey, u64, u64, Vec<Acc>)>> =
+                (0..SHARDS).map(|_| Vec::new()).collect();
+            for (h, gk, ord, cnt, accs) in &seg0_items {
+                if (*h & pass_mask) == (pass as u64) {
+                    let b = ((*h >> pass_bits) as usize) & (SHARDS - 1);
+                    buckets[b].push((gk.clone(), *ord, *cnt, accs.clone()));
+                }
+            }
+            for (b, items) in buckets.into_iter().enumerate() {
+                if !items.is_empty()
+                    && let Ok(mut g) = shards[b].lock()
+                {
+                    for (gk, ord, cnt, accs) in items {
+                        g.insert(gk, (ord, cnt, accs));
+                    }
+                }
+            }
+        }
+
+        if n_passes == 1 {
+            seg0_items = Vec::new();
+        }
+
+        let scan_ok = rem_segs
+            .par_iter()
+            .map(|&si| -> Option<()> {
+                let (_, items) = scan_one_seg(si, bypass_local, pass_mask, pass as u64)?;
+                let mut buckets: Vec<Vec<(GKey, u64, u64, Vec<Acc>)>> =
+                    (0..SHARDS).map(|_| Vec::new()).collect();
+                for (h, gk, ord, cnt, accs) in items {
+                    let b = ((h >> pass_bits) as usize) & (SHARDS - 1);
+                    buckets[b].push((gk, ord, cnt, accs));
+                }
+                for (b, b_items) in buckets.into_iter().enumerate() {
+                    if b_items.is_empty() {
+                        continue;
+                    }
+                    if let Ok(mut g) = shards[b].lock() {
+                        for (gk, ord, cnt, accs) in b_items {
+                            match g.get_mut(&gk) {
+                                Some((e_ord, e_cnt, e_accs)) => {
+                                    *e_ord = (*e_ord).min(ord);
+                                    if count_star_only {
+                                        *e_cnt += cnt;
+                                    } else {
+                                        for (a, x) in e_accs.iter_mut().zip(&accs) {
+                                            a.merge(x);
+                                        }
+                                    }
+                                }
+                                None => {
+                                    g.insert(gk, (ord, cnt, accs));
+                                }
+                            }
+                        }
+                    }
+                }
+                Some(())
+            })
+            .collect::<Option<Vec<()>>>();
+        scan_ok?;
+
+        // Parallel per-shard HAVING + Top-K reduction + immediate hash-table drop!
+        let pass_cands: Vec<Vec<(Vec<Sv>, u64)>> = shards
+            .into_par_iter()
+            .map(|mtx| {
+                let Ok(map) = mtx.into_inner() else {
+                    return Vec::new();
+                };
+                let mut v: Vec<(Vec<Sv>, u64)> = map
+                    .into_iter()
+                    .filter_map(|(gk, (ord, cnt, accs))| {
+                        Some((eval_and_render_group(&gk, cnt, &accs)?, ord))
+                    })
+                    .collect();
+                if !order.is_empty()
+                    && let Some(k) = take
+                    && k > 0
+                    && k < v.len()
+                {
+                    v.select_nth_unstable_by(k - 1, &cmp_rendered);
+                    v.truncate(k);
+                }
+                v
+            })
+            .collect();
+
+        for ch in pass_cands {
+            global_cands.extend(ch);
+        }
+        if !order.is_empty()
+            && let Some(k) = take
+            && k > 0
+            && global_cands.len() > k.saturating_mul(64).max(4096)
+        {
+            global_cands.select_nth_unstable_by(k - 1, &cmp_rendered);
+            global_cands.truncate(k);
+        }
+    }
+
+    if !order.is_empty() {
+        if let Some(k) = take {
+            if k == 0 {
+                global_cands.clear();
+            } else if k < global_cands.len() {
+                global_cands.select_nth_unstable_by(k - 1, &cmp_rendered);
+                global_cands.truncate(k);
+            }
+        }
+        global_cands.sort_unstable_by(&cmp_rendered);
+    } else {
+        global_cands.sort_unstable_by_key(|(_, ord)| *ord);
+    }
+
+    let end = take.unwrap_or(usize::MAX).min(global_cands.len());
+    let rows: Vec<Vec<serde_json::Value>> = global_cands[off.min(end)..end]
+        .iter()
+        .map(|(svs, _)| svs[..visible_no].iter().map(Sv::json).collect())
+        .collect();
+
+    Some(VecResult {
+        columns: names,
+        rows,
+    })
 }
 
 #[cfg(test)]
@@ -4238,5 +6570,172 @@ mod tests {
             "SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10",
         );
         assert!(!r42.rows.is_empty());
+    }
+
+    #[test]
+    fn test_disk_segmented_matches_in_memory_and_recovers() {
+        let tmp = tempfile::TempDir::new().expect("tempdir");
+        let in_mem = sample_hits_columns();
+
+        // Build two separate batches with different string ordering so segment dictionaries
+        // assign DIFFERENT local u32 codes to the same strings across segments!
+        let make_batch = |first_id: u64, rev_order: bool, event_day: i16| -> ColumnBatch {
+            let base_urls = [
+                "https://www.google.com/search?q=rust",
+                "https://example.org/docs/page",
+                "",
+                "http://blog.rust-lang.org/2026/01",
+            ];
+            let base_titles = ["Google Search", "Example Docs", "", "Rust Blog Google"];
+            let base_phrases = ["rust db", "", "", "vectorized sql"];
+            let mut u_off = vec![0u32];
+            let mut u_bytes = Vec::new();
+            let mut t_off = vec![0u32];
+            let mut t_bytes = Vec::new();
+            let mut p_off = vec![0u32];
+            let mut p_bytes = Vec::new();
+            let n = 4usize;
+            for k in 0..n {
+                let idx = if rev_order { 3 - k } else { k };
+                u_bytes.extend_from_slice(base_urls[idx].as_bytes());
+                u_off.push(u_bytes.len() as u32);
+                t_bytes.extend_from_slice(base_titles[idx].as_bytes());
+                t_off.push(t_bytes.len() as u32);
+                p_bytes.extend_from_slice(base_phrases[idx].as_bytes());
+                p_off.push(p_bytes.len() as u32);
+            }
+            ColumnBatch {
+                table_field: "__table__".into(),
+                table: "hits".into(),
+                first_id,
+                len: n,
+                cols: vec![
+                    BatchColumn {
+                        name: "CounterID".into(),
+                        data: ColData::Int32(if rev_order {
+                            vec![62, 10, 62, 62]
+                        } else {
+                            vec![62, 62, 10, 62]
+                        }),
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "EventDate".into(),
+                        data: ColData::Int16(vec![event_day; n]),
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "EventTime".into(),
+                        data: ColData::Int(
+                            (0..n)
+                                .map(|i| {
+                                    let idx = if rev_order { 3 - i + 4 } else { i };
+                                    1_373_891_696 + (idx as i64) * 30
+                                })
+                                .collect(),
+                        ),
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "ResolutionWidth".into(),
+                        data: ColData::Int16(if rev_order {
+                            vec![1920, 1280, 1440, 1920]
+                        } else {
+                            vec![1920, 1440, 1280, 1920]
+                        }),
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "TraficSourceID".into(),
+                        data: ColData::Int8(if rev_order {
+                            vec![-1, 0, 2, 6]
+                        } else {
+                            vec![-1, 6, 0, -1]
+                        }),
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "SearchEngineID".into(),
+                        data: ColData::Int16(if rev_order {
+                            vec![0, 0, 0, 2]
+                        } else {
+                            vec![0, 2, 0, 0]
+                        }),
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "AdvEngineID".into(),
+                        data: ColData::Int8(vec![0; n]),
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "URL".into(),
+                        data: ColData::Str {
+                            offsets: u_off,
+                            bytes: u_bytes,
+                        },
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "Title".into(),
+                        data: ColData::Str {
+                            offsets: t_off,
+                            bytes: t_bytes,
+                        },
+                        valid: None,
+                    },
+                    BatchColumn {
+                        name: "SearchPhrase".into(),
+                        data: ColData::Str {
+                            offsets: p_off,
+                            bytes: p_bytes,
+                        },
+                        valid: None,
+                    },
+                ],
+            }
+        };
+
+        let b0 = make_batch(1, false, 15901);
+        let b1 = make_batch(5, true, 15901);
+        let col_names: Vec<String> = b0.cols.iter().map(|c| c.name.clone()).collect();
+        let mut dt =
+            crate::disk_col_segments::DiskColumnTable::create_new(tmp.path(), "hits", &col_names)
+                .expect("create DiskColumnTable");
+        dt.append_column_batch_from(&b0, 0, 1, true).expect("seg 0");
+        dt.append_column_batch_from(&b1, 0, 5, true).expect("seg 1");
+        assert_eq!(dt.segments.len(), 2);
+        assert_eq!(dt.total_rows, 8);
+
+        // Reopen from disk to verify self-describing `.jcol` footer + manifest recovery
+        let reopened = crate::disk_col_segments::DiskColumnTable::open_all(tmp.path());
+        let dt = reopened.get("hits").expect("reopened hits");
+        assert_eq!(dt.total_rows, 8);
+
+        let queries = [
+            "SELECT COUNT(*) FROM hits",
+            "SELECT MIN(EventDate), MAX(EventDate), MIN(ResolutionWidth), MAX(ResolutionWidth) FROM hits",
+            "SELECT COUNT(*) FROM hits WHERE CounterID = 10",
+            "SELECT COUNT(*) FROM hits WHERE CounterID = 99999",
+            "SELECT COUNT(DISTINCT CounterID), COUNT(DISTINCT SearchPhrase), COUNT(DISTINCT URL) FROM hits",
+            "SELECT SearchPhrase, MIN(URL), MAX(Title), COUNT(*) AS c, COUNT(DISTINCT CounterID) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC, SearchPhrase ASC",
+            "SELECT REGEXP_REPLACE(URL, '^https?://(?:www\\.)?([^/]+)/.*$', '\\1') AS k, AVG(STRLEN(URL)) AS l, COUNT(*) AS c, MIN(URL) FROM hits WHERE URL <> '' GROUP BY k HAVING COUNT(*) > 1 ORDER BY l DESC, k ASC LIMIT 10",
+            "SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), SUM(ResolutionWidth + 10) FROM hits",
+            "SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC, URL ASC LIMIT 10",
+            "SELECT CounterID, CounterID - 1, CounterID - 2, COUNT(*) AS c FROM hits GROUP BY CounterID, CounterID - 1, CounterID - 2 ORDER BY c DESC",
+            "SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 5",
+            "SELECT TraficSourceID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN URL ELSE '' END AS Src, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND TraficSourceID IN (-1, 6) GROUP BY TraficSourceID, Src ORDER BY PageViews DESC, TraficSourceID ASC, Src ASC",
+        ];
+
+        for sql in queries {
+            let stmt = SqlParser::new().parse(sql).expect("valid SQL");
+            let SqlStatement::Select(q) = stmt else {
+                panic!("expected SELECT");
+            };
+            let mem_res = execute(&q, &in_mem).expect("in-mem exec");
+            let seg_res = execute_segmented(&q, dt).expect("seg exec");
+            assert_eq!(mem_res.columns, seg_res.columns, "cols mismatch on {sql}");
+            assert_eq!(mem_res.rows, seg_res.rows, "rows mismatch on {sql}");
+        }
     }
 }

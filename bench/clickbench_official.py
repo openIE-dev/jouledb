@@ -125,6 +125,21 @@ def proc_rss_mb(pid: int):
         return None
 
 
+def proc_peak_rss_mb(pid: int):
+    """Read Linux kernel VmHWM (High-Water Mark RSS across entire process lifetime)."""
+    try:
+        if sys.platform.startswith("linux"):
+            with open(f"/proc/{pid}/status") as f:
+                for line in f:
+                    if line.startswith("VmHWM:"):
+                        kb = int(line.split()[1])
+                        if kb > 0:
+                            return round(kb / 1024.0, 2)
+        return proc_rss_mb(pid)
+    except Exception:
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--parquet", required=True, help="Path to official ClickBench hits.parquet")
@@ -426,6 +441,9 @@ def main():
         report["queries"][qid] = q_entry
 
     meter.stop()
+    if args.jouledb_pid:
+        report["engines"]["jouledb"]["rss_mb_after_queries"] = proc_rss_mb(args.jouledb_pid)
+        report["engines"]["jouledb"]["peak_rss_mb_vmhwm"] = proc_peak_rss_mb(args.jouledb_pid)
     try:
         pcon.close()
     except Exception:

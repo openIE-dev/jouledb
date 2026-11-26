@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Concurrent Multi-Client OLTP Benchmark over Real TCP `pgwire`: JouleDB vs PostgreSQL & SQLite WAL.
+"""Concurrent Multi-Client OLTP Benchmark over Real TCP `pgwire`: JouleDB vs PostgreSQL 16 & SQLite WAL.
 
 Evaluates durable transactional OLTP throughput (`tps`), client-side TCP round-trip latency
 (`p50`, `p95`, `p99` ms), hardware energy (`reported_j` via Linux RAPL / macOS powermetrics),
 and post-run conservation invariants across `1`, `4`, `8`, and `16` concurrent worker clients.
 
+Both standard multi-round-trip `psycopg` AND PostgreSQL v3 Extended Query Protocol pipelined
+prepared execution (`with con.pipeline():`) are measured identically on JouleDB and PostgreSQL 16!
+
 Workload mix per transaction (`--warehouses` * 1,000 accounts, default 100 warehouses = 100,000 accounts):
-  - 50% Point Read (`SELECT balance, branch_id FROM accounts WHERE id = ?`)
-  - 30% Account Deposit/Update + Ledger Append (`UPDATE accounts SET balance = balance + delta WHERE id = ?` + `INSERT INTO history ...`)
-  - 20% Warehouse Aggregate Probe (`SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = ?`)
+  - 50% Point Read (`SELECT balance, branch_id FROM accounts WHERE id = $1`)
+  - 30% Account Deposit/Update + Ledger Append (`BEGIN` + `UPDATE accounts SET balance = balance + $1 WHERE id = $2` + `INSERT INTO history ...` + `COMMIT`)
+  - 20% Warehouse Aggregate Probe (`SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = $1`)
 
 Post-run invariant check:
   Verifies `SUM(balance) == initial_sum + exact_committed_deltas` and `COUNT(history) == committed_writes`.
@@ -21,7 +24,6 @@ import random
 import shutil
 import socket
 import sqlite3
-import statistics
 import subprocess
 import sys
 import tempfile
@@ -54,6 +56,22 @@ def wait_tcp(host: str, port: int, timeout_s: float = 20.0):
     return False
 
 
+def wait_pg_ready(host: str, port: int, user: str, dbname: str, timeout_s: float = 25.0):
+    import psycopg
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            with psycopg.connect(
+                host=host, port=port, user=user, dbname=dbname, sslmode="disable", connect_timeout=2
+            ) as c:
+                c.execute("SELECT 1").fetchone()
+                return True
+        except Exception:
+            time.sleep(0.1)
+    return False
+
+
 def run_pgwire_suite(
     engine_label: str,
     host: str,
@@ -65,18 +83,19 @@ def run_pgwire_suite(
     concurrencies: list[int],
     duration_s: float,
     meter,
+    pipelined: bool = False,
 ):
     import psycopg
 
     total_accounts = warehouses * accounts_per_wh
     init_bal = 1000
 
-    with psycopg.connect(host=host, port=port, user=user, dbname=dbname, sslmode="disable", autocommit=True) as setup_con:
+    with psycopg.connect(
+        host=host, port=port, user=user, dbname=dbname, sslmode="disable", autocommit=True
+    ) as setup_con:
         ver = setup_con.execute("SELECT version()").fetchone()[0]
         setup_con.execute("DROP TABLE IF EXISTS history")
         setup_con.execute("DROP TABLE IF EXISTS accounts")
-        # Populate via standard PostgreSQL `COPY ... FROM STDIN` (matching `pgbench -i`),
-        # then create secondary indexes for point and warehouse lookups.
         setup_con.execute(
             "CREATE TABLE accounts (id BIGINT, branch_id BIGINT, balance BIGINT)"
         )
@@ -88,8 +107,8 @@ def run_pgwire_suite(
             with setup_con.cursor().copy("COPY accounts (id, branch_id, balance) FROM STDIN") as cp:
                 for aid in range(1, total_accounts + 1):
                     cp.write_row((aid, (aid - 1) // accounts_per_wh + 1, init_bal))
-            setup_con.execute("CREATE INDEX idx_accounts_id ON accounts (id)")
-            setup_con.execute("CREATE INDEX idx_accounts_branch ON accounts (branch_id)")
+            setup_con.execute("CREATE INDEX IF NOT EXISTS idx_accounts_id ON accounts (id)")
+            setup_con.execute("CREATE INDEX IF NOT EXISTS idx_accounts_branch ON accounts (branch_id)")
 
     results_by_c = {}
     cumulative_delta = 0
@@ -104,7 +123,7 @@ def run_pgwire_suite(
 
         def worker(wid: int):
             nonlocal cumulative_delta, cumulative_writes, tx_counter
-            rng = random.Random(20260700 + conc * 100 + wid)
+            rng = random.Random(20260800 + conc * 100 + wid)
             latencies_ms = []
             reads_ok = 0
             writes_ok = 0
@@ -123,9 +142,16 @@ def run_pgwire_suite(
                 try:
                     if r < 0.50:
                         aid = rng.randint(1, total_accounts)
-                        con.execute(
-                            f"SELECT balance, branch_id FROM accounts WHERE id = {aid}"
-                        ).fetchone()
+                        if pipelined:
+                            con.execute(
+                                "SELECT balance, branch_id FROM accounts WHERE id = %s",
+                                (aid,),
+                                prepare=True,
+                            ).fetchone()
+                        else:
+                            con.execute(
+                                f"SELECT balance, branch_id FROM accounts WHERE id = {aid}"
+                            ).fetchone()
                         reads_ok += 1
                     elif r < 0.80:
                         aid = rng.randint(1, total_accounts)
@@ -134,22 +160,44 @@ def run_pgwire_suite(
                         with tx_lock:
                             tx_counter += 1
                             seq = tx_counter
-                        con.execute("BEGIN")
-                        con.execute(
-                            f"UPDATE accounts SET balance = balance + ({delta}) WHERE id = {aid}"
-                        )
-                        con.execute(
-                            f"INSERT INTO history (tx_seq, acct_id, branch_id, delta) VALUES ({seq}, {aid}, {bid}, {delta})"
-                        )
-                        con.execute("COMMIT")
+                        if pipelined:
+                            with con.pipeline():
+                                con.execute("BEGIN")
+                                con.execute(
+                                    "UPDATE accounts SET balance = balance + %s WHERE id = %s",
+                                    (delta, aid),
+                                    prepare=True,
+                                )
+                                con.execute(
+                                    "INSERT INTO history (tx_seq, acct_id, branch_id, delta) VALUES (%s, %s, %s, %s)",
+                                    (seq, aid, bid, delta),
+                                    prepare=True,
+                                )
+                                con.execute("COMMIT")
+                        else:
+                            con.execute("BEGIN")
+                            con.execute(
+                                f"UPDATE accounts SET balance = balance + ({delta}) WHERE id = {aid}"
+                            )
+                            con.execute(
+                                f"INSERT INTO history (tx_seq, acct_id, branch_id, delta) VALUES ({seq}, {aid}, {bid}, {delta})"
+                            )
+                            con.execute("COMMIT")
                         writes_ok += 1
                         local_writes += 1
                         local_delta += delta
                     else:
                         bid = rng.randint(1, warehouses)
-                        con.execute(
-                            f"SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = {bid}"
-                        ).fetchone()
+                        if pipelined:
+                            con.execute(
+                                "SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = %s",
+                                (bid,),
+                                prepare=True,
+                            ).fetchone()
+                        else:
+                            con.execute(
+                                f"SELECT COUNT(*), SUM(balance) FROM accounts WHERE branch_id = {bid}"
+                            ).fetchone()
                         aggs_ok += 1
                     latencies_ms.append((time.perf_counter() - t0) * 1000.0)
                 except Exception:
@@ -212,9 +260,13 @@ def run_pgwire_suite(
         }
 
     # Verify conservation invariant across all accounts and ledger history!
-    with psycopg.connect(host=host, port=port, user=user, dbname=dbname, sslmode="disable", autocommit=True) as check_con:
+    with psycopg.connect(
+        host=host, port=port, user=user, dbname=dbname, sslmode="disable", autocommit=True
+    ) as check_con:
         acct_cnt, acct_sum = check_con.execute("SELECT COUNT(*), SUM(balance) FROM accounts").fetchone()
-        hist_cnt, hist_sum = check_con.execute("SELECT COUNT(*), COALESCE(SUM(delta), 0) FROM history").fetchone()
+        hist_cnt, hist_sum = check_con.execute(
+            "SELECT COUNT(*), COALESCE(SUM(delta), 0) FROM history"
+        ).fetchone()
 
     expected_sum = total_accounts * init_bal + cumulative_delta
     invariant_ok = (
@@ -224,10 +276,16 @@ def run_pgwire_suite(
         and int(hist_sum) == cumulative_delta
     )
 
+    proto_desc = (
+        "PostgreSQL v3 Extended Query + Pipeline (psycopg TCP, 1-RTT write txns)"
+        if pipelined
+        else "PostgreSQL v3 Simple Query (psycopg TCP, 4-RTT write txns)"
+    )
+
     return {
         "engine": engine_label,
         "version": ver,
-        "protocol": "PostgreSQL v3 wire (psycopg TCP)",
+        "protocol": proto_desc,
         "load_seconds": round(w_load.t1 - w_load.t0, 4),
         "load_joules": round(w_load.j, 4) if w_load.j is not None else None,
         "invariant_verified": invariant_ok,
@@ -279,7 +337,7 @@ def run_sqlite_wal_suite(
 
         def worker(wid: int):
             nonlocal cumulative_delta, cumulative_writes, tx_counter
-            rng = random.Random(20260700 + conc * 100 + wid)
+            rng = random.Random(20260800 + conc * 100 + wid)
             lats = []
             r_ok = w_ok = a_ok = errs = 0
             l_delta = 0
@@ -394,11 +452,26 @@ def run_sqlite_wal_suite(
 
 
 def find_pg_bindir():
-    for candidate in ["/usr/lib/postgresql/17/bin", "/usr/lib/postgresql/16/bin", "/usr/lib/postgresql/15/bin", "/opt/homebrew/opt/postgresql@16/bin"]:
-        if os.path.exists(os.path.join(candidate, "initdb")) and os.path.exists(os.path.join(candidate, "postgres")):
+    for candidate in [
+        "/usr/lib/postgresql/17/bin",
+        "/usr/lib/postgresql/16/bin",
+        "/usr/lib/postgresql/15/bin",
+        "/opt/homebrew/opt/postgresql@16/bin",
+    ]:
+        if os.path.exists(os.path.join(candidate, "initdb")) and os.path.exists(
+            os.path.join(candidate, "postgres")
+        ):
             return candidate
     initdb = shutil.which("initdb")
     return os.path.dirname(initdb) if initdb else None
+
+
+def docker_available() -> bool:
+    docker_bin = shutil.which("docker")
+    if not docker_bin:
+        return False
+    res = subprocess.run([docker_bin, "info"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return res.returncode == 0
 
 
 def main():
@@ -410,6 +483,7 @@ def main():
     ap.add_argument("--concurrencies", default="1,4,8,16")
     ap.add_argument("--duration-s", type=float, default=8.0)
     ap.add_argument("--pg-port", type=int, default=29182)
+    ap.add_argument("--pg-docker-image", default="postgres:16-alpine")
     ap.add_argument("--out", default="oltp-pgwire-result.json")
     args = ap.parse_args()
 
@@ -443,14 +517,15 @@ def main():
     }
 
     try:
-        # 1. JouleDB over TCP pgwire (durable WAL group-commit enabled!)
+        # 1. JouleDB over TCP pgwire (both standard 4-RTT and pipelined 1-RTT prepared!)
         jdb_dir = os.path.join(root_tmp, "jouledb_data")
         os.makedirs(jdb_dir, exist_ok=True)
         http_port = args.pg_port - 2
         jdb_log = open(os.path.join(root_tmp, "jouledb.log"), "wb")
         jdb_proc = subprocess.Popen(
             [args.jouledb_bin, "-p", str(http_port), "-d", jdb_dir],
-            stdout=jdb_log, stderr=subprocess.STDOUT,
+            stdout=jdb_log,
+            stderr=subprocess.STDOUT,
         )
         try:
             if not wait_tcp("127.0.0.1", args.pg_port, 20.0):
@@ -466,6 +541,20 @@ def main():
                 concs,
                 args.duration_s,
                 meter,
+                pipelined=False,
+            )
+            report["engines"]["jouledb_pgwire_pipelined"] = run_pgwire_suite(
+                "jouledb_pgwire_pipelined",
+                "127.0.0.1",
+                args.pg_port,
+                "postgres",
+                "postgres",
+                args.warehouses,
+                args.accounts_per_warehouse,
+                concs,
+                args.duration_s,
+                meter,
+                pipelined=True,
             )
         finally:
             jdb_proc.terminate()
@@ -475,18 +564,34 @@ def main():
                 jdb_proc.kill()
             jdb_log.close()
 
-        # 2. PostgreSQL (if installed on host) over TCP pgwire
+        # 2. PostgreSQL 16/17 over TCP pgwire (native host binary OR Docker container on NVMe!)
         pg_bin = find_pg_bindir()
+        pg_port_real = args.pg_port + 20
         if pg_bin:
             pg_dir = os.path.join(root_tmp, "pg_data")
-            pg_port_real = args.pg_port + 20
-            subprocess.run([os.path.join(pg_bin, "initdb"), "-D", pg_dir, "-A", "trust", "-U", "postgres"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                [os.path.join(pg_bin, "initdb"), "-D", pg_dir, "-A", "trust", "-U", "postgres"],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             pg_proc = subprocess.Popen(
-                [os.path.join(pg_bin, "postgres"), "-D", pg_dir, "-p", str(pg_port_real), "-k", root_tmp, "-h", "127.0.0.1"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                [
+                    os.path.join(pg_bin, "postgres"),
+                    "-D",
+                    pg_dir,
+                    "-p",
+                    str(pg_port_real),
+                    "-k",
+                    root_tmp,
+                    "-h",
+                    "127.0.0.1",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             try:
-                if wait_tcp("127.0.0.1", pg_port_real, 15.0):
+                if wait_pg_ready("127.0.0.1", pg_port_real, "postgres", "postgres", 20.0):
                     report["engines"]["postgresql_pgwire"] = run_pgwire_suite(
                         "postgresql_pgwire",
                         "127.0.0.1",
@@ -498,6 +603,20 @@ def main():
                         concs,
                         args.duration_s,
                         meter,
+                        pipelined=False,
+                    )
+                    report["engines"]["postgresql_pgwire_pipelined"] = run_pgwire_suite(
+                        "postgresql_pgwire_pipelined",
+                        "127.0.0.1",
+                        pg_port_real,
+                        "postgres",
+                        "postgres",
+                        args.warehouses,
+                        args.accounts_per_warehouse,
+                        concs,
+                        args.duration_s,
+                        meter,
+                        pipelined=True,
                     )
             finally:
                 pg_proc.terminate()
@@ -505,6 +624,89 @@ def main():
                     pg_proc.wait(timeout=5)
                 except Exception:
                     pg_proc.kill()
+        elif docker_available():
+            pg_dir = os.path.join(root_tmp, "pg_docker_data")
+            os.makedirs(pg_dir, mode=0o777, exist_ok=True)
+            cname = f"jdb_oltp_pg16_{os.getpid()}"
+            # Pull image outside RAPL benchmark timing window
+            subprocess.run(
+                ["docker", "pull", "-q", args.pg_docker_image],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "-d",
+                    "--rm",
+                    "--name",
+                    cname,
+                    "--network",
+                    "host",
+                    "-e",
+                    "POSTGRES_HOST_AUTH_METHOD=trust",
+                    "-e",
+                    "PGDATA=/var/lib/postgresql/data/pgdata",
+                    "-v",
+                    f"{pg_dir}:/var/lib/postgresql/data",
+                    args.pg_docker_image,
+                    "-p",
+                    str(pg_port_real),
+                    "-h",
+                    "127.0.0.1",
+                    "-c",
+                    "fsync=on",
+                    "-c",
+                    "synchronous_commit=on",
+                    "-c",
+                    "max_connections=100",
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            try:
+                if wait_pg_ready("127.0.0.1", pg_port_real, "postgres", "postgres", 30.0):
+                    report["engines"]["postgresql_pgwire"] = run_pgwire_suite(
+                        "postgresql_pgwire",
+                        "127.0.0.1",
+                        pg_port_real,
+                        "postgres",
+                        "postgres",
+                        args.warehouses,
+                        args.accounts_per_warehouse,
+                        concs,
+                        args.duration_s,
+                        meter,
+                        pipelined=False,
+                    )
+                    report["engines"]["postgresql_pgwire_pipelined"] = run_pgwire_suite(
+                        "postgresql_pgwire_pipelined",
+                        "127.0.0.1",
+                        pg_port_real,
+                        "postgres",
+                        "postgres",
+                        args.warehouses,
+                        args.accounts_per_warehouse,
+                        concs,
+                        args.duration_s,
+                        meter,
+                        pipelined=True,
+                    )
+            finally:
+                subprocess.run(
+                    ["docker", "rm", "-f", cname],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                # Ensure container root-owned files inside pg_dir can be cleaned up
+                subprocess.run(
+                    ["docker", "run", "--rm", "-v", f"{pg_dir}:/mnt", args.pg_docker_image, "sh", "-c", "rm -rf /mnt/*"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
 
         # 3. SQLite 3 WAL baseline
         sq_path = os.path.join(root_tmp, "oltp.sqlite")

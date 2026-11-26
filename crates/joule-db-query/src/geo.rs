@@ -389,10 +389,8 @@ pub fn contains(g1: &Geometry, g2: &Geometry) -> bool {
 /// Test if two geometries intersect
 pub fn intersects(g1: &Geometry, g2: &Geometry) -> bool {
     match (g1, g2) {
-        (Geometry::Point { .. }, Geometry::Point { .. }) => {
+        (Geometry::Point { x: x1, y: y1 }, Geometry::Point { x: x2, y: y2 }) => {
             // Points intersect if they're the same
-            let (x1, y1) = point_coords(g1).unwrap();
-            let (x2, y2) = point_coords(g2).unwrap();
             (x1 - x2).abs() < 1e-10 && (y1 - y2).abs() < 1e-10
         }
         (point @ Geometry::Point { .. }, poly @ Geometry::Polygon(_))
@@ -419,12 +417,11 @@ pub fn intersects(g1: &Geometry, g2: &Geometry) -> bool {
             }
             false
         }
-        (point @ Geometry::Point { .. }, Geometry::LineString(points))
-        | (Geometry::LineString(points), point @ Geometry::Point { .. }) => {
-            let (px, py) = point_coords(point).unwrap();
+        (Geometry::Point { x: px, y: py }, Geometry::LineString(points))
+        | (Geometry::LineString(points), Geometry::Point { x: px, y: py }) => {
             // Point is on linestring if it's very close to any segment
             for i in 0..points.len().saturating_sub(1) {
-                if point_on_segment(px, py, points[i], points[i + 1]) {
+                if point_on_segment(*px, *py, points[i], points[i + 1]) {
                     return true;
                 }
             }

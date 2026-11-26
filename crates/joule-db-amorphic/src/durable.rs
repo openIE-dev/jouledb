@@ -860,6 +860,76 @@ impl DurableAmorphicStore {
         Ok((first, x))
     }
 
+    /// Reserve monotonic `RecordId`s and bump the columnar generation when a
+    /// bulk batch is persisted directly to out-of-core `.jcol` segment files.
+    pub fn reserve_disk_segment_ids(&mut self, count: usize) -> RecordId {
+        let first = if count > 0 {
+            self.store.reserve_ids(count)
+        } else {
+            self.store.reserve_ids(0)
+        };
+        self.col_gen = self.col_gen.wrapping_add(1);
+        first
+    }
+
+    /// Drain any queued `pending` columnar batches and any already-materialized
+    /// row records belonging to `(table_field == table)` so they can be spilled
+    /// into durable on-disk `.jcol` segments without retaining duplicate copies
+    /// in RAM.
+    pub fn drain_table_for_disk_spill(
+        &mut self,
+        table_field: &str,
+        table: &str,
+    ) -> AmorphicResult<(
+        Vec<(usize, std::sync::Arc<crate::column_batch::ColumnBatch>)>,
+        Vec<crate::AmorphicRecord>,
+    )> {
+        let mut drained_batches = Vec::new();
+        let mut kept = std::collections::VecDeque::with_capacity(self.pending.len());
+        let mut idx = 0usize;
+        let front_off = self.pending_off;
+        while let Some(b) = self.pending.pop_front() {
+            let off = if idx == 0 { front_off } else { 0 };
+            idx += 1;
+            if b.table_field == table_field && b.table == table {
+                let rem = b.len.saturating_sub(off);
+                self.pending_rows = self.pending_rows.saturating_sub(rem);
+                if rem > 0 {
+                    drained_batches.push((off, b));
+                }
+            } else {
+                kept.push_back((off, b));
+            }
+        }
+        self.pending_off = kept.front().map_or(0, |(off, _)| *off);
+        self.pending = kept.into_iter().map(|(_, b)| b).collect();
+
+        let tag = Value::String(table.to_string());
+        let existing_recs: Vec<crate::AmorphicRecord> = self
+            .store
+            .records_equal(table_field, &tag)
+            .into_iter()
+            .cloned()
+            .collect();
+        if !existing_recs.is_empty() {
+            let ids: Vec<RecordId> = existing_recs.iter().map(|r| r.id).collect();
+            let tx_id = self.next_tx_id();
+            let op = WalOperation::DeleteBatch { ids: ids.clone() };
+            let serialized = serde_json::to_vec(&op).map_err(|e| {
+                AmorphicError::IngestionError(format!("Serialization failed: {}", e))
+            })?;
+            self.wal
+                .log_page_write(tx_id, u64::MAX - tx_id, &serialized)
+                .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+            self.store.delete_batch(&ids);
+            self.wal
+                .log_commit(tx_id)
+                .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
+        }
+        self.col_gen = self.col_gen.wrapping_add(1);
+        Ok((drained_batches, existing_recs))
+    }
+
     /// Materialize every queued columnar row (row writes need the row
     /// records current: deletes/updates of those ids, id order).
     pub fn settle_pending(&mut self) -> AmorphicResult<()> {

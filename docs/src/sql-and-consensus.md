@@ -1,13 +1,14 @@
-# SQL Vectorized Execution, Window/CUBE/AQE & Networked TCP Raft (`v0.7.0`)
+# SQL Vectorized Execution, Out-of-Core `.jcol` Segments & Networked TCP Raft (`v0.8.0`)
 
 This chapter separates JouleDB's **query execution engines** from its **networked TCP Raft consensus engine** and states what each test actually exercises.
 
 ---
 
-## 1. Vectorized Columnar & Analytical SQL Operators (`columnar_exec.rs`, `sql2023_powerhouse.rs`, `morsel_spill.rs`)
+## 1. Out-of-Core `.jcol` Segments & Vectorized SQL Operators (`disk_col_segments.rs`, `columnar_exec.rs`, `sql2023_powerhouse.rs`)
 
-- **Morsel-Parallel Vectorized Engine (`columnar_exec.rs`):** Executes single-table scans, `PrepPred` zone-map/dictionary filters, `VCol` virtual projections (`EXTRACT`, `DATE_TRUNC`, `STRLEN`, `REGEXP_REPLACE`, `CASE WHEN`), algebraic `SUM(col ± k)` scan sharing, inline `HKey::{K1, K2, K3}` grouped aggregations, `HAVING`, and parallel Top-K `ORDER BY ... LIMIT` over width-adaptive `I8/I16/I32/I64` and dictionary-encoded columns (`43 / 43` Official ClickBench queries up to `10,000,000` rows).
-- **Selective Equality Slice for OLTP (`try_selective_table_columns`):** When concurrent OLTP `UPDATE`/`INSERT` mutations invalidate `col_cache`, selective `WHERE col = literal` queries execute over `<= 4,096` borrowed index-matched records in `O(k)` without rebuilding full-table column snapshots.
+- **Out-of-Core `.jcol` Segment Engine (`disk_col_segments.rs` + `execute_segmented`, `v0.8.0`):** Drains tables exceeding `JOULEDB_COL_SPILL_ROWS` (`262,144` rows) into immutable `.jcol` files (`I8/I16/I32/I64` narrowing, bitpacked null masks, compact `u8/u16/u32` local string dictionaries, CRC-32 slice + `JCL1` footer checksums). `columnar_exec::execute_segmented` loads only query-referenced columns via `pread`, applies segment ZoneMap + two-phase `WHERE`-first pruning, and reduces high-cardinality aggregations via 64-shard Radix `GROUP BY` — executing all **`43 / 43` Official ClickBench queries on the full `99,997,497`-row (`14.78 GB`) dataset in `6.20 GB` post-load RSS (`20.74 GB` kernel `VmHWM` peak)**.
+- **Morsel-Parallel In-Memory Engine (`columnar_exec.rs`):** Executes single-table scans, `PrepPred` zone-map/dictionary filters, `VCol` virtual projections (`EXTRACT`, `DATE_TRUNC`, `STRLEN`, `REGEXP_REPLACE`, `CASE WHEN`), algebraic `SUM(col ± k)` scan sharing, inline `HKey`/`GKey` grouped aggregations, `HAVING`, and parallel Top-K `ORDER BY ... LIMIT`.
+- **Selective Equality Slice & `O(1)` PK Checks for OLTP (`try_selective_table_columns`, `pgwire.rs`):** Parameterized `$1..$N` `SELECT` fast-path binding, `O(1)` secondary-index PK/UNIQUE constraint verification, multi-row PK `INSERT` batching, and PostgreSQL v3 §55.2.3 `discard_until_sync` Extended Query pipeline error recovery.
 - **Window Frames, `CUBE` & `WITH RECURSIVE` (`sql2023_powerhouse.rs`):** Partitioned `ROW_NUMBER`/`RANK`/`DENSE_RANK`/`LAG`/`LEAD`/`CUME_DIST` + `ROWS BETWEEN` sliding frames, 3D `CUBE` with `GROUPING_ID` bitmasks, cycle-pruned recursive CTEs, and runtime Adaptive Query Execution (`AQE`) join switching.
 - **Out-of-Core Morsel Spill (`morsel_spill.rs`):** `2,048`-row columnar morsels spilling `CRC-32`-checked `JMSB` partitions to disk when hash state exceeds `memory_budget_bytes`.
 

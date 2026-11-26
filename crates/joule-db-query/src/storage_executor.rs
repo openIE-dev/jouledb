@@ -1940,7 +1940,7 @@ impl StorageExecutor {
                                         _ => None,
                                     });
                                 if let Some(t) = t {
-                                    if best_time.is_none() || t < best_time.unwrap() {
+                                    if best_time.is_none_or(|bt| t < bt) {
                                         best_time = Some(t);
                                         best_row = Some(row);
                                     }
@@ -1976,7 +1976,7 @@ impl StorageExecutor {
                                         _ => None,
                                     });
                                 if let Some(t) = t {
-                                    if best_time.is_none() || t > best_time.unwrap() {
+                                    if best_time.is_none_or(|bt| t > bt) {
                                         best_time = Some(t);
                                         best_row = Some(row);
                                     }

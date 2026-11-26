@@ -196,10 +196,9 @@ impl LeapfrogJoin {
             let mut min_key: Option<Vec<u8>> = None;
 
             for (i, it) in self.iterators.iter().enumerate() {
-                if it.at_end() {
+                let Some(key) = it.key() else {
                     return result;
-                }
-                let key = it.key().unwrap();
+                };
                 match &max_key {
                     None => max_key = Some(key.to_vec()),
                     Some(mk) => {
@@ -222,8 +221,9 @@ impl LeapfrogJoin {
                 }
             }
 
-            let max = max_key.unwrap();
-            let min = min_key.unwrap();
+            let (Some(max), Some(min)) = (max_key, min_key) else {
+                return result;
+            };
 
             if min == max {
                 // All iterators agree — this value is in the intersection.

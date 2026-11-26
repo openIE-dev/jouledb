@@ -2,7 +2,7 @@
 
 Un-siloing the digital world requires **maintaining exact semantic meaning while ditching arbitrary rigid structure**.
 
-Traditional databases force a false choice: rigid relational DDL (requiring brittle ETL pipelines whenever schemas drift) or untyped JSON blobs (losing units, identity, and algebraic queryability). `JouleDB v0.7.0` (`crates/joule-db-amorphic` & `crates/joule-db-viz`) explores an experimental alternative: the **Amorphous Semantic Continuum**.
+Traditional databases force a false choice: rigid relational DDL (requiring brittle ETL pipelines whenever schemas drift) or untyped JSON blobs (losing units, identity, and algebraic queryability). `JouleDB v0.8.0` (`crates/joule-db-amorphic` & `crates/joule-db-viz`) explores an experimental alternative: the **Amorphous Semantic Continuum**.
 
 ---
 
