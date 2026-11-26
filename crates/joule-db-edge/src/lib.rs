@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! JouleDB Edge - Database engine for edge devices with hardware acceleration
 //!
 //! This crate provides a specialized database implementation for edge devices

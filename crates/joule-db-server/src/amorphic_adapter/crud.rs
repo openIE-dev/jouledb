@@ -522,7 +522,7 @@ impl AmorphicTableStorage {
         let columns = self.get_schema_columns(&store, table)?;
 
         let result = store.query_equals(TABLE_FIELD, &AmorphicValue::String(table.to_string()));
-        let rows = result
+        let mut rows: Vec<(String, RowData)> = result
             .records()
             .iter()
             .map(|r| {
@@ -531,6 +531,21 @@ impl AmorphicTableStorage {
                 (record_id, row)
             })
             .collect();
+        drop(store);
+
+        if let Some(dt) = self.disk_column_table(table) {
+            if let Ok(seg_rows) = dt.scan_rows(&columns) {
+                let mut id_cursor = 0usize;
+                for seg in &dt.segments {
+                    for off in 0..(seg.len as usize) {
+                        if let Some(r) = seg_rows.get(id_cursor) {
+                            rows.push(((seg.first_id + off as u64).to_string(), r.clone()));
+                            id_cursor += 1;
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(rows)
     }

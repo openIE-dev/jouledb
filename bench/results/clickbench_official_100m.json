@@ -12,23 +12,23 @@
   "cpu_count": 32,
   "energy_source": "rapl-package",
   "energy_evidence": "reported_j",
-  "idle_watts": 79.8,
+  "idle_watts": 97.56,
   "engines": {
     "duckdb": {
       "version": "2.0.1",
-      "load_seconds": 16.4973,
-      "load_joules": 1939.191,
+      "load_seconds": 13.8657,
+      "load_joules": 1805.642,
       "loaded_rows": 99997497
     },
     "jouledb": {
-      "version": "PostgreSQL 16.0 (JouleDB 0.9.0) on x86_64-linux",
-      "load_seconds": 86.0676,
-      "load_joules": 6604.579,
+      "version": "PostgreSQL 16.0 (JouleDB 0.10.0) on x86_64-linux",
+      "load_seconds": 97.8346,
+      "load_joules": 10047.044,
       "loaded_rows": 99997497,
-      "rss_mb_after_load": 6203.95,
+      "rss_mb_after_load": 5901.82,
       "load_error": null,
-      "rss_mb_after_queries": 9117.3,
-      "peak_rss_mb_vmhwm": 15483.24
+      "rss_mb_after_queries": 8258.15,
+      "peak_rss_mb_vmhwm": 16469.67
     }
   },
   "summary": {
@@ -36,141 +36,141 @@
     "jouledb_succeeded": 43,
     "jouledb_errored_or_unsupported": 0,
     "jouledb_server_restarts_on_timeout_or_abort": 0,
-    "jouledb_exact_answer_matches": 31,
+    "jouledb_exact_answer_matches": 32,
     "jouledb_sql_valid_matches": 43,
-    "jouledb_faster_count": 8,
-    "duckdb_faster_count": 35,
-    "geomean_jouledb_over_duckdb_latency_x": 2.816,
-    "median_jouledb_over_duckdb_latency_x": 3.424,
-    "geomean_jouledb_over_duckdb_joules_x": 2.426
+    "jouledb_faster_count": 7,
+    "duckdb_faster_count": 36,
+    "geomean_jouledb_over_duckdb_latency_x": 2.114,
+    "median_jouledb_over_duckdb_latency_x": 3.391,
+    "geomean_jouledb_over_duckdb_joules_x": 2.034
   },
   "queries": {
     "Q0": {
       "sql": "SELECT COUNT(*) FROM hits",
       "duckdb": {
         "status": "ok",
-        "ms": 9.362,
-        "joules": 0.704,
+        "ms": 5.671,
+        "joules": 0.7429,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1.512,
-        "joules": 0.0731,
+        "ms": 1.905,
+        "joules": 0.25,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 0.162
+      "jouledb_vs_duckdb_ms_ratio": 0.336
     },
     "Q1": {
       "sql": "SELECT COUNT(*) FROM hits WHERE AdvEngineID <> 0",
       "duckdb": {
         "status": "ok",
-        "ms": 12.834,
-        "joules": 1.1565,
+        "ms": 41.652,
+        "joules": 5.4529,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 18.085,
-        "joules": 1.9477,
+        "ms": 20.228,
+        "joules": 2.625,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 1.409
+      "jouledb_vs_duckdb_ms_ratio": 0.486
     },
     "Q2": {
       "sql": "SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits",
       "duckdb": {
         "status": "ok",
-        "ms": 8.93,
-        "joules": 1.0024,
+        "ms": 61.546,
+        "joules": 7.9588,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1.596,
-        "joules": 0.0929,
+        "ms": 2.411,
+        "joules": 0.3982,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 0.179
+      "jouledb_vs_duckdb_ms_ratio": 0.039
     },
     "Q3": {
       "sql": "SELECT AVG(UserID) FROM hits",
       "duckdb": {
         "status": "ok",
-        "ms": 12.772,
-        "joules": 1.6883,
+        "ms": 51.819,
+        "joules": 6.9405,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1.844,
-        "joules": 0.1992,
+        "ms": 2.316,
+        "joules": 0.2595,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 0.144
+      "jouledb_vs_duckdb_ms_ratio": 0.045
     },
     "Q4": {
       "sql": "SELECT COUNT(DISTINCT UserID) FROM hits",
       "duckdb": {
         "status": "ok",
-        "ms": 194.353,
-        "joules": 23.7261,
+        "ms": 406.137,
+        "joules": 54.0821,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 322.379,
-        "joules": 36.4108,
+        "ms": 553.674,
+        "joules": 73.6741,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 1.659
+      "jouledb_vs_duckdb_ms_ratio": 1.363
     },
     "Q5": {
       "sql": "SELECT COUNT(DISTINCT SearchPhrase) FROM hits",
       "duckdb": {
         "status": "ok",
-        "ms": 170.785,
-        "joules": 23.9625,
+        "ms": 426.922,
+        "joules": 59.5694,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 865.343,
-        "joules": 86.294,
+        "ms": 1572.945,
+        "joules": 210.709,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 5.067
+      "jouledb_vs_duckdb_ms_ratio": 3.684
     },
     "Q6": {
       "sql": "SELECT MIN(EventDate), MAX(EventDate) FROM hits",
       "duckdb": {
         "status": "ok",
-        "ms": 7.329,
-        "joules": 0.8056,
+        "ms": 22.067,
+        "joules": 2.9742,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1.242,
-        "joules": 0.2479,
+        "ms": 1.577,
+        "joules": 0.1228,
         "row_count": 1
       },
       "results_match": false,
@@ -180,328 +180,328 @@
         "duckdb_head": "[(datetime.date(2013, 7, 2), datetime.date(2013, 7, 31))]",
         "jouledb_head": "[(15888, 15917)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 0.169
+      "jouledb_vs_duckdb_ms_ratio": 0.071
     },
     "Q7": {
       "sql": "SELECT AdvEngineID, COUNT(*) FROM hits WHERE AdvEngineID <> 0 GROUP BY AdvEngineID ORDER BY COUNT(*) DESC",
       "duckdb": {
         "status": "ok",
-        "ms": 7.271,
-        "joules": 0.9149,
+        "ms": 33.748,
+        "joules": 4.546,
         "row_count": 18
       },
       "jouledb": {
         "status": "ok",
-        "ms": 77.887,
-        "joules": 8.5854,
+        "ms": 34.953,
+        "joules": 4.772,
         "row_count": 18
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 10.712
+      "jouledb_vs_duckdb_ms_ratio": 1.036
     },
     "Q8": {
       "sql": "SELECT RegionID, COUNT(DISTINCT UserID) AS u FROM hits GROUP BY RegionID ORDER BY u DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 202.208,
-        "joules": 27.0878,
+        "ms": 434.613,
+        "joules": 59.4553,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 585.193,
-        "joules": 72.3064,
+        "ms": 1125.869,
+        "joules": 150.4209,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 2.894
+      "jouledb_vs_duckdb_ms_ratio": 2.591
     },
     "Q9": {
       "sql": "SELECT RegionID, SUM(AdvEngineID), COUNT(*) AS c, AVG(ResolutionWidth), COUNT(DISTINCT UserID) FROM hits GROUP BY RegionID ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 340.635,
-        "joules": 42.635,
+        "ms": 415.463,
+        "joules": 59.562,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 640.788,
-        "joules": 88.1229,
+        "ms": 1431.686,
+        "joules": 194.4174,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 1.881
+      "jouledb_vs_duckdb_ms_ratio": 3.446
     },
     "Q10": {
       "sql": "SELECT MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhoneModel ORDER BY u DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 56.346,
-        "joules": 8.3501,
+        "ms": 134.518,
+        "joules": 19.4147,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 149.675,
-        "joules": 17.3107,
+        "ms": 407.901,
+        "joules": 55.9037,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 2.656
+      "jouledb_vs_duckdb_ms_ratio": 3.032
     },
     "Q11": {
       "sql": "SELECT MobilePhone, MobilePhoneModel, COUNT(DISTINCT UserID) AS u FROM hits WHERE MobilePhoneModel <> '' GROUP BY MobilePhone, MobilePhoneModel ORDER BY u DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 69.17,
-        "joules": 10.1515,
+        "ms": 156.736,
+        "joules": 22.143,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 132.328,
-        "joules": 15.8526,
+        "ms": 393.368,
+        "joules": 53.2958,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 1.913
+      "jouledb_vs_duckdb_ms_ratio": 2.51
     },
     "Q12": {
       "sql": "SELECT SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 134.481,
-        "joules": 20.041,
+        "ms": 404.087,
+        "joules": 55.9738,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 671.592,
-        "joules": 70.9321,
+        "ms": 1278.703,
+        "joules": 167.5241,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 4.994
+      "jouledb_vs_duckdb_ms_ratio": 3.164
     },
     "Q13": {
       "sql": "SELECT SearchPhrase, COUNT(DISTINCT UserID) AS u FROM hits WHERE SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY u DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 231.305,
-        "joules": 32.1163,
+        "ms": 690.229,
+        "joules": 93.7627,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1918.415,
-        "joules": 212.9504,
+        "ms": 4319.67,
+        "joules": 554.7417,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 8.294
+      "jouledb_vs_duckdb_ms_ratio": 6.258
     },
     "Q14": {
       "sql": "SELECT SearchEngineID, SearchPhrase, COUNT(*) AS c FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, SearchPhrase ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 144.907,
-        "joules": 20.7761,
+        "ms": 317.981,
+        "joules": 43.6456,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1465.571,
-        "joules": 161.2601,
+        "ms": 2993.519,
+        "joules": 371.4503,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 10.114
+      "jouledb_vs_duckdb_ms_ratio": 9.414
     },
     "Q15": {
       "sql": "SELECT UserID, COUNT(*) FROM hits GROUP BY UserID ORDER BY COUNT(*) DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 134.808,
-        "joules": 18.7303,
+        "ms": 265.289,
+        "joules": 36.7388,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1537.269,
-        "joules": 160.5515,
+        "ms": 1279.46,
+        "joules": 170.9865,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 11.403
+      "jouledb_vs_duckdb_ms_ratio": 4.823
     },
     "Q16": {
       "sql": "SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 299.517,
-        "joules": 43.2917,
+        "ms": 843.987,
+        "joules": 111.1574,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 3751.939,
-        "joules": 368.9007,
+        "ms": 6353.21,
+        "joules": 805.2855,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 12.527
+      "jouledb_vs_duckdb_ms_ratio": 7.528
     },
     "Q17": {
       "sql": "SELECT UserID, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, SearchPhrase LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 224.533,
-        "joules": 31.326,
+        "ms": 452.015,
+        "joules": 64.2066,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 656.649,
-        "joules": 76.3819,
+        "ms": 847.356,
+        "joules": 108.7272,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "unordered_limit_valid_subset",
       "sample_diff": {
-        "duckdb_head": "[(4001360611696821441, '\u043b\u0443\u043d\u0442\u0438\u043a \u0441\u043a\u0440\u0430 \u043d\u0430 \u0441\u0442\u0430\u0440\u0448\u0435\u043c, \u043e\u043d \u043e\u0445\u043e\u0442\u0435', 2), (4008275630898953948, '', 1)]",
+        "duckdb_head": "[(2189014051581359050, '', 1), (2299526386968771063, '', 58)]",
         "jouledb_head": "[(376160620089546609, '', 1), (-8229872269465361314, '', 100)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 2.925
+      "jouledb_vs_duckdb_ms_ratio": 1.875
     },
     "Q18": {
       "sql": "SELECT UserID, extract(minute FROM EventTime) AS m, SearchPhrase, COUNT(*) FROM hits GROUP BY UserID, m, SearchPhrase ORDER BY COUNT(*) DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 824.827,
-        "joules": 120.1354,
+        "ms": 1223.108,
+        "joules": 167.4219,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 8070.059,
-        "joules": 935.1927,
+        "ms": 12758.623,
+        "joules": 1590.6396,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 9.784
+      "jouledb_vs_duckdb_ms_ratio": 10.431
     },
     "Q19": {
       "sql": "SELECT UserID FROM hits WHERE UserID = 435090932899640449",
       "duckdb": {
         "status": "ok",
-        "ms": 42.46,
-        "joules": 5.1144,
+        "ms": 18.925,
+        "joules": 2.302,
         "row_count": 4
       },
       "jouledb": {
         "status": "ok",
-        "ms": 31.317,
-        "joules": 3.9378,
+        "ms": 41.957,
+        "joules": 5.2114,
         "row_count": 4
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 0.738
+      "jouledb_vs_duckdb_ms_ratio": 2.217
     },
     "Q20": {
       "sql": "SELECT COUNT(*) FROM hits WHERE URL LIKE '%google%'",
       "duckdb": {
         "status": "ok",
-        "ms": 230.187,
-        "joules": 34.8558,
+        "ms": 435.605,
+        "joules": 61.4749,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1554.149,
-        "joules": 192.3563,
+        "ms": 1543.336,
+        "joules": 184.3049,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 6.752
+      "jouledb_vs_duckdb_ms_ratio": 3.543
     },
     "Q21": {
       "sql": "SELECT SearchPhrase, MIN(URL), COUNT(*) AS c FROM hits WHERE URL LIKE '%google%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 194.72,
-        "joules": 28.3464,
+        "ms": 348.874,
+        "joules": 47.8683,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 666.759,
-        "joules": 93.096,
+        "ms": 1250.224,
+        "joules": 161.7197,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 3.424
+      "jouledb_vs_duckdb_ms_ratio": 3.584
     },
     "Q22": {
       "sql": "SELECT SearchPhrase, MIN(URL), MIN(Title), COUNT(*) AS c, COUNT(DISTINCT UserID) FROM hits WHERE Title LIKE '%Google%' AND URL NOT LIKE '%.google.%' AND SearchPhrase <> '' GROUP BY SearchPhrase ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 164.227,
-        "joules": 23.4275,
+        "ms": 346.836,
+        "joules": 46.368,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1054.995,
-        "joules": 152.545,
+        "ms": 1862.54,
+        "joules": 243.2148,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 6.424
+      "jouledb_vs_duckdb_ms_ratio": 5.37
     },
     "Q23": {
       "sql": "SELECT * FROM hits WHERE URL LIKE '%google%' ORDER BY EventTime LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 42.956,
-        "joules": 5.081,
+        "ms": 76.19,
+        "joules": 9.7238,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 861.348,
-        "joules": 83.9206,
+        "ms": 898.802,
+        "joules": 114.8743,
         "row_count": 10
       },
       "results_match": false,
@@ -511,394 +511,390 @@
         "duckdb_head": "[(7675678523794456216, 1, 'Glavnaya gorand. \u0426\u0432\u0435\u0442\u043d\u044b\u0435 \u043e\u0431\u044a\u044f\u0432\u043b\u0435\u043d\u0438\u0439 \u0440\u0430\u0439\u043e\u043d\u0435, \u0432\u0435\u0440\u043e\u043c', 1, datetime.datetime(2013, 7, 1, 20, 1, 9, tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC')), datetime.date(2013, 7, 2), 64469, 18",
         "jouledb_head": "[(7675678523794456216, 1, 'Glavnaya gorand. \u0426\u0432\u0435\u0442\u043d\u044b\u0435 \u043e\u0431\u044a\u044f\u0432\u043b\u0435\u043d\u0438\u0439 \u0440\u0430\u0439\u043e\u043d\u0435, \u0432\u0435\u0440\u043e\u043c', 1, 1372708869, 15888, 64469, 1840073959, 2, 3714843517822510735, 0, 44, 5, 'http://e96.ru/search/page.googleTBR%26ad%3D0%"
       },
-      "jouledb_vs_duckdb_ms_ratio": 20.052
+      "jouledb_vs_duckdb_ms_ratio": 11.797
     },
     "Q24": {
       "sql": "SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 9.179,
-        "joules": 1.0264,
+        "ms": 12.898,
+        "joules": 1.7162,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 75.663,
-        "joules": 7.6057,
+        "ms": 44.076,
+        "joules": 5.5199,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "order_by_tie_verified_in_duckdb",
       "sample_diff": {
-        "duckdb_head": "[('galaxy s4 zoom \u0444\u0438\u043b\u044c\u043c',), ('\u0444\u0438\u043b\u044c\u043c \u043d\u0435\u0431\u043e\u043b\u044c\u0448\u043e\u0439 \u0431\u0438\u0437\u043d\u0435\u0441\u0430 \u0441\u0435\u0432\u0435\u0440\u043e\u044f\u0442\u043d\u043e',)]",
+        "duckdb_head": "[('\u0444\u0438\u043b\u044c\u043c \u043d\u0435\u0431\u043e\u043b\u044c\u0448\u043e\u0439 \u0431\u0438\u0437\u043d\u0435\u0441\u0430 \u0441\u0435\u0432\u0435\u0440\u043e\u044f\u0442\u043d\u043e',), ('\u0441\u0438\u043c\u043f\u0442\u043e\u043c\u044b \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0432',)]",
         "jouledb_head": "[('\u043d\u043e\u0447\u043d\u043e \u043a\u0438\u0442\u0430\u044f \u0436\u0435\u043d\u0449\u0438\u043d\u044b',), ('\u0441\u0438\u043c\u043f\u0442\u043e\u043c\u044b \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0432',)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 8.243
+      "jouledb_vs_duckdb_ms_ratio": 3.417
     },
     "Q25": {
       "sql": "SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY SearchPhrase LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 36.496,
-        "joules": 5.7427,
+        "ms": 89.763,
+        "joules": 12.4887,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 219.656,
-        "joules": 29.3272,
+        "ms": 362.008,
+        "joules": 45.8932,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 6.019
+      "jouledb_vs_duckdb_ms_ratio": 4.033
     },
     "Q26": {
       "sql": "SELECT SearchPhrase FROM hits WHERE SearchPhrase <> '' ORDER BY EventTime, SearchPhrase LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 9.647,
-        "joules": 1.1962,
+        "ms": 14.893,
+        "joules": 1.9696,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 75.077,
-        "joules": 9.1369,
+        "ms": 51.398,
+        "joules": 6.5502,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 7.782
+      "jouledb_vs_duckdb_ms_ratio": 3.451
     },
     "Q27": {
       "sql": "SELECT CounterID, AVG(STRLEN(URL)) AS l, COUNT(*) AS c FROM hits WHERE URL <> '' GROUP BY CounterID HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25",
       "duckdb": {
         "status": "ok",
-        "ms": 116.422,
-        "joules": 17.6548,
+        "ms": 204.895,
+        "joules": 30.2229,
         "row_count": 25
       },
       "jouledb": {
         "status": "ok",
-        "ms": 513.757,
-        "joules": 73.218,
+        "ms": 810.661,
+        "joules": 109.4421,
         "row_count": 25
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 4.413
+      "jouledb_vs_duckdb_ms_ratio": 3.956
     },
     "Q28": {
       "sql": "SELECT REGEXP_REPLACE(Referer, '^https?://(?:www\\.)?([^/]+)/.*$', '\\1') AS k, AVG(STRLEN(Referer)) AS l, COUNT(*) AS c, MIN(Referer) FROM hits WHERE Referer <> '' GROUP BY k HAVING COUNT(*) > 100000 ORDER BY l DESC LIMIT 25",
       "duckdb": {
         "status": "ok",
-        "ms": 3442.503,
-        "joules": 528.2883,
+        "ms": 5466.922,
+        "joules": 802.0983,
         "row_count": 25
       },
       "jouledb": {
         "status": "ok",
-        "ms": 2912.017,
-        "joules": 388.6188,
+        "ms": 6380.753,
+        "joules": 824.558,
         "row_count": 25
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 0.846
+      "jouledb_vs_duckdb_ms_ratio": 1.167
     },
     "Q29": {
       "sql": "SELECT SUM(ResolutionWidth), SUM(ResolutionWidth + 1), SUM(ResolutionWidth + 2), SUM(ResolutionWidth + 3), SUM(ResolutionWidth + 4), SUM(ResolutionWidth + 5), SUM(ResolutionWidth + 6), SUM(ResolutionWidth + 7), SUM(ResolutionWidth + 8), SUM(ResolutionWidth + 9), SUM(ResolutionWidth + 10), SUM(ResolutionWidth + 11), SUM(ResolutionWidth + 12), SUM(ResolutionWidth + 13), SUM(ResolutionWidth + 14), SUM(ResolutionWidth + 15), SUM(ResolutionWidth + 16), SUM(ResolutionWidth + 17), SUM(ResolutionWidth + 18), SUM(ResolutionWidth + 19), SUM(ResolutionWidth + 20), SUM(ResolutionWidth + 21), SUM(ResolutionWidth + 22), SUM(ResolutionWidth + 23), SUM(ResolutionWidth + 24), SUM(ResolutionWidth + 25), SUM(ResolutionWidth + 26), SUM(ResolutionWidth + 27), SUM(ResolutionWidth + 28), SUM(ResolutionWidth + 29), SUM(ResolutionWidth + 30), SUM(ResolutionWidth + 31), SUM(ResolutionWidth + 32), SUM(ResolutionWidth + 33), SUM(ResolutionWidth + 34), SUM(ResolutionWidth + 35), SUM(ResolutionWidth + 36), SUM(ResolutionWidth + 37), SUM(ResolutionWidth + 38), SUM(ResolutionWidth + 39), SUM(ResolutionWidth + 40), SUM(ResolutionWidth + 41), SUM(ResolutionWidth + 42), SUM(ResolutionWidth + 43), SUM(ResolutionWidth + 44), SUM(ResolutionWidth + 45), SUM(ResolutionWidth + 46), SUM(ResolutionWidth + 47), SUM(ResolutionWidth + 48), SUM(ResolutionWidth + 49), SUM(ResolutionWidth + 50), SUM(ResolutionWidth + 51), SUM(ResolutionWidth + 52), SUM(ResolutionWidth + 53), SUM(ResolutionWidth + 54), SUM(ResolutionWidth + 55), SUM(ResolutionWidth + 56), SUM(ResolutionWidth + 57), SUM(ResolutionWidth + 58), SUM(ResolutionWidth + 59), SUM(ResolutionWidth + 60), SUM(ResolutionWidth + 61), SUM(ResolutionWidth + 62), SUM(ResolutionWidth + 63), SUM(ResolutionWidth + 64), SUM(ResolutionWidth + 65), SUM(ResolutionWidth + 66), SUM(ResolutionWidth + 67), SUM(ResolutionWidth + 68), SUM(ResolutionWidth + 69), SUM(ResolutionWidth + 70), SUM(ResolutionWidth + 71), SUM(ResolutionWidth + 72), SUM(ResolutionWidth + 73), SUM(ResolutionWidth + 74), SUM(ResolutionWidth + 75), SUM(ResolutionWidth + 76), SUM(ResolutionWidth + 77), SUM(ResolutionWidth + 78), SUM(ResolutionWidth + 79), SUM(ResolutionWidth + 80), SUM(ResolutionWidth + 81), SUM(ResolutionWidth + 82), SUM(ResolutionWidth + 83), SUM(ResolutionWidth + 84), SUM(ResolutionWidth + 85), SUM(ResolutionWidth + 86), SUM(ResolutionWidth + 87), SUM(ResolutionWidth + 88), SUM(ResolutionWidth + 89) FROM hits",
       "duckdb": {
         "status": "ok",
-        "ms": 13.679,
-        "joules": 1.2744,
+        "ms": 56.204,
+        "joules": 6.9104,
         "row_count": 1
       },
       "jouledb": {
         "status": "ok",
-        "ms": 2.273,
-        "joules": 0.1353,
+        "ms": 2.401,
+        "joules": 0.3715,
         "row_count": 1
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 0.166
+      "jouledb_vs_duckdb_ms_ratio": 0.043
     },
     "Q30": {
       "sql": "SELECT SearchEngineID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY SearchEngineID, ClientIP ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 109.389,
-        "joules": 15.4455,
+        "ms": 234.53,
+        "joules": 31.9493,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 1559.714,
-        "joules": 170.5611,
+        "ms": 668.493,
+        "joules": 88.1138,
         "row_count": 10
       },
-      "results_match": false,
+      "results_match": true,
       "results_sql_valid": true,
-      "match_kind": "order_by_tie_verified_in_duckdb",
-      "sample_diff": {
-        "duckdb_head": "[(2, 1138507705, 1633, 35, 1408.0122473974282), (2, 1740861572, 1331, 28, 1577.945905334335)]",
-        "jouledb_head": "[(2, 1138507705, 1633, 35, 1408.0122473974282), (2, 1740861572, 1331, 28, 1577.945905334335)]"
-      },
-      "jouledb_vs_duckdb_ms_ratio": 14.258
+      "match_kind": "exact",
+      "jouledb_vs_duckdb_ms_ratio": 2.85
     },
     "Q31": {
       "sql": "SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits WHERE SearchPhrase <> '' GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 149.509,
-        "joules": 21.4732,
+        "ms": 390.112,
+        "joules": 51.0456,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 456.847,
-        "joules": 51.1129,
+        "ms": 1072.831,
+        "joules": 135.7076,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "order_by_tie_verified_in_duckdb",
       "sample_diff": {
-        "duckdb_head": "[(6028432600504551436, -369408702, 1, 1, 1638.0), (7298224777586964252, 1185472600, 1, 1, 1368.0)]",
+        "duckdb_head": "[(4881531262527464502, 1246887588, 1, 0, 1750.0), (6947313405438383195, -737005137, 1, 0, 1996.0)]",
         "jouledb_head": "[(5581899925183342605, 2050260421, 1, 0, 1917.0), (8407760668305829074, 2050260421, 1, 1, 1917.0)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 3.056
+      "jouledb_vs_duckdb_ms_ratio": 2.75
     },
     "Q32": {
       "sql": "SELECT WatchID, ClientIP, COUNT(*) AS c, SUM(IsRefresh), AVG(ResolutionWidth) FROM hits GROUP BY WatchID, ClientIP ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 1063.857,
-        "joules": 128.0583,
+        "ms": 1750.019,
+        "joules": 222.7011,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 2405.466,
-        "joules": 240.7261,
+        "ms": 5933.493,
+        "joules": 748.8776,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "order_by_tie_verified_in_duckdb",
       "sample_diff": {
-        "duckdb_head": "[(7904046282518428963, 1509330109, 2, 0, 1368.0), (6655575552203051303, 1611957945, 2, 0, 1638.0)]",
+        "duckdb_head": "[(6655575552203051303, 1611957945, 2, 0, 1638.0), (7224410078130478461, -776509581, 2, 0, 1368.0)]",
         "jouledb_head": "[(7224410078130478461, -776509581, 2, 0, 1368.0), (6655575552203051303, 1611957945, 2, 0, 1638.0)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 2.261
+      "jouledb_vs_duckdb_ms_ratio": 3.391
     },
     "Q33": {
       "sql": "SELECT URL, COUNT(*) AS c FROM hits GROUP BY URL ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 652.422,
-        "joules": 83.783,
+        "ms": 1365.052,
+        "joules": 172.5906,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 3021.92,
-        "joules": 312.2285,
+        "ms": 5560.473,
+        "joules": 662.0194,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 4.632
+      "jouledb_vs_duckdb_ms_ratio": 4.073
     },
     "Q34": {
       "sql": "SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 778.161,
-        "joules": 99.3303,
+        "ms": 1112.023,
+        "joules": 141.8373,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 2629.061,
-        "joules": 263.2392,
+        "ms": 6128.378,
+        "joules": 715.6877,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 3.379
+      "jouledb_vs_duckdb_ms_ratio": 5.511
     },
     "Q35": {
       "sql": "SELECT ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3, COUNT(*) AS c FROM hits GROUP BY ClientIP, ClientIP - 1, ClientIP - 2, ClientIP - 3 ORDER BY c DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 145.209,
-        "joules": 17.6134,
+        "ms": 300.996,
+        "joules": 39.7557,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 916.851,
-        "joules": 94.6069,
+        "ms": 1320.784,
+        "joules": 178.0034,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 6.314
+      "jouledb_vs_duckdb_ms_ratio": 4.388
     },
     "Q36": {
       "sql": "SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND URL <> '' GROUP BY URL ORDER BY PageViews DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 37.502,
-        "joules": 2.7895,
+        "ms": 80.207,
+        "joules": 9.5591,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 174.847,
-        "joules": 13.6966,
+        "ms": 277.707,
+        "joules": 36.2642,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 4.662
+      "jouledb_vs_duckdb_ms_ratio": 3.462
     },
     "Q37": {
       "sql": "SELECT Title, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND DontCountHits = 0 AND IsRefresh = 0 AND Title <> '' GROUP BY Title ORDER BY PageViews DESC LIMIT 10",
       "duckdb": {
         "status": "ok",
-        "ms": 19.968,
-        "joules": 1.5094,
+        "ms": 25.932,
+        "joules": 3.3801,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 33.469,
-        "joules": 2.6455,
+        "ms": 57.186,
+        "joules": 7.1392,
         "row_count": 10
       },
       "results_match": true,
       "results_sql_valid": true,
       "match_kind": "exact",
-      "jouledb_vs_duckdb_ms_ratio": 1.676
+      "jouledb_vs_duckdb_ms_ratio": 2.205
     },
     "Q38": {
       "sql": "SELECT URL, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND IsLink <> 0 AND IsDownload = 0 GROUP BY URL ORDER BY PageViews DESC LIMIT 10 OFFSET 1000",
       "duckdb": {
         "status": "ok",
-        "ms": 18.733,
-        "joules": 1.2976,
+        "ms": 17.945,
+        "joules": 2.1806,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 43.887,
-        "joules": 2.9505,
+        "ms": 70.449,
+        "joules": 8.5184,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "order_by_tie_verified_in_duckdb",
       "sample_diff": {
-        "duckdb_head": "[('http://gorod/search&cat_no', 2), ('http://smolenskaia-moda-bluza-chernyj-9703595', 2)]",
+        "duckdb_head": "[('http://stalker-pub-20087898675494,960948/#page_type%3D260117152337&spn=1395,9459301bd969/curre224.html%3Fhtml?1=1&cid=577&oki=1&op_category_name=\u0411\u044e\u0441\u0442\u0433\u0430\u043b\u044c\u0442\u0435\u0440\u044b - \u0422\u0440\u0443\u0441\u0438', 2), ('http://stalker-pub-2008",
         "jouledb_head": "[('http://guide.trashbox', 2), ('http://stalker-pub-20087898675494,960948/#page_type%3D260117152337&spn=1395,9455989.ya.ru/world/photografiyah_17_legkovierk-supiertsienskaia-moda-zhiensmed.ru/filmId=s"
       },
-      "jouledb_vs_duckdb_ms_ratio": 2.343
+      "jouledb_vs_duckdb_ms_ratio": 3.926
     },
     "Q39": {
       "sql": "SELECT TraficSourceID, SearchEngineID, AdvEngineID, CASE WHEN (SearchEngineID = 0 AND AdvEngineID = 0) THEN Referer ELSE '' END AS Src, URL AS Dst, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 GROUP BY TraficSourceID, SearchEngineID, AdvEngineID, Src, Dst ORDER BY PageViews DESC LIMIT 10 OFFSET 1000",
       "duckdb": {
         "status": "ok",
-        "ms": 23.227,
-        "joules": 2.3397,
+        "ms": 61.099,
+        "joules": 7.2134,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 519.274,
-        "joules": 41.683,
+        "ms": 906.849,
+        "joules": 111.9498,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "order_by_tie_verified_in_duckdb",
       "sample_diff": {
-        "duckdb_head": "[(0, 0, 0, '', 'http://irr.ru/index.php?showalbum/login-tumbov.irr.ru/page1=&input_who1=2&id=2942330729; .NET CLR 2.0.50727; Mediaplus%252f%252f7769%252fmediaplus/turkeyhotelImages/0000028-50-kv-m-Bes",
+        "duckdb_head": "[(-1, 0, 0, 'http://state=19945206/foto-4/login-2006/makumiroshoowbiz/photo=450&with_photo=700758&brand had art&pagead2', 'http://irr.ru/index.php?showalbum/login-lential/secondary/details9.html_param",
         "jouledb_head": "[(-1, 0, 0, 'http://state=19945206/foto-4/login=instructions[0][1520][]=', 'http://irr.ru/index.php?showalbum/login-yakutsk.irr.ru/catalog=on&input_age10', 15), (-1, 0, 0, 'http://state=19945206/foto-"
       },
-      "jouledb_vs_duckdb_ms_ratio": 22.356
+      "jouledb_vs_duckdb_ms_ratio": 14.842
     },
     "Q40": {
       "sql": "SELECT URLHash, EventDate, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND TraficSourceID IN (-1, 6) AND RefererHash = 3594120000172545465 GROUP BY URLHash, EventDate ORDER BY PageViews DESC LIMIT 10 OFFSET 100",
       "duckdb": {
         "status": "ok",
-        "ms": 5.639,
-        "joules": 0.4444,
+        "ms": 24.911,
+        "joules": 3.1522,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 19.751,
-        "joules": 1.4897,
+        "ms": 84.267,
+        "joules": 10.8586,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "order_by_tie_verified_in_duckdb",
       "sample_diff": {
-        "duckdb_head": "[(8165850906391446088, datetime.date(2013, 7, 15), 27), (7199155066341437901, datetime.date(2013, 7, 15), 27)]",
+        "duckdb_head": "[(6821760082063826971, datetime.date(2013, 7, 15), 27), (2054727273000865689, datetime.date(2013, 7, 15), 27)]",
         "jouledb_head": "[(5520570504648279068, 15901, 27), (8165850906391446088, 15901, 27)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 3.503
+      "jouledb_vs_duckdb_ms_ratio": 3.383
     },
     "Q41": {
       "sql": "SELECT WindowClientWidth, WindowClientHeight, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-01' AND EventDate <= '2013-07-31' AND IsRefresh = 0 AND DontCountHits = 0 AND URLHash = 2868770270353813622 GROUP BY WindowClientWidth, WindowClientHeight ORDER BY PageViews DESC LIMIT 10 OFFSET 10000",
       "duckdb": {
         "status": "ok",
-        "ms": 10.339,
-        "joules": 0.7309,
+        "ms": 13.552,
+        "joules": 1.7656,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 14.104,
-        "joules": 1.0664,
+        "ms": 31.362,
+        "joules": 4.0841,
         "row_count": 10
       },
       "results_match": false,
       "results_sql_valid": true,
       "match_kind": "order_by_tie_verified_in_duckdb",
       "sample_diff": {
-        "duckdb_head": "[(1351, 524, 1), (1838, 949, 1)]",
+        "duckdb_head": "[(1638, 809, 1), (557, 893, 1)]",
         "jouledb_head": "[(1667, 772, 1), (700, 461, 1)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 1.364
+      "jouledb_vs_duckdb_ms_ratio": 2.314
     },
     "Q42": {
       "sql": "SELECT DATE_TRUNC('minute', EventTime) AS M, COUNT(*) AS PageViews FROM hits WHERE CounterID = 62 AND EventDate >= '2013-07-14' AND EventDate <= '2013-07-15' AND IsRefresh = 0 AND DontCountHits = 0 GROUP BY DATE_TRUNC('minute', EventTime) ORDER BY DATE_TRUNC('minute', EventTime) LIMIT 10 OFFSET 1000",
       "duckdb": {
         "status": "ok",
-        "ms": 23.695,
-        "joules": 2.3144,
+        "ms": 34.829,
+        "joules": 4.4826,
         "row_count": 10
       },
       "jouledb": {
         "status": "ok",
-        "ms": 11.997,
-        "joules": 0.9542,
+        "ms": 22.777,
+        "joules": 2.9758,
         "row_count": 10
       },
       "results_match": false,
@@ -908,7 +904,7 @@
         "duckdb_head": "[(datetime.datetime(2013, 7, 15, 12, 40, tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC')), 513), (datetime.datetime(2013, 7, 15, 12, 41, tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC')), 457)]",
         "jouledb_head": "[(1373892000, 513), (1373892060, 457)]"
       },
-      "jouledb_vs_duckdb_ms_ratio": 0.506
+      "jouledb_vs_duckdb_ms_ratio": 0.654
     }
   }
 }

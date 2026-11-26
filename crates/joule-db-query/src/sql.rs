@@ -2529,8 +2529,12 @@ impl SqlParser {
             self.advance(); // consume '('
 
             // Check if this is a subquery
-            if *self.peek() == Token::Select {
-                let subquery = self.parse_select_with_ctes(Vec::new())?;
+            if *self.peek() == Token::Select || *self.peek() == Token::With {
+                let mut subquery = if *self.peek() == Token::With {
+                    self.parse_with_query()?
+                } else {
+                    self.parse_select_with_ctes(Vec::new())?
+                };
                 self.expect(Token::RParen)?;
 
                 // Subqueries must have an alias
@@ -2538,11 +2542,28 @@ impl SqlParser {
                     self.advance();
                     Some(self.parse_identifier()?)
                 } else if let Token::Identifier(_) = self.peek() {
-                    Some(self.parse_identifier()?)
+                    if self.peek_is_keyword() {
+                        self.derived_counter += 1;
+                        Some(format!("derived_{}", self.derived_counter))
+                    } else {
+                        Some(self.parse_identifier()?)
+                    }
                 } else {
                     self.derived_counter += 1;
                     Some(format!("derived_{}", self.derived_counter))
                 };
+
+                // Optional ANSI SQL derived-table column alias list: `AS c_orders (c_custkey, c_count)` (TPC-H Q13)
+                if *self.peek() == Token::LParen {
+                    self.advance();
+                    let col_aliases = self.parse_identifier_list()?;
+                    self.expect(Token::RParen)?;
+                    for (idx, col_alias) in col_aliases.into_iter().enumerate() {
+                        if let Some(sc) = subquery.columns.get_mut(idx) {
+                            sc.alias = Some(col_alias);
+                        }
+                    }
+                }
 
                 return Ok(SqlFrom {
                     source: FromSource::Subquery(Box::new(subquery)),
@@ -2648,19 +2669,38 @@ impl SqlParser {
             // Check for derived table: JOIN (SELECT ...) alias ON ...
             let (table, alias, source_subquery) = if *self.peek() == Token::LParen {
                 self.advance(); // consume '('
-                if *self.peek() == Token::Select {
-                    let subquery = self.parse_select_with_ctes(Vec::new())?;
+                if *self.peek() == Token::Select || *self.peek() == Token::With {
+                    let mut subquery = if *self.peek() == Token::With {
+                        self.parse_with_query()?
+                    } else {
+                        self.parse_select_with_ctes(Vec::new())?
+                    };
                     self.expect(Token::RParen)?;
                     // Parse required alias
                     let alias = if *self.peek() == Token::As {
                         self.advance();
                         self.parse_identifier()?
                     } else if let Token::Identifier(_) = self.peek() {
-                        self.parse_identifier()?
+                        if self.peek_is_keyword() {
+                            self.derived_counter += 1;
+                            format!("derived_{}", self.derived_counter)
+                        } else {
+                            self.parse_identifier()?
+                        }
                     } else {
                         self.derived_counter += 1;
                         format!("derived_{}", self.derived_counter)
                     };
+                    if *self.peek() == Token::LParen {
+                        self.advance();
+                        let col_aliases = self.parse_identifier_list()?;
+                        self.expect(Token::RParen)?;
+                        for (idx, col_alias) in col_aliases.into_iter().enumerate() {
+                            if let Some(sc) = subquery.columns.get_mut(idx) {
+                                sc.alias = Some(col_alias);
+                            }
+                        }
+                    }
                     (alias.clone(), Some(alias), Some(Box::new(subquery)))
                 } else {
                     return Err(QueryError::ParseError(
@@ -2892,7 +2932,18 @@ impl SqlParser {
     /// Handles types like `INTEGER`, `VARCHAR(255)`, `VECTOR(384)`, `DECIMAL(10,2)`.
     /// Returns the type as a string, e.g. `"VECTOR(384)"` or `"VARCHAR(255)"`.
     fn parse_type_with_params(&mut self) -> QueryResult<String> {
-        let base = self.parse_identifier()?;
+        let mut base = self.parse_identifier()?;
+        if base.eq_ignore_ascii_case("DOUBLE")
+            && matches!(self.peek(), Token::Identifier(s) if s.eq_ignore_ascii_case("PRECISION"))
+        {
+            self.advance();
+            base = "DOUBLE PRECISION".to_string();
+        } else if base.eq_ignore_ascii_case("CHARACTER")
+            && matches!(self.peek(), Token::Identifier(s) if s.eq_ignore_ascii_case("VARYING"))
+        {
+            self.advance();
+            base = "VARCHAR".to_string();
+        }
         if *self.peek() == Token::LParen {
             self.advance(); // consume '('
             let mut params = String::new();
@@ -3490,6 +3541,37 @@ impl SqlParser {
 
                     let args = if *self.peek() == Token::RParen {
                         Vec::new()
+                    } else if name.eq_ignore_ascii_case("SUBSTRING")
+                        || name.eq_ignore_ascii_case("SUBSTR")
+                    {
+                        let first_expr = self.parse_expression()?;
+                        let is_from = match self.peek() {
+                            Token::From => true,
+                            Token::Identifier(s) => s.eq_ignore_ascii_case("FROM"),
+                            _ => false,
+                        };
+                        if is_from {
+                            self.advance();
+                            let start_expr = self.parse_expression()?;
+                            let is_for = matches!(
+                                self.peek(),
+                                Token::Identifier(s) if s.eq_ignore_ascii_case("FOR")
+                            );
+                            if is_for {
+                                self.advance();
+                                let len_expr = self.parse_expression()?;
+                                vec![first_expr, start_expr, len_expr]
+                            } else {
+                                vec![first_expr, start_expr]
+                            }
+                        } else if *self.peek() == Token::Comma {
+                            self.advance();
+                            let mut list = vec![first_expr];
+                            list.extend(self.parse_expression_list()?);
+                            list
+                        } else {
+                            vec![first_expr]
+                        }
                     } else {
                         self.parse_expression_list()?
                     };
@@ -3636,7 +3718,7 @@ impl SqlParser {
                 self.expect(Token::LParen)?;
                 let expr = self.parse_expression()?;
                 self.expect(Token::As)?;
-                let target_type = self.parse_identifier()?.to_uppercase();
+                let target_type = self.parse_type_with_params()?.to_uppercase();
                 self.expect(Token::RParen)?;
                 Ok(Expression::Cast {
                     expr: Box::new(expr),

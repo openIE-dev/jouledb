@@ -205,7 +205,9 @@ impl WasmExecutor {
 
         // Create store with fuel limit
         let mut store = Store::new(&self.engine, host_state);
-        store.set_fuel(1_000_000).unwrap(); // 1M instructions limit
+        store
+            .set_fuel(1_000_000)
+            .map_err(|e| format!("Failed to set fuel: {e}"))?; // 1M instructions limit
 
         // Create linker with host functions
         let mut linker = Linker::new(&self.engine);

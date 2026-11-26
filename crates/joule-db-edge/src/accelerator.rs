@@ -423,8 +423,8 @@ impl Accelerator for CpuAccelerator {
         match op {
             AggregateOp::Sum => values.iter().sum(),
             AggregateOp::Count => values.len() as i64,
-            AggregateOp::Min => *values.iter().min().unwrap(),
-            AggregateOp::Max => *values.iter().max().unwrap(),
+            AggregateOp::Min => values.iter().copied().min().unwrap_or(0),
+            AggregateOp::Max => values.iter().copied().max().unwrap_or(0),
             AggregateOp::Average => values.iter().sum::<i64>() / values.len() as i64,
         }
     }

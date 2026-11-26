@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Metal GPU Runtime for Joule
 //!
 //! This crate provides runtime support for executing Metal compute kernels

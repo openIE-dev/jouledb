@@ -26,7 +26,10 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{RwLock, broadcast, mpsc};
 use tokio::time::interval;
 
-use joule_db_core::persistence::network::{HEADER_SIZE, Message, OpCode, PROTOCOL_MAGIC};
+use joule_db_core::persistence::network::{Message, OpCode, PROTOCOL_MAGIC};
+
+/// Replication wire header size: magic(2) + opcode(1) + flags(1) + request_id(4) + payload_len(4) + reserved(4).
+const REPL_HEADER_SIZE: usize = 16;
 
 /// Replication opcodes (extension to base protocol)
 #[repr(u8)]
@@ -396,7 +399,7 @@ impl ReplicationServer {
         stats.followers_connected.fetch_add(1, Ordering::Relaxed);
 
         // Read initial handshake (REPLICATE request with start LSN)
-        let mut header = [0u8; HEADER_SIZE];
+        let mut header = [0u8; REPL_HEADER_SIZE];
         stream
             .read_exact(&mut header)
             .await
@@ -504,7 +507,7 @@ impl ReplicationServer {
 
                 // Read incoming data (ACKs, heartbeat responses)
                 result = async {
-                    let mut header = [0u8; HEADER_SIZE];
+                    let mut header = [0u8; REPL_HEADER_SIZE];
                     stream.read_exact(&mut header).await
                 } => {
                     match result {
@@ -721,16 +724,29 @@ impl ReplicationClient {
             .await
             .map_err(|e| ReplicationError::IoError(e.to_string()))?;
 
-        // Read response
-        let mut header = [0u8; HEADER_SIZE];
+        // Read `Message::response` header (9-byte base network header + 8-byte LSN payload)
+        let mut ack_header = [0u8; joule_db_core::persistence::network::HEADER_SIZE];
         stream
-            .read_exact(&mut header)
+            .read_exact(&mut ack_header)
             .await
             .map_err(|e| ReplicationError::IoError(e.to_string()))?;
+        let ack_payload_len = u32::from_le_bytes([
+            ack_header[3],
+            ack_header[4],
+            ack_header[5],
+            ack_header[6],
+        ]) as usize;
+        if ack_payload_len > 0 {
+            let mut ack_payload = vec![0u8; ack_payload_len];
+            stream
+                .read_exact(&mut ack_payload)
+                .await
+                .map_err(|e| ReplicationError::IoError(e.to_string()))?;
+        }
 
         // Stream entries
         loop {
-            let mut header = [0u8; HEADER_SIZE];
+            let mut header = [0u8; REPL_HEADER_SIZE];
             if let Err(e) = stream.read_exact(&mut header).await {
                 return Err(ReplicationError::IoError(e.to_string()));
             }
@@ -755,7 +771,7 @@ impl ReplicationClient {
 
             stats
                 .bytes_received
-                .fetch_add((HEADER_SIZE + payload_len) as u64, Ordering::Relaxed);
+                .fetch_add((REPL_HEADER_SIZE + payload_len) as u64, Ordering::Relaxed);
 
             match opcode {
                 0x21 => {
@@ -803,7 +819,7 @@ fn create_replicate_request(node_id: &str, start_lsn: u64) -> Vec<u8> {
     let node_id_bytes = node_id.as_bytes();
     let payload_len = 4 + node_id_bytes.len() + 8;
 
-    let mut msg = Vec::with_capacity(HEADER_SIZE + payload_len);
+    let mut msg = Vec::with_capacity(REPL_HEADER_SIZE + payload_len);
 
     // Header
     msg.extend_from_slice(&PROTOCOL_MAGIC);
@@ -823,7 +839,7 @@ fn create_replicate_request(node_id: &str, start_lsn: u64) -> Vec<u8> {
 
 /// Create a WAL_ENTRY message
 fn create_wal_entry_message(lsn: u32, entry_data: &[u8]) -> Vec<u8> {
-    let mut msg = Vec::with_capacity(HEADER_SIZE + entry_data.len());
+    let mut msg = Vec::with_capacity(REPL_HEADER_SIZE + entry_data.len());
 
     // Header
     msg.extend_from_slice(&PROTOCOL_MAGIC);
@@ -841,7 +857,7 @@ fn create_wal_entry_message(lsn: u32, entry_data: &[u8]) -> Vec<u8> {
 
 /// Create a HEARTBEAT message
 fn create_heartbeat_message(current_lsn: u64) -> Vec<u8> {
-    let mut msg = Vec::with_capacity(HEADER_SIZE + 8);
+    let mut msg = Vec::with_capacity(REPL_HEADER_SIZE + 8);
 
     // Header
     msg.extend_from_slice(&PROTOCOL_MAGIC);
@@ -859,7 +875,7 @@ fn create_heartbeat_message(current_lsn: u64) -> Vec<u8> {
 
 /// Create an ACK message with the applied LSN
 fn create_ack_message(applied_lsn: u64) -> Vec<u8> {
-    let mut msg = Vec::with_capacity(HEADER_SIZE + 8);
+    let mut msg = Vec::with_capacity(REPL_HEADER_SIZE + 8);
 
     // Header
     msg.extend_from_slice(&PROTOCOL_MAGIC);
@@ -881,7 +897,7 @@ fn uuid_v4() -> String {
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_nanos();
 
     format!("{:016x}-{:04x}", now, (now >> 64) as u32 & 0xFFFF)

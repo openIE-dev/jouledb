@@ -862,6 +862,139 @@ fn decode_col_payload(
     }
 }
 
+/// Sparse dictionary-compacted decoder for `.jcol` `Text` slices when only a small
+/// subset of rows (`sel.len() <= 16_384`) survived `WHERE` or `ORDER BY ... LIMIT k`!
+/// Avoids allocating `100,000+` `Arc<str>` strings when only `1..1000` rows are read.
+fn decode_col_payload_selected(
+    meta: &ColSliceMeta,
+    seg_len: usize,
+    raw: &[u8],
+    inferred_kind: DiskColKind,
+    sel: Option<&[u32]>,
+) -> io::Result<Col> {
+    let Some(rows) = sel.filter(|s| s.len() <= 16_384) else {
+        return decode_col_payload(meta, seg_len, raw, inferred_kind);
+    };
+    if meta.kind != DiskColKind::Text {
+        return decode_col_payload(meta, seg_len, raw, inferred_kind);
+    }
+    if meta.byte_len > 0 && crc32_bytes(raw) != meta.crc32 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "corrupt .jcol slice (CRC32 mismatch)",
+        ));
+    }
+    if raw.len() < 9 {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "short text header",
+        ));
+    }
+    let dict_len = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]) as usize;
+    if dict_len <= rows.len().saturating_mul(2).max(64) {
+        return decode_col_payload(meta, seg_len, raw, inferred_kind);
+    }
+    let code_width = raw[4];
+    let offs_start = 5usize;
+    let offs_end = offs_start + (dict_len + 1) * 4;
+    if raw.len() < offs_end {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "short text offsets",
+        ));
+    }
+    let arena_len = u32::from_le_bytes([
+        raw[offs_end - 4],
+        raw[offs_end - 3],
+        raw[offs_end - 2],
+        raw[offs_end - 1],
+    ]) as usize;
+    let arena_end = offs_end + arena_len;
+    if raw.len() < arena_end {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "short text arena",
+        ));
+    }
+    let arena = &raw[offs_end..arena_end];
+    let codes_raw = &raw[arena_end..];
+    let need_code_bytes = match code_width {
+        1 => seg_len,
+        2 => seg_len * 2,
+        _ => seg_len * 4,
+    };
+    if codes_raw.len() < need_code_bytes {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "short selected text codes",
+        ));
+    }
+
+    let mut codes = vec![NULL_CODE_U32; seg_len];
+    let mut compact_dict: Vec<Arc<str>> = Vec::with_capacity(rows.len().min(dict_len));
+    let mut remap: rustc_hash::FxHashMap<u32, u32> =
+        rustc_hash::FxHashMap::with_capacity_and_hasher(rows.len().min(dict_len), Default::default());
+
+    for &ri_u32 in rows {
+        let ri = ri_u32 as usize;
+        if ri >= seg_len {
+            continue;
+        }
+        let orig_c = match code_width {
+            1 => {
+                let b = codes_raw[ri];
+                if b == 0xFF { NULL_CODE_U32 } else { b as u32 }
+            }
+            2 => {
+                let o = ri * 2;
+                let u = u16::from_le_bytes([codes_raw[o], codes_raw[o + 1]]);
+                if u == 0xFFFF { NULL_CODE_U32 } else { u as u32 }
+            }
+            _ => {
+                let o = ri * 4;
+                u32::from_le_bytes([
+                    codes_raw[o],
+                    codes_raw[o + 1],
+                    codes_raw[o + 2],
+                    codes_raw[o + 3],
+                ])
+            }
+        };
+        if orig_c == NULL_CODE_U32 {
+            codes[ri] = NULL_CODE_U32;
+            continue;
+        }
+        if let Some(&nc) = remap.get(&orig_c) {
+            codes[ri] = nc;
+            continue;
+        }
+        let di = orig_c as usize;
+        if di >= dict_len {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "text dictionary code out of bounds",
+            ));
+        }
+        let oa = offs_start + di * 4;
+        let a = u32::from_le_bytes([raw[oa], raw[oa + 1], raw[oa + 2], raw[oa + 3]]) as usize;
+        let b =
+            u32::from_le_bytes([raw[oa + 4], raw[oa + 5], raw[oa + 6], raw[oa + 7]]) as usize;
+        if b < a || b > arena.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid text dictionary offset",
+            ));
+        }
+        let s = std::str::from_utf8(&arena[a..b])
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let nc = compact_dict.len() as u32;
+        compact_dict.push(Arc::from(s));
+        remap.insert(orig_c, nc);
+        codes[ri] = nc;
+    }
+    Ok(Col::Text(codes, compact_dict))
+}
+
 fn write_segment_file(
     dir: &Path,
     seq: u64,
@@ -1386,6 +1519,18 @@ impl DiskColumnTable {
         cols_needed: &[&str],
         target: &mut TableColumns,
     ) -> io::Result<()> {
+        self.load_columns_into_selected(seg_idx, cols_needed, None, target)
+    }
+
+    /// Read and decode `cols_needed` from segment `seg_idx` into `target`, sparsely
+    /// decoding only the dictionary entries referenced by `sel` when `sel` is small!
+    pub fn load_columns_into_selected(
+        &self,
+        seg_idx: usize,
+        cols_needed: &[&str],
+        sel: Option<&[u32]>,
+        target: &mut TableColumns,
+    ) -> io::Result<()> {
         let seg = self
             .segments
             .get(seg_idx)
@@ -1410,7 +1555,7 @@ impl DiskColumnTable {
             } else {
                 Vec::new()
             };
-            let mut col = decode_col_payload(meta, seg_len, &raw, inferred)?;
+            let mut col = decode_col_payload_selected(meta, seg_len, &raw, inferred, sel)?;
             // Widen segment int to f64 if a later segment widened the column globally to F64
             if inferred == DiskColKind::F64
                 && let Col::Int(ints, nulls) = col
@@ -1429,12 +1574,21 @@ impl DiskColumnTable {
         seg_idx: usize,
         cols_needed: &[&str],
     ) -> io::Result<TableColumns> {
+        self.load_segment_columns_selected(seg_idx, cols_needed, None)
+    }
+
+    pub fn load_segment_columns_selected(
+        &self,
+        seg_idx: usize,
+        cols_needed: &[&str],
+        sel: Option<&[u32]>,
+    ) -> io::Result<TableColumns> {
         let seg = self
             .segments
             .get(seg_idx)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "segment index OOB"))?;
         let mut tc = TableColumns::empty_with_len(seg.len as usize, self.col_order.clone());
-        self.load_columns_into(seg_idx, cols_needed, &mut tc)?;
+        self.load_columns_into_selected(seg_idx, cols_needed, sel, &mut tc)?;
         Ok(tc)
     }
 

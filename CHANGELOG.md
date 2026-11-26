@@ -9,6 +9,27 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-26
+
+### Added
+- **Official 22-Query `TPC-H` Multi-Table Relational Benchmark Suite (`bench/tpch_official.py`, `tpch_official_{sf01,sf1}.json`)**:
+  - Added reproducible multi-table relational evaluation across all **22 official `TPC-H` SQL queries (`tpch_queries()`, `Q01..Q22`)** over 8 Parquet-loaded relational tables (`lineitem`, `orders`, `customer`, `part`, `partsupp`, `supplier`, `nation`, `region`) over real TCP `pgwire` (`psycopg 3.3.9`, Linux `rapl-package` `reported_j`) against `DuckDB 2.0.1` with client `SIGALRM` timeout and `/proc/<pid>/status` `VmRSS` safety guards.
+  - Verified **`22 / 22` (`100%`, `0` errors) exact query matches at `SF = 0.1` (`866,602` rows)** (`Q06: 5.00 ms`, `Q15: 5.65 ms`, `Q01: 62.57 ms`, `Q10: 144.56 ms`, `Q14: 219.56 ms`, `Q13: 245.66 ms`, `Q22: 258.24 ms`; `3 / 22` faster than DuckDB at `SF = 0.01`), and **`13 / 22` exact matches at `SF = 1.0` (`8,661,245` rows, `9.816 s` Parquet load)** (`Q15: 70.83 ms`, `Q01: 84.18 ms`, `Q06: 336.84 ms`, `Q03: 2,871.6 ms`, `Q10: 3,496.5 ms`), candidly documenting `8 / 22` `25 s` wall timeouts (`Q04, Q07–Q09, Q12, Q17, Q18, Q21`) and `1 / 22` `36 GB` RSS guard trip (`Q05`) on unvectorized `Vec<serde_json::Value>` multi-table hash joins.
+- **Decorrelated Subqueries, Semi/Anti-Joins & SQL Dialect Support (`query.rs`, `sql.rs`, `functions.rs`, `columnar_exec.rs`)**:
+  - Added hash semi/anti-joins for correlated `EXISTS` / `NOT EXISTS` (`Q04, Q21, Q22`), correlated scalar `GROUP BY` subquery decorrelation (`Q02, Q17, Q20`), uncorrelated `IN (SELECT ...)` `HashSet` filters (`Q16, Q18, Q20`), `OR`-conjunct join predicate factoring (`Q19`), `col_cache` vectorized projection/filter pushdown for multi-table joins, derived-table column alias lists (`AS c_orders (c_custkey, c_count)`, `Q13`), `DOUBLE PRECISION` & `CHARACTER VARYING` DDL/`CAST`, constant-expression folding in `columnar_exec::literal()` (`Q06`), and ISO date string <-> epoch `Timestamp` coercion in comparisons (`Q14`) and `EXTRACT` / `DATE_TRUNC` (`Q07–Q09`).
+- **Binary `JMVR\x01` `MvccRecord` Codec & Cached `pgwire` Extended Pipeline (`mvcc_adapter.rs`, `pgwire.rs`, `query.rs`)**:
+  - Added compact tag-encoded binary `JMVR\x01` `MvccRecord` serialization (with backward-compatible JSON fallback), cached `PreparedStatement.describe_cols` (`RowDescription` built once at `Parse`), direct `portal.params` parameter binding (bypassing SQL string reconstruction), and thread-local 256-entry LRU SQL AST caching — eliminating the `1.97×` Extended Pipeline penalty (`1,375.67 TPS` Pipelined vs `1,351.57 TPS` Simple at `c=16`, `1,439.95 TPS` Simple at `c=4`, `invariant_verified = true` across all 5 runs).
+
+### Fixed
+- **Full `99,997,497`-Row (`100M`) Official ClickBench Narrowed from `2.82×` to `2.11×` Geomean (`2.03×` `reported_j`, `10M` `VmHWM` Cut `2.63×`)**:
+  - Upgraded `columnar_exec::execute_segmented` (`columnar_exec.rs`, `disk_col_segments.rs`) with `WordMask` (`Vec<u64>`) bitpacked selection vectors, filtered `MIN`/`MAX` fast paths (`Q7`: `10.71× -> 1.04×` vs DuckDB `2.0.1`), `90`-sum SIMD slice batching (`Q30`: `14.26× -> 2.85×`), dictionary `LIKE` bitsets (`Q20`: `6.75× -> 3.54×`), 256-partition parallel hash-reduce (`Q15`: `11.40× -> 4.82×`), and narrower filtered `CASE` grouping (`Q39`: `22.36× -> 14.84×`) — achieving **`2.114×` geomean latency & `2.034×` `reported_j` on all `99,997,497` rows** (`5,901.8 MB` post-load RSS) and cutting `10M`-row peak `VmHWM` from `9,060.4 MB -> 3,448.4 MB`.
+- **Unqualified Equi-Join Right-Column Key Offset & `NULL` Hash-Join Semantics (`query.rs`)**:
+  - Fixed unqualified right-side column resolution in `execute_join` (`idx % join_col_count` over deduplicated `join_rows`) and changed `compute_hash_key` to return `None` on `NULL` join keys per SQL three-valued logic.
+
+### Changed
+- **Expanded `deny(clippy::unwrap_used)` from `7 / 41` Crates to `29 / 41` Crates (`70.7%` of Workspace) — Including `joule-db-server` & `jouledb-cli`**:
+  - Eliminated non-test `.unwrap()` calls across `joule-db-server` (`lib` + `bin`), `jouledb-cli`, `joule-db-amorphic`, `joule-db-hdc`, `joule-db-viz`, and 17 additional engine/transport crates, enforcing `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` across **29 workspace crates** in `.github/workflows/engine.yml`, and bumped all workspace, stub (`crates.io`), `.mcpb`, wheel, SDK, and Helm/Terraform manifests to `0.10.0`.
+
 ## [0.9.0] - 2026-11-26
 
 ### Added

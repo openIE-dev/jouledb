@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # joule-db-odbc
 //!
 //! ODBC 3.x driver for [JouleDB](https://joule-db.dev).

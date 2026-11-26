@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! JouleDB — The Energy-Aware Database
 //!
 //! Single binary: `jouledb`, `jouledb query "SELECT ..."`, `jouledb shell`

@@ -910,6 +910,36 @@ fn literal(e: &Expression) -> Option<Lit> {
         Expression::Literal(AstValue::Int(i)) => Some(Lit::N(Num::I(*i))),
         Expression::Literal(AstValue::Float(f)) => Some(Lit::N(Num::F(*f))),
         Expression::Literal(AstValue::String(s)) => Some(Lit::S(s.clone())),
+        Expression::Literal(AstValue::Timestamp(ts)) => {
+            let (y, m, d, _) = civil_from_days(ts.div_euclid(86_400));
+            Some(Lit::S(format!("{y:04}-{m:02}-{d:02}")))
+        }
+        Expression::Cast { expr, target_type } => {
+            let inner = literal(expr)?;
+            let tt = target_type.to_ascii_uppercase();
+            if matches!(
+                tt.as_str(),
+                "DATE" | "TIMESTAMP" | "TEXT" | "VARCHAR" | "CHAR" | "STRING"
+            ) {
+                Some(inner)
+            } else if tt.starts_with("DECIMAL")
+                || tt.starts_with("NUMERIC")
+                || matches!(tt.as_str(), "FLOAT" | "DOUBLE" | "REAL")
+            {
+                match inner {
+                    Lit::N(n) => Some(Lit::N(n)),
+                    Lit::S(s) => s.parse::<f64>().ok().map(|f| Lit::N(Num::F(f))),
+                }
+            } else if matches!(tt.as_str(), "INT" | "INTEGER" | "BIGINT" | "SMALLINT") {
+                match inner {
+                    Lit::N(Num::I(i)) => Some(Lit::N(Num::I(i))),
+                    Lit::S(s) => s.parse::<i64>().ok().map(|i| Lit::N(Num::I(i))),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
         Expression::Unary {
             op: UnaryOperator::Neg,
             expr,
@@ -918,6 +948,47 @@ fn literal(e: &Expression) -> Option<Lit> {
             Lit::N(Num::F(f)) => Some(Lit::N(Num::F(-f))),
             Lit::S(_) => None,
         },
+        Expression::Binary { left, op, right } => {
+            if let (
+                Expression::Literal(AstValue::Timestamp(ts)),
+                Expression::Literal(AstValue::Int(sec)),
+            ) = (left.as_ref(), right.as_ref())
+            {
+                let ts2 = match op {
+                    Operator::Add => ts.checked_add(*sec)?,
+                    Operator::Sub => ts.checked_sub(*sec)?,
+                    _ => return None,
+                };
+                let (y, m, d, _) = civil_from_days(ts2.div_euclid(86_400));
+                return Some(Lit::S(format!("{y:04}-{m:02}-{d:02}")));
+            }
+            let (Lit::N(nl), Lit::N(nr)) = (literal(left)?, literal(right)?) else {
+                return None;
+            };
+            if let (Num::I(a), Num::I(b)) = (nl, nr) {
+                match op {
+                    Operator::Add => return Some(Lit::N(Num::I(a.checked_add(b)?))),
+                    Operator::Sub => return Some(Lit::N(Num::I(a.checked_sub(b)?))),
+                    Operator::Mul => return Some(Lit::N(Num::I(a.checked_mul(b)?))),
+                    _ => {}
+                }
+            }
+            let af = match nl {
+                Num::I(i) => i as f64,
+                Num::F(f) => f,
+            };
+            let bf = match nr {
+                Num::I(i) => i as f64,
+                Num::F(f) => f,
+            };
+            match op {
+                Operator::Add => Some(Lit::N(Num::F(af + bf))),
+                Operator::Sub => Some(Lit::N(Num::F(af - bf))),
+                Operator::Mul => Some(Lit::N(Num::F(af * bf))),
+                Operator::Div if bf != 0.0 => Some(Lit::N(Num::F(af / bf))),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -1042,6 +1113,61 @@ fn cmp_ok(o: Ordering, op: &Operator) -> bool {
 }
 
 /// Precompiled predicate: resolves column references and dictionary bitmaps ONCE
+/// (no `_` or inner `%`), avoiding general wildcard backtracking per dictionary entry.
+#[inline]
+fn fast_like_literal_needle(pattern: &str, ci: bool) -> Option<&[u8]> {
+    let b = pattern.as_bytes();
+    if b.len() < 2 || b[0] != b'%' || b[b.len() - 1] != b'%' {
+        return None;
+    }
+    let inner = &b[1..b.len() - 1];
+    if inner.iter().any(|&c| c == b'%' || c == b'_') {
+        return None;
+    }
+    if ci && !inner.is_ascii() {
+        return None;
+    }
+    Some(inner)
+}
+
+#[inline]
+fn fast_bytes_contains(hay: &[u8], needle: &[u8], ci: bool) -> bool {
+    let n = needle.len();
+    if n == 0 {
+        return true;
+    }
+    if hay.len() < n {
+        return false;
+    }
+    if !ci {
+        let first = needle[0];
+        let last = needle[n - 1];
+        let end = hay.len() - n;
+        let mut i = 0usize;
+        while i <= end {
+            if hay[i] == first && hay[i + n - 1] == last && &hay[i..i + n] == needle {
+                return true;
+            }
+            i += 1;
+        }
+        false
+    } else {
+        let f_lo = needle[0].to_ascii_lowercase();
+        let l_lo = needle[n - 1].to_ascii_lowercase();
+        let end = hay.len() - n;
+        let mut i = 0usize;
+        while i <= end {
+            if hay[i].to_ascii_lowercase() == f_lo
+                && hay[i + n - 1].to_ascii_lowercase() == l_lo
+                && hay[i..i + n].eq_ignore_ascii_case(needle)
+            {
+                return true;
+            }
+            i += 1;
+        }
+        false
+    }
+}
 /// before parallel morsel/zone execution.
 enum PrepPred<'a> {
     IntCmp {
@@ -1256,7 +1382,17 @@ fn prepare_preds<'a>(t: &'a TableColumns, preds: &[Pred<'a>]) -> Option<Vec<Prep
             } => match t.cols.get(*col)? {
                 Col::Text(codes, dict) => {
                     let (pat, neg, ci) = (*pattern, *negated, *ci);
-                    let ok: Vec<bool> = if dict.len() >= 2048 {
+                    let ok: Vec<bool> = if let Some(needle) = fast_like_literal_needle(pat, ci) {
+                        if dict.len() >= 2048 {
+                            dict.par_iter()
+                                .map(|d| fast_bytes_contains(d.as_bytes(), needle, ci) != neg)
+                                .collect()
+                        } else {
+                            dict.iter()
+                                .map(|d| fast_bytes_contains(d.as_bytes(), needle, ci) != neg)
+                                .collect()
+                        }
+                    } else if dict.len() >= 2048 {
                         dict.par_iter()
                             .map(|d| joule_db_query::like::like(d, pat, ci) != neg)
                             .collect()
@@ -1508,6 +1644,14 @@ enum ArithOp {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+enum FloatOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ExtractPart {
     Year,
     Month,
@@ -1575,6 +1719,17 @@ enum VCol<'a> {
         else_leaf: TextLeaf<'a>,
         lit_dict: Vec<Arc<str>>,
     },
+    /// Composable vectorized `f64` arithmetic (`l_extendedprice * (1 - l_discount) * (1 + l_tax)`).
+    FloatArith {
+        lhs: Box<VCol<'a>>,
+        op: FloatOp,
+        rhs: Box<VCol<'a>>,
+    },
+    /// `EXTRACT(YEAR|MONTH|DAY FROM iso_date_text_col)` precomputed per dictionary entry.
+    DictExtractInt {
+        codes: &'a [u32],
+        vals: Vec<Option<i64>>,
+    },
 }
 
 #[inline]
@@ -1627,11 +1782,16 @@ impl<'a> VCol<'a> {
                 | VCol::ExtractInt { .. }
                 | VCol::DateTruncInt { .. }
                 | VCol::DictStrLen { .. }
+                | VCol::DictExtractInt { .. }
         )
     }
 
     fn is_numeric(&self) -> bool {
-        self.is_int_like() || matches!(self, VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_))
+        self.is_int_like()
+            || matches!(
+                self,
+                VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_) | VCol::FloatArith { .. }
+            )
     }
 
     fn is_text_like(&self) -> bool {
@@ -1653,11 +1813,16 @@ impl<'a> VCol<'a> {
             | VCol::ExtractInt { nulls, .. }
             | VCol::DateTruncInt { nulls, .. } => nl(nulls, i),
             VCol::DictStrLen { codes, .. } => codes[i] == NULL_CODE,
+            VCol::DictExtractInt { codes, vals } => {
+                let c = codes[i];
+                c == NULL_CODE || vals[c as usize].is_none()
+            }
             VCol::DictRemap { codes, remap, .. } => {
                 let c = codes[i];
                 c == NULL_CODE || remap[c as usize] == NULL_CODE
             }
             VCol::CaseText { .. } => matches!(self.sv_at(i), Sv::Null),
+            VCol::FloatArith { .. } => self.float_at(i).is_none(),
         }
     }
 
@@ -1692,6 +1857,14 @@ impl<'a> VCol<'a> {
                 let c = codes[i];
                 (c != NULL_CODE).then(|| lens[c as usize] as i64)
             }
+            VCol::DictExtractInt { codes, vals } => {
+                let c = codes[i];
+                if c == NULL_CODE {
+                    None
+                } else {
+                    vals[c as usize]
+                }
+            }
             _ => None,
         }
     }
@@ -1701,6 +1874,16 @@ impl<'a> VCol<'a> {
         match self {
             VCol::Phys(Col::Float(v, nulls)) => (!nl(nulls, i)).then(|| v[i]),
             VCol::ConstFloat(f) => Some(*f),
+            VCol::FloatArith { lhs, op, rhs } => {
+                let a = lhs.float_at(i)?;
+                let b = rhs.float_at(i)?;
+                match op {
+                    FloatOp::Add => Some(a + b),
+                    FloatOp::Sub => Some(a - b),
+                    FloatOp::Mul => Some(a * b),
+                    FloatOp::Div => (b != 0.0).then(|| a / b),
+                }
+            }
             _ => self.int_at(i).map(|x| x as f64),
         }
     }
@@ -1805,8 +1988,13 @@ impl<'a> VCol<'a> {
             VCol::IntArith { .. }
             | VCol::ExtractInt { .. }
             | VCol::DateTruncInt { .. }
-            | VCol::DictStrLen { .. } => match self.int_at(i) {
+            | VCol::DictStrLen { .. }
+            | VCol::DictExtractInt { .. } => match self.int_at(i) {
                 Some(v) => (v as u64, false),
+                None => (u64::MAX, true),
+            },
+            VCol::FloatArith { .. } => match self.float_at(i) {
+                Some(f) => (if f == 0.0 { 0u64 } else { f.to_bits() }, false),
                 None => (u64::MAX, true),
             },
             VCol::DictRemap { codes, remap, .. } => {
@@ -1852,8 +2040,10 @@ impl<'a> VCol<'a> {
         if let Some(x) = self.int_at(i) {
             return Sv::I(x);
         }
-        if matches!(self, VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_))
-            && let Some(f) = self.float_at(i)
+        if matches!(
+            self,
+            VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_) | VCol::FloatArith { .. }
+        ) && let Some(f) = self.float_at(i)
         {
             return Sv::F(f);
         }
@@ -1885,38 +2075,75 @@ fn build_vcol<'a>(t: &'a TableColumns, e: &'a Expression) -> Option<VCol<'a>> {
             VCol::ConstFloat(f) => Some(VCol::ConstFloat(-f)),
             _ => None,
         },
+        Expression::Cast { expr, target_type } => {
+            let tt = target_type.to_ascii_uppercase();
+            if matches!(
+                tt.as_str(),
+                "DATE" | "TIMESTAMP" | "TEXT" | "VARCHAR" | "CHAR" | "STRING"
+            ) {
+                build_vcol(t, expr)
+            } else if tt.starts_with("DECIMAL")
+                || tt.starts_with("NUMERIC")
+                || matches!(tt.as_str(), "FLOAT" | "DOUBLE" | "REAL")
+            {
+                let inner = build_vcol(t, expr)?;
+                if inner.is_numeric() {
+                    Some(inner)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
         Expression::Binary { left, op, right } => {
             let arith = match op {
-                Operator::Add => ArithOp::Add,
-                Operator::Sub => ArithOp::Sub,
-                Operator::Mul => ArithOp::Mul,
+                Operator::Add => Some(ArithOp::Add),
+                Operator::Sub => Some(ArithOp::Sub),
+                Operator::Mul => Some(ArithOp::Mul),
+                _ => None,
+            };
+            if let Some(arith) = arith {
+                if let (Some(c), Some(Lit::N(Num::I(rhs)))) = (column(left), literal(right))
+                    && let Some(Col::Int(ints, nulls)) = t.cols.get(c)
+                {
+                    return Some(VCol::IntArith {
+                        ints,
+                        nulls,
+                        op: arith,
+                        rhs,
+                    });
+                }
+                if matches!(arith, ArithOp::Add | ArithOp::Mul)
+                    && let (Some(Lit::N(Num::I(lhs))), Some(c)) = (literal(left), column(right))
+                    && let Some(Col::Int(ints, nulls)) = t.cols.get(c)
+                {
+                    return Some(VCol::IntArith {
+                        ints,
+                        nulls,
+                        op: arith,
+                        rhs: lhs,
+                    });
+                }
+            }
+            let fop = match op {
+                Operator::Add => FloatOp::Add,
+                Operator::Sub => FloatOp::Sub,
+                Operator::Mul => FloatOp::Mul,
+                Operator::Div => FloatOp::Div,
                 _ => return None,
             };
-            if let (Some(c), Some(Lit::N(Num::I(rhs)))) = (column(left), literal(right)) {
-                let Col::Int(ints, nulls) = t.cols.get(c)? else {
-                    return None;
-                };
-                return Some(VCol::IntArith {
-                    ints,
-                    nulls,
-                    op: arith,
-                    rhs,
-                });
+            let lv = build_vcol(t, left)?;
+            let rv = build_vcol(t, right)?;
+            if lv.is_numeric() && rv.is_numeric() {
+                Some(VCol::FloatArith {
+                    lhs: Box::new(lv),
+                    op: fop,
+                    rhs: Box::new(rv),
+                })
+            } else {
+                None
             }
-            if matches!(arith, ArithOp::Add | ArithOp::Mul)
-                && let (Some(Lit::N(Num::I(lhs))), Some(c)) = (literal(left), column(right))
-            {
-                let Col::Int(ints, nulls) = t.cols.get(c)? else {
-                    return None;
-                };
-                return Some(VCol::IntArith {
-                    ints,
-                    nulls,
-                    op: arith,
-                    rhs: lhs,
-                });
-            }
-            None
         }
         Expression::Function { name, args } => {
             let upper = name.to_ascii_uppercase();
@@ -1937,10 +2164,21 @@ fn build_vcol<'a>(t: &'a TableColumns, e: &'a Expression) -> Option<VCol<'a>> {
                         "EPOCH" => ExtractPart::Epoch,
                         _ => return None,
                     };
-                    let Col::Int(ints, nulls) = t.cols.get(column(&args[1])?)? else {
-                        return None;
-                    };
-                    Some(VCol::ExtractInt { ints, nulls, part })
+                    match t.cols.get(column(&args[1])?)? {
+                        Col::Int(ints, nulls) => Some(VCol::ExtractInt { ints, nulls, part }),
+                        Col::Text(codes, dict) => {
+                            let vals: Vec<Option<i64>> = dict
+                                .iter()
+                                .map(|d| {
+                                    let secs = parse_iso_timestamp_secs(d)
+                                        .or_else(|| parse_iso_date_days(d).map(|days| days * 86_400))?;
+                                    Some(extract_epoch(secs, part))
+                                })
+                                .collect();
+                            Some(VCol::DictExtractInt { codes, vals })
+                        }
+                        _ => None,
+                    }
                 }
                 "DATE_TRUNC" if args.len() == 2 => {
                     let Expression::Literal(AstValue::String(p)) = &args[0] else {
@@ -3211,6 +3449,27 @@ fn aggregate<'a>(
                             }
                             if a.max.is_none_or(|m| num_lt(m, Num::F(x))) {
                                 a.max = Some(Num::F(x));
+                            }
+                        }
+                    }
+                }
+                (
+                    AggKind::Sum | AggKind::Avg | AggKind::Min | AggKind::Max,
+                    Some(vc),
+                ) if vc.is_numeric() => {
+                    let want_mm = matches!(ag.kind, AggKind::Min | AggKind::Max);
+                    for (k, r) in rows().enumerate() {
+                        if let Some(x) = vc.float_at(r as usize) {
+                            let a = &mut accs[g(k) * nagg + oi];
+                            a.count += 1;
+                            neumaier(&mut a.fsum, &mut a.fcomp, x);
+                            if want_mm {
+                                if a.min.is_none_or(|m| num_lt(Num::F(x), m)) {
+                                    a.min = Some(Num::F(x));
+                                }
+                                if a.max.is_none_or(|m| num_lt(m, Num::F(x))) {
+                                    a.max = Some(Num::F(x));
+                                }
                             }
                         }
                     }
@@ -4671,7 +4930,10 @@ fn row_canonical_hash(vcols: &[VCol], ri: usize) -> u64 {
                 Some(v) => mix64((v as u64) ^ 0x517cc1b727220a95),
                 None => 0x9e3779b97f4a7c15,
             }
-        } else if matches!(vc, VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_)) {
+        } else if matches!(
+            vc,
+            VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_) | VCol::FloatArith { .. }
+        ) {
             match vc.float_at(ri) {
                 Some(f) => {
                     let bits = if f == 0.0 { 0u64 } else { f.to_bits() };
@@ -4743,7 +5005,10 @@ fn build_gkey(shape: GKeyShape, vcols: &[VCol], ri: usize) -> GKey {
                 .map(|vc| {
                     if vc.is_int_like() {
                         vc.int_at(ri).map_or(GVal::Null, GVal::I)
-                    } else if matches!(vc, VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_)) {
+                    } else if matches!(
+                        vc,
+                        VCol::Phys(Col::Float(..)) | VCol::ConstFloat(_) | VCol::FloatArith { .. }
+                    ) {
                         vc.float_at(ri).map_or(GVal::Null, |f| {
                             GVal::F(if f == 0.0 { 0u64 } else { f.to_bits() })
                         })
@@ -5093,7 +5358,7 @@ fn execute_scan_segmented(
         .collect();
 
     let winners: Vec<(usize, u32)> = if order_exprs.is_empty() {
-        if take.is_none() && active_segs.len() > 1 {
+        if (take.is_none() || take.is_some_and(|tk| tk >= dt.total_rows)) && active_segs.len() > 1 {
             let seg_matches: Vec<Vec<(usize, u32)>> = active_segs
                 .par_iter()
                 .map(|&si| -> Option<Vec<(usize, u32)>> {
@@ -5177,7 +5442,9 @@ fn execute_scan_segmented(
         }
 
         let kth_bound = std::sync::atomic::AtomicI64::new(i64::MAX);
+        let ord_col_name: Option<&str> = asc_int_ord_ci.map(|ci| dt.col_order[ci].as_str());
         let eval_one_top_seg = |si: usize| -> Option<Vec<(Vec<Sv>, usize, u32)>> {
+            let mut pre_ord_cands: Option<Vec<u32>> = None;
             if let Some(ci) = asc_int_ord_ci {
                 let cur_b = kth_bound.load(std::sync::atomic::Ordering::Relaxed);
                 if cur_b < i64::MAX {
@@ -5188,18 +5455,73 @@ fn execute_scan_segmented(
                     {
                         return Some(Vec::new());
                     }
+                    // Order-column-first row pruning (`Q23, Q24, Q26`): load ONLY the 1-8 MB
+                    // integer `order_col` (`EventTime`) BEFORE reading 25+ MB text `WHERE` columns
+                    // (`URL`, `SearchPhrase`). If 0 rows have `order_col <= cur_b`, skip the
+                    // heavyweight text columns completely; otherwise sparsely decode ONLY the
+                    // candidate rows!
+                    if let Some(ocn) = ord_col_name
+                        && where_cols.iter().any(|&wc| wc != ocn)
+                    {
+                        let ord_tc = dt.load_segment_columns(si, &[ocn]).ok()?;
+                        if let Some(Col::Int(ints, nulls)) = ord_tc.cols.get(ocn) {
+                            let mut cands = Vec::new();
+                            if nulls.is_empty() {
+                                for r in 0..ord_tc.len {
+                                    if ints.at(r) <= cur_b {
+                                        cands.push(r as u32);
+                                    }
+                                }
+                            } else {
+                                for r in 0..ord_tc.len {
+                                    if nulls[r] || ints.at(r) <= cur_b {
+                                        cands.push(r as u32);
+                                    }
+                                }
+                            }
+                            if cands.is_empty() {
+                                return Some(Vec::new());
+                            }
+                            pre_ord_cands = Some(cands);
+                        }
+                    }
                 }
             }
-            let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
-            let sel = eval_segment_where(&seg_tc, raw_preds)?;
-            if let Some(ref v) = sel
-                && v.is_empty()
-            {
-                return Some(Vec::new());
-            }
-            if !order_only_cols.is_empty() {
-                dt.load_columns_into(si, &order_only_cols, &mut seg_tc).ok()?;
-            }
+            let (mut seg_tc, sel) = if let Some(ord_cands) = pre_ord_cands {
+                let mut tc = dt
+                    .load_segment_columns_selected(si, &where_cols, Some(&ord_cands))
+                    .ok()?;
+                let preds = prepare_preds(&tc, raw_preds)?;
+                let mut filtered = Vec::with_capacity(ord_cands.len().min(256));
+                for &r in &ord_cands {
+                    let ri = r as usize;
+                    if preds.iter().all(|p| eval_prep_pred_row(p, ri)) {
+                        filtered.push(r);
+                    }
+                }
+                if filtered.is_empty() {
+                    return Some(Vec::new());
+                }
+                if !order_only_cols.is_empty() {
+                    dt.load_columns_into_selected(si, &order_only_cols, Some(&filtered), &mut tc)
+                        .ok()?;
+                }
+                (tc, Some(filtered))
+            } else {
+                let mut tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                let sel = eval_segment_where(&tc, raw_preds)?;
+                if let Some(ref v) = sel
+                    && v.is_empty()
+                {
+                    return Some(Vec::new());
+                }
+                if !order_only_cols.is_empty() {
+                    dt.load_columns_into_selected(si, &order_only_cols, sel.as_deref(), &mut tc)
+                        .ok()?;
+                }
+                (tc, sel)
+            };
+            let _ = &mut seg_tc;
             let o_vcols: Vec<(VCol, bool, Option<bool>)> = order_exprs
                 .iter()
                 .map(|(e, d, nf)| Some((build_vcol(&seg_tc, e)?, *d, *nf)))
@@ -5294,7 +5616,7 @@ fn execute_scan_segmented(
         };
 
         let seed_n = if asc_int_ord_ci.is_some() && ordered_segs.len() > 2 {
-            2usize
+            4usize.min(ordered_segs.len())
         } else {
             0usize
         };
@@ -5400,13 +5722,20 @@ fn execute_scan_segmented(
         proj_col_set.iter().map(String::as_str).collect()
     };
 
-    // Group winning rows by segment so each touched segment is loaded at most once
-    let mut touched_segs: Vec<usize> = final_slice.iter().map(|&(si, _)| si).collect();
-    touched_segs.sort_unstable();
-    touched_segs.dedup();
-    let mut loaded_segs: HashMap<usize, TableColumns> = HashMap::with_capacity(touched_segs.len());
-    for si in touched_segs {
-        loaded_segs.insert(si, dt.load_segment_columns(si, &proj_cols).ok()?);
+    // Group winning rows by segment and sparsely decode only winning row codes (`SELECT *` in `Q23`!)
+    let mut seg_row_map: HashMap<usize, Vec<u32>> = HashMap::new();
+    for &(si, ri) in final_slice {
+        seg_row_map.entry(si).or_default().push(ri);
+    }
+    let mut loaded_segs: HashMap<usize, TableColumns> = HashMap::with_capacity(seg_row_map.len());
+    for (si, mut ris) in seg_row_map {
+        ris.sort_unstable();
+        ris.dedup();
+        loaded_segs.insert(
+            si,
+            dt.load_segment_columns_selected(si, &proj_cols, Some(&ris))
+                .ok()?,
+        );
     }
 
     let mut rows = Vec::with_capacity(final_slice.len());
@@ -5698,6 +6027,30 @@ pub fn execute_segmented(
     // Fast Path 2: `SELECT COUNT(*) FROM t WHERE ...` (`Q1`, `Q20`)
     // ------------------------------------------------------------------------
     if group_exprs.is_empty() && agg_defs.iter().all(|(_, k, _, _, _)| *k == AggKind::CountStar) {
+        // Zero-`Arc<str>` RawTextSlice `COUNT(*)` for single-column text `LIKE` / `=` / `<>` (`Q20`)
+        let single_raw_text_pred = if raw_preds.len() == 1 {
+            match &raw_preds[0] {
+                Pred::Like {
+                    col,
+                    pattern,
+                    negated,
+                    ci,
+                } if matches!(proto_tc.cols.get(*col), Some(Col::Text(..))) => {
+                    Some((*col, None, Some((*pattern, *negated, *ci))))
+                }
+                Pred::Cmp {
+                    col,
+                    op: op @ (Operator::Eq | Operator::Ne),
+                    lit: Lit::S(s),
+                } if matches!(proto_tc.cols.get(*col), Some(Col::Text(..))) => {
+                    Some((*col, Some((*op, s.as_bytes())), None))
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         let total: Option<u64> = (0..dt.segments.len())
             .into_par_iter()
             .map(|si| -> Option<u64> {
@@ -5705,6 +6058,69 @@ pub fn execute_segmented(
                     SegVerdict::Skip => Some(0),
                     SegVerdict::AllMatch => Some(dt.segments[si].len as u64),
                     SegVerdict::Maybe => {
+                        if let Some((tcol, eq_spec, like_spec)) = single_raw_text_pred
+                            && let Ok(Some(ts)) = dt.read_raw_text_slice(si, tcol)
+                        {
+                            if ts.dict_len == 0 {
+                                return Some(0);
+                            }
+                            let ok: Vec<bool> = if let Some((op, lit_b)) = eq_spec {
+                                let is_eq = op == Operator::Eq;
+                                (0..ts.dict_len)
+                                    .map(|di| (ts.dict_bytes(di) == lit_b) == is_eq)
+                                    .collect()
+                            } else if let Some((pat, neg, ci)) = like_spec {
+                                if let Some(needle) = fast_like_literal_needle(pat, ci) {
+                                    (0..ts.dict_len)
+                                        .map(|di| {
+                                            fast_bytes_contains(ts.dict_bytes(di), needle, ci)
+                                                != neg
+                                        })
+                                        .collect()
+                                } else {
+                                    (0..ts.dict_len)
+                                        .map(|di| {
+                                            let s =
+                                                std::str::from_utf8(ts.dict_bytes(di)).unwrap_or("");
+                                            joule_db_query::like::like(s, pat, ci) != neg
+                                        })
+                                        .collect()
+                                }
+                            } else {
+                                Vec::new()
+                            };
+                            if !ok.iter().any(|&b| b) {
+                                return Some(0);
+                            }
+                            let codes_raw = &ts.raw[ts.codes_off..];
+                            let mut cnt = 0u64;
+                            match ts.code_width {
+                                1 => {
+                                    for &b in &codes_raw[..ts.seg_len] {
+                                        if b != 0xFF && ok[b as usize] {
+                                            cnt += 1;
+                                        }
+                                    }
+                                }
+                                2 => {
+                                    for ch in codes_raw[..ts.seg_len * 2].chunks_exact(2) {
+                                        let u = u16::from_le_bytes([ch[0], ch[1]]);
+                                        if u != 0xFFFF && ok[u as usize] {
+                                            cnt += 1;
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    for ch in codes_raw[..ts.seg_len * 4].chunks_exact(4) {
+                                        let u = u32::from_le_bytes([ch[0], ch[1], ch[2], ch[3]]);
+                                        if u != NULL_CODE && ok[u as usize] {
+                                            cnt += 1;
+                                        }
+                                    }
+                                }
+                            }
+                            return Some(cnt);
+                        }
                         let seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
                         let preds = prepare_preds(&seg_tc, &raw_preds)?;
                         Some(count_where(&seg_tc, &preds))
@@ -5841,7 +6257,8 @@ pub fn execute_segmented(
                     return Some((0..nagg).map(|_| Acc::default()).collect());
                 }
                 if !rest_cols.is_empty() {
-                    dt.load_columns_into(si, &rest_cols, &mut seg_tc).ok()?;
+                    dt.load_columns_into_selected(si, &rest_cols, sel.as_deref(), &mut seg_tc)
+                        .ok()?;
                 }
                 let specs: Vec<(AggKind, Option<VCol>, i64)> = agg_defs
                     .iter()
@@ -6164,7 +6581,8 @@ pub fn execute_segmented(
             return Some((0, Vec::new()));
         }
         if !rest_cols.is_empty() {
-            dt.load_columns_into(si, &rest_cols, &mut seg_tc).ok()?;
+            dt.load_columns_into_selected(si, &rest_cols, sel.as_deref(), &mut seg_tc)
+                .ok()?;
         }
         let key_vcols: Vec<VCol> = key_exprs
             .iter()
@@ -6599,6 +7017,180 @@ pub fn execute_segmented(
         }
     }
 
+    // Ultra-Fast Small-Domain Integer `GROUP BY` Array (`Q7: AdvEngineID` `0..255`):
+    // Direct flat-array aggregation per segment with zero hashing!
+    if matches!(gkey_shape, GKeyShape::I1)
+        && !agg_defs
+            .iter()
+            .any(|(_, k, _, _, _)| *k == AggKind::CountDistinct)
+        && let Some(kcol_name) = column(key_exprs[0])
+        && let Some((_, _, Some(lo_i), Some(hi_i), _, _)) = dt.global_col_summary(kcol_name)
+        && hi_i >= lo_i
+        && (hi_i as i128 - lo_i as i128) <= 4_096
+    {
+        let span = (hi_i - lo_i + 1) as usize;
+        let nslots = span + 1; // last slot = NULL
+        let seg_tables: Option<Vec<Vec<(u64, u64, Vec<Acc>)>>> = active_segs
+            .par_iter()
+            .map(|&si| -> Option<Vec<(u64, u64, Vec<Acc>)>> {
+                let mut seg_tc = dt.load_segment_columns(si, &where_cols).ok()?;
+                let sel = eval_segment_where(&seg_tc, &raw_preds)?;
+                if let Some(ref v) = sel
+                    && v.is_empty()
+                {
+                    return Some(Vec::new());
+                }
+                if !rest_cols.is_empty() {
+                    dt.load_columns_into_selected(si, &rest_cols, sel.as_deref(), &mut seg_tc)
+                        .ok()?;
+                }
+                let kvc = build_vcol(&seg_tc, key_exprs[0])?;
+                let seg_aggs: Vec<(AggKind, Option<VCol>)> = agg_defs
+                    .iter()
+                    .map(|(ae, _, _, _, _)| {
+                        let (k, vc, _, _) = parse_agg_expr(&seg_tc, ae)?;
+                        Some((k, vc))
+                    })
+                    .collect::<Option<_>>()?;
+                let seg_base_ord = (si as u64) << 32;
+                let mut slots: Vec<(u64, u64, Vec<Acc>)> = (0..nslots)
+                    .map(|_| {
+                        (
+                            u64::MAX,
+                            0u64,
+                            if count_star_only {
+                                Vec::new()
+                            } else {
+                                (0..nagg).map(|_| Acc::default()).collect()
+                            },
+                        )
+                    })
+                    .collect();
+                let mut visit = |ri: usize| {
+                    let slot = match kvc.int_at(ri) {
+                        Some(v) => (v - lo_i) as usize,
+                        None => span,
+                    };
+                    let entry = &mut slots[slot];
+                    let ord = seg_base_ord | (ri as u64);
+                    if ord < entry.0 {
+                        entry.0 = ord;
+                    }
+                    if count_star_only {
+                        entry.1 += 1;
+                    } else {
+                        for (j, &(kind, ref vc_opt)) in seg_aggs.iter().enumerate() {
+                            update_acc_row(&mut entry.2[j], kind, vc_opt.as_ref(), ri);
+                        }
+                        entry.1 += 1;
+                    }
+                };
+                match &sel {
+                    None => {
+                        for ri in 0..seg_tc.len {
+                            visit(ri);
+                        }
+                    }
+                    Some(rows) => {
+                        for &r in rows {
+                            visit(r as usize);
+                        }
+                    }
+                }
+                Some(slots)
+            })
+            .collect();
+
+        if let Some(seg_tables) = seg_tables {
+            let mut merged: Vec<(u64, u64, Vec<Acc>)> = (0..nslots)
+                .map(|_| {
+                    (
+                        u64::MAX,
+                        0u64,
+                        if count_star_only {
+                            Vec::new()
+                        } else {
+                            (0..nagg).map(|_| Acc::default()).collect()
+                        },
+                    )
+                })
+                .collect();
+            for st in seg_tables {
+                if st.is_empty() {
+                    continue;
+                }
+                for (slot, (ord, cnt, accs)) in st.into_iter().enumerate() {
+                    if ord == u64::MAX {
+                        continue;
+                    }
+                    let dst = &mut merged[slot];
+                    dst.0 = dst.0.min(ord);
+                    dst.1 += cnt;
+                    if !count_star_only {
+                        for (a, b) in dst.2.iter_mut().zip(&accs) {
+                            a.merge(b);
+                        }
+                    }
+                }
+            }
+            let mut cands: Vec<(Vec<Sv>, u64)> = Vec::new();
+            for (slot, (ord, cnt, accs)) in merged.into_iter().enumerate() {
+                if ord == u64::MAX {
+                    continue;
+                }
+                let gk = if slot == span {
+                    GKey::I1(0, true)
+                } else {
+                    GKey::I1(lo_i + slot as i64, false)
+                };
+                if let Some(svs) = eval_and_render_group(&gk, cnt, &accs) {
+                    cands.push((svs, ord));
+                }
+            }
+            let cmp_cand = |a: &(Vec<Sv>, u64), b: &(Vec<Sv>, u64)| -> Ordering {
+                for &(i, desc, nulls_first) in &order {
+                    let (x, y) = (&a.0[i], &b.0[i]);
+                    let nf = nulls_first.unwrap_or(desc);
+                    let o = match (x.is_null(), y.is_null()) {
+                        (true, true) => Ordering::Equal,
+                        (true, false) => {
+                            if nf {
+                                Ordering::Less
+                            } else {
+                                Ordering::Greater
+                            }
+                        }
+                        (false, true) => {
+                            if nf {
+                                Ordering::Greater
+                            } else {
+                                Ordering::Less
+                            }
+                        }
+                        (false, false) => {
+                            let ord = x.cmp_val(y);
+                            if desc { ord.reverse() } else { ord }
+                        }
+                    };
+                    if o != Ordering::Equal {
+                        return o;
+                    }
+                }
+                a.1.cmp(&b.1)
+            };
+            cands.sort_unstable_by(cmp_cand);
+            let end = take.unwrap_or(usize::MAX).min(cands.len());
+            let rows = cands[off.min(end)..end]
+                .iter()
+                .map(|(svs, _)| svs[..visible_no].iter().map(Sv::json).collect())
+                .collect();
+            return Some(VecResult {
+                columns: names,
+                rows,
+            });
+        }
+    }
+
     // Probe first non-empty segment to gauge cardinality
     let mut probe_seg_idx = 0usize;
     let mut seg0_groups = 0usize;
@@ -6710,7 +7302,7 @@ pub fn execute_segmented(
         });
     let use_compact_i2 = matches!(gkey_shape, GKeyShape::I1 | GKeyShape::I2)
         && all_compact_int_aggs
-        && ((active_rows > 20_000_000 && seg0_groups > 32_768)
+        && ((active_rows > 5_000_000 && seg0_groups > 512)
             || (cfg!(test) && dt.segments.len() >= 2));
 
     if use_compact_i2 {
@@ -6743,7 +7335,8 @@ pub fn execute_segmented(
                     return Some(());
                 }
                 if !rest_cols.is_empty() {
-                    dt.load_columns_into(si, &rest_cols, &mut seg_tc).ok()?;
+                    dt.load_columns_into_selected(si, &rest_cols, sel.as_deref(), &mut seg_tc)
+                        .ok()?;
                 }
                 let key_vcols: Vec<VCol> = key_exprs
                     .iter()
@@ -6819,9 +7412,36 @@ pub fn execute_segmented(
                 }
 
                 for (b, mut bin) in local_bins.into_iter().enumerate() {
-                    if !bin.is_empty()
-                        && let Ok(mut g) = parts[b].lock()
-                    {
+                    if bin.is_empty() {
+                        continue;
+                    }
+                    // Pre-reduce repeated keys inside the segment worker when `COUNT(*)`-only (`Q15`)
+                    // or medium cardinality (`Q30`) so cross-thread `parts[b]` locks and final sort
+                    // move significantly fewer tuples!
+                    if count_star_only && bin.len() > 64 {
+                        bin.sort_unstable_by(|a, b| {
+                            (a.key_null_mask, a.k0, a.k1, a.ord)
+                                .cmp(&(b.key_null_mask, b.k0, b.k1, b.ord))
+                        });
+                        let mut w = 0usize;
+                        let mut i = 0usize;
+                        while i < bin.len() {
+                            let mut cur = bin[i];
+                            i += 1;
+                            while i < bin.len()
+                                && bin[i].key_null_mask == cur.key_null_mask
+                                && bin[i].k0 == cur.k0
+                                && bin[i].k1 == cur.k1
+                            {
+                                cur.cnt_star += bin[i].cnt_star;
+                                i += 1;
+                            }
+                            bin[w] = cur;
+                            w += 1;
+                        }
+                        bin.truncate(w);
+                    }
+                    if let Ok(mut g) = parts[b].lock() {
                         g.append(&mut bin);
                     }
                 }

@@ -642,7 +642,7 @@ pub unsafe extern "C" fn SQLExecDirect(
     // borrows from the store simultaneously.
     let (stream_ptr, request_id) = match store.get_mut(conn_key) {
         Some(Handle::Dbc(conn)) => {
-            if !conn.connected || conn.stream.is_none() {
+            if !conn.connected {
                 // Connection not open — store diag on connection handle,
                 // then return error.
                 conn.diagnostics.push(DiagRecord::sequence_error(
@@ -651,10 +651,16 @@ pub unsafe extern "C" fn SQLExecDirect(
                 return SQL_ERROR;
             }
             let rid = conn.alloc_request_id();
+            let Some(s) = conn.stream.as_mut() else {
+                conn.diagnostics.push(DiagRecord::sequence_error(
+                    "not connected — call SQLConnect first",
+                ));
+                return SQL_ERROR;
+            };
             // SAFETY: We take a raw pointer to the stream. The stream lives
             // inside the global store which is locked for the duration of
             // this function. We will not move or drop the stream.
-            let ptr = conn.stream.as_mut().unwrap() as *mut std::net::TcpStream;
+            let ptr = s as *mut std::net::TcpStream;
             (ptr, rid)
         }
         _ => return SQL_INVALID_HANDLE,

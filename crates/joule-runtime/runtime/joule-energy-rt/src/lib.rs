@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 // Energy measurement code has legitimate patterns that trigger these lints:
 // - float_cmp: threshold/zero comparisons in calibration
 // - ptr_as_ptr, ptr_cast_constness, borrow_as_ptr: IOKit FFI pointer casts

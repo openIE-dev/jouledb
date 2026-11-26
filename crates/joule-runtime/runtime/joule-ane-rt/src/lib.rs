@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Apple Neural Engine lane for JouleDB HDC similarity.
 //!
 //! There is no public API that dispatches work directly to the Apple Neural

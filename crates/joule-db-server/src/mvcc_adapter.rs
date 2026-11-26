@@ -51,6 +51,8 @@ struct MvccRecord {
 }
 
 impl MvccRecord {
+    const BIN_MAGIC: [u8; 5] = *b"JMVR\x01";
+
     fn to_row_data(&self) -> RowData {
         RowData::new(self.columns.clone(), self.values.clone())
     }
@@ -61,6 +63,393 @@ impl MvccRecord {
             values: row.values.clone(),
             amorphic_id: None,
         }
+    }
+
+    /// Compact zero-JSON binary serializer (`JMVR\x01`) for MVCC version chains,
+    /// avoiding `serde_json` formatting/parsing on every `BEGIN..UPDATE..COMMIT`.
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(24 + self.columns.len() * 16);
+        buf.extend_from_slice(&Self::BIN_MAGIC);
+        match self.amorphic_id {
+            Some(id) => {
+                buf.push(1);
+                buf.extend_from_slice(&id.to_le_bytes());
+            }
+            None => buf.push(0),
+        }
+        buf.extend_from_slice(&(self.columns.len() as u16).to_le_bytes());
+        for c in &self.columns {
+            buf.extend_from_slice(&(c.len() as u16).to_le_bytes());
+            buf.extend_from_slice(c.as_bytes());
+        }
+        buf.extend_from_slice(&(self.values.len() as u16).to_le_bytes());
+        for v in &self.values {
+            Self::encode_val(&mut buf, v);
+        }
+        buf
+    }
+
+    fn encode_val(buf: &mut Vec<u8>, v: &AstValue) {
+        match v {
+            AstValue::Null => buf.push(0),
+            AstValue::Bool(false) => buf.push(1),
+            AstValue::Bool(true) => buf.push(2),
+            AstValue::Int(i) => {
+                buf.push(3);
+                buf.extend_from_slice(&i.to_le_bytes());
+            }
+            AstValue::Float(f) => {
+                buf.push(4);
+                buf.extend_from_slice(&f.to_le_bytes());
+            }
+            AstValue::String(s) => {
+                buf.push(5);
+                buf.extend_from_slice(&(s.len() as u32).to_le_bytes());
+                buf.extend_from_slice(s.as_bytes());
+            }
+            AstValue::Bytes(b) => {
+                buf.push(6);
+                buf.extend_from_slice(&(b.len() as u32).to_le_bytes());
+                buf.extend_from_slice(b);
+            }
+            AstValue::Timestamp(ts) => {
+                buf.push(7);
+                buf.extend_from_slice(&ts.to_le_bytes());
+            }
+            AstValue::Uuid(u) => {
+                buf.push(8);
+                buf.extend_from_slice(&(u.len() as u16).to_le_bytes());
+                buf.extend_from_slice(u.as_bytes());
+            }
+            AstValue::Vector(vec) => {
+                buf.push(9);
+                buf.extend_from_slice(&(vec.len() as u32).to_le_bytes());
+                for x in vec {
+                    buf.extend_from_slice(&x.to_le_bytes());
+                }
+            }
+            AstValue::Array(arr) => {
+                buf.push(10);
+                buf.extend_from_slice(&(arr.len() as u32).to_le_bytes());
+                for item in arr {
+                    Self::encode_val(buf, item);
+                }
+            }
+            AstValue::Object(map) => {
+                buf.push(11);
+                buf.extend_from_slice(&(map.len() as u32).to_le_bytes());
+                for (k, val) in map {
+                    buf.extend_from_slice(&(k.len() as u16).to_le_bytes());
+                    buf.extend_from_slice(k.as_bytes());
+                    Self::encode_val(buf, val);
+                }
+            }
+        }
+    }
+
+    fn from_bytes(data: &[u8]) -> Result<Self, String> {
+        if !data.starts_with(&Self::BIN_MAGIC) {
+            return serde_json::from_slice(data).map_err(|e| e.to_string());
+        }
+        let mut pos = Self::BIN_MAGIC.len();
+        if pos >= data.len() {
+            return Err("truncated JMVR header".into());
+        }
+        let has_id = data[pos];
+        pos += 1;
+        let amorphic_id = if has_id != 0 {
+            if pos + 8 > data.len() {
+                return Err("truncated JMVR amorphic_id".into());
+            }
+            let id = u64::from_le_bytes([
+                data[pos],
+                data[pos + 1],
+                data[pos + 2],
+                data[pos + 3],
+                data[pos + 4],
+                data[pos + 5],
+                data[pos + 6],
+                data[pos + 7],
+            ]);
+            pos += 8;
+            Some(id)
+        } else {
+            None
+        };
+        if pos + 2 > data.len() {
+            return Err("truncated JMVR col count".into());
+        }
+        let ncols = u16::from_le_bytes([data[pos], data[pos + 1]]) as usize;
+        pos += 2;
+        let mut columns = Vec::with_capacity(ncols);
+        for _ in 0..ncols {
+            if pos + 2 > data.len() {
+                return Err("truncated JMVR col len".into());
+            }
+            let clen = u16::from_le_bytes([data[pos], data[pos + 1]]) as usize;
+            pos += 2;
+            if pos + clen > data.len() {
+                return Err("truncated JMVR col name".into());
+            }
+            let s = std::str::from_utf8(&data[pos..pos + clen])
+                .map_err(|e| e.to_string())?
+                .to_string();
+            pos += clen;
+            columns.push(s);
+        }
+        if pos + 2 > data.len() {
+            return Err("truncated JMVR val count".into());
+        }
+        let nvals = u16::from_le_bytes([data[pos], data[pos + 1]]) as usize;
+        pos += 2;
+        let mut values = Vec::with_capacity(nvals);
+        for _ in 0..nvals {
+            values.push(Self::decode_val(data, &mut pos)?);
+        }
+        Ok(Self {
+            columns,
+            values,
+            amorphic_id,
+        })
+    }
+
+    fn decode_val(data: &[u8], pos: &mut usize) -> Result<AstValue, String> {
+        if *pos >= data.len() {
+            return Err("truncated JMVR value tag".into());
+        }
+        let tag = data[*pos];
+        *pos += 1;
+        match tag {
+            0 => Ok(AstValue::Null),
+            1 => Ok(AstValue::Bool(false)),
+            2 => Ok(AstValue::Bool(true)),
+            3 => {
+                if *pos + 8 > data.len() {
+                    return Err("truncated JMVR i64".into());
+                }
+                let p = *pos;
+                *pos += 8;
+                Ok(AstValue::Int(i64::from_le_bytes([
+                    data[p],
+                    data[p + 1],
+                    data[p + 2],
+                    data[p + 3],
+                    data[p + 4],
+                    data[p + 5],
+                    data[p + 6],
+                    data[p + 7],
+                ])))
+            }
+            4 => {
+                if *pos + 8 > data.len() {
+                    return Err("truncated JMVR f64".into());
+                }
+                let p = *pos;
+                *pos += 8;
+                Ok(AstValue::Float(f64::from_le_bytes([
+                    data[p],
+                    data[p + 1],
+                    data[p + 2],
+                    data[p + 3],
+                    data[p + 4],
+                    data[p + 5],
+                    data[p + 6],
+                    data[p + 7],
+                ])))
+            }
+            5 => {
+                if *pos + 4 > data.len() {
+                    return Err("truncated JMVR str len".into());
+                }
+                let p = *pos;
+                let len =
+                    u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+                *pos += 4;
+                if *pos + len > data.len() {
+                    return Err("truncated JMVR str".into());
+                }
+                let s = std::str::from_utf8(&data[*pos..*pos + len])
+                    .map_err(|e| e.to_string())?
+                    .to_string();
+                *pos += len;
+                Ok(AstValue::String(s))
+            }
+            6 => {
+                if *pos + 4 > data.len() {
+                    return Err("truncated JMVR bytes len".into());
+                }
+                let p = *pos;
+                let len =
+                    u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+                *pos += 4;
+                if *pos + len > data.len() {
+                    return Err("truncated JMVR bytes".into());
+                }
+                let b = data[*pos..*pos + len].to_vec();
+                *pos += len;
+                Ok(AstValue::Bytes(b))
+            }
+            7 => {
+                if *pos + 8 > data.len() {
+                    return Err("truncated JMVR ts".into());
+                }
+                let p = *pos;
+                *pos += 8;
+                Ok(AstValue::Timestamp(i64::from_le_bytes([
+                    data[p],
+                    data[p + 1],
+                    data[p + 2],
+                    data[p + 3],
+                    data[p + 4],
+                    data[p + 5],
+                    data[p + 6],
+                    data[p + 7],
+                ])))
+            }
+            8 => {
+                if *pos + 2 > data.len() {
+                    return Err("truncated JMVR uuid len".into());
+                }
+                let p = *pos;
+                let len = u16::from_le_bytes([data[p], data[p + 1]]) as usize;
+                *pos += 2;
+                if *pos + len > data.len() {
+                    return Err("truncated JMVR uuid".into());
+                }
+                let s = std::str::from_utf8(&data[*pos..*pos + len])
+                    .map_err(|e| e.to_string())?
+                    .to_string();
+                *pos += len;
+                Ok(AstValue::Uuid(s))
+            }
+            9 => {
+                if *pos + 4 > data.len() {
+                    return Err("truncated JMVR vec len".into());
+                }
+                let p = *pos;
+                let len =
+                    u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+                *pos += 4;
+                let byte_len = len.saturating_mul(4);
+                if *pos + byte_len > data.len() {
+                    return Err("truncated JMVR vec".into());
+                }
+                let mut v = Vec::with_capacity(len);
+                for ch in data[*pos..*pos + byte_len].chunks_exact(4) {
+                    v.push(f32::from_le_bytes([ch[0], ch[1], ch[2], ch[3]]));
+                }
+                *pos += byte_len;
+                Ok(AstValue::Vector(v))
+            }
+            10 => {
+                if *pos + 4 > data.len() {
+                    return Err("truncated JMVR arr len".into());
+                }
+                let p = *pos;
+                let len =
+                    u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+                *pos += 4;
+                let mut arr = Vec::with_capacity(len);
+                for _ in 0..len {
+                    arr.push(Self::decode_val(data, pos)?);
+                }
+                Ok(AstValue::Array(arr))
+            }
+            11 => {
+                if *pos + 4 > data.len() {
+                    return Err("truncated JMVR obj len".into());
+                }
+                let p = *pos;
+                let len =
+                    u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+                *pos += 4;
+                let mut map = HashMap::with_capacity(len);
+                for _ in 0..len {
+                    if *pos + 2 > data.len() {
+                        return Err("truncated JMVR key len".into());
+                    }
+                    let kp = *pos;
+                    let klen = u16::from_le_bytes([data[kp], data[kp + 1]]) as usize;
+                    *pos += 2;
+                    if *pos + klen > data.len() {
+                        return Err("truncated JMVR key".into());
+                    }
+                    let k = std::str::from_utf8(&data[*pos..*pos + klen])
+                        .map_err(|e| e.to_string())?
+                        .to_string();
+                    *pos += klen;
+                    let val = Self::decode_val(data, pos)?;
+                    map.insert(k, val);
+                }
+                Ok(AstValue::Object(map))
+            }
+            other => Err(format!("unknown JMVR value tag {other}")),
+        }
+    }
+}
+
+/// Fast-path direct `AstValue` assignment evaluation for OLTP expressions
+/// (`SET col = lit`, `SET col = $n`, `SET col = col +/- lit_or_param`) without
+/// converting the entire row to `Vec<serde_json::Value>` and back!
+fn try_eval_fast_ast_assignment(
+    expr: &Expression,
+    columns: &[String],
+    values: &[AstValue],
+    params: &[serde_json::Value],
+) -> Option<AstValue> {
+    use joule_db_query::ast::{Operator, UnaryOperator};
+    match expr {
+        Expression::Literal(v) => Some(v.clone()),
+        Expression::Parameter(idx) => {
+            let jv = idx.checked_sub(1).and_then(|i| params.get(i))?;
+            Some(crate::json_ops::json_to_ast_value(jv))
+        }
+        Expression::Unary {
+            op: UnaryOperator::Neg,
+            expr: inner,
+        } => match try_eval_fast_ast_assignment(inner, columns, values, params)? {
+            AstValue::Int(i) => i.checked_neg().map(AstValue::Int),
+            AstValue::Float(f) => Some(AstValue::Float(-f)),
+            _ => None,
+        },
+        Expression::Column(c) => {
+            let pos = columns.iter().position(|x| x == c)?;
+            values.get(pos).cloned()
+        }
+        Expression::Binary {
+            left,
+            op: op @ (Operator::Add | Operator::Sub | Operator::Mul),
+            right,
+        } => {
+            let lv = try_eval_fast_ast_assignment(left, columns, values, params)?;
+            let rv = try_eval_fast_ast_assignment(right, columns, values, params)?;
+            match (lv, rv) {
+                (AstValue::Null, _) | (_, AstValue::Null) => Some(AstValue::Null),
+                (AstValue::Int(a), AstValue::Int(b)) => match op {
+                    Operator::Add => a.checked_add(b).map(AstValue::Int),
+                    Operator::Sub => a.checked_sub(b).map(AstValue::Int),
+                    Operator::Mul => a.checked_mul(b).map(AstValue::Int),
+                    _ => None,
+                },
+                (AstValue::Float(a), AstValue::Float(b)) => Some(AstValue::Float(match op {
+                    Operator::Add => a + b,
+                    Operator::Sub => a - b,
+                    _ => a * b,
+                })),
+                (AstValue::Int(a), AstValue::Float(b)) => Some(AstValue::Float(match op {
+                    Operator::Add => (a as f64) + b,
+                    Operator::Sub => (a as f64) - b,
+                    _ => (a as f64) * b,
+                })),
+                (AstValue::Float(a), AstValue::Int(b)) => Some(AstValue::Float(match op {
+                    Operator::Add => a + (b as f64),
+                    Operator::Sub => a - (b as f64),
+                    _ => a * (b as f64),
+                })),
+                _ => None,
+            }
+        }
+        _ => None,
     }
 }
 
@@ -140,9 +529,7 @@ impl MvccTableStorage {
             values: row.values.clone(),
             amorphic_id: Some(amorphic_record_id),
         };
-        let value = serde_json::to_vec(&mvcc_record).map_err(|e| {
-            QueryError::ExecutionError(format!("Serialize error during MVCC seed: {}", e))
-        })?;
+        let value = mvcc_record.to_bytes();
 
         let mut map = crate::lock_util::mutex_lock(&self.table_id_map);
         let table_entry = map.entry(table.to_string()).or_default();
@@ -208,7 +595,7 @@ impl MvccTableStorage {
                 Some(row) => {
                     let changed = self
                         .get_committed_value(&key)
-                        .and_then(|bytes| serde_json::from_slice::<MvccRecord>(&bytes).ok())
+                        .and_then(|bytes| MvccRecord::from_bytes(&bytes).ok())
                         .map(|prev| prev.values != row.values || prev.columns != row.columns)
                         .unwrap_or(true);
                     if changed {
@@ -217,9 +604,8 @@ impl MvccTableStorage {
                             values: row.values,
                             amorphic_id: Some(amorphic_id),
                         };
-                        if let Ok(bytes) = serde_json::to_vec(&updated_rec) {
-                            let _ = store.append_external_committed(&key, Some(bytes), commit_ts);
-                        }
+                        let bytes = updated_rec.to_bytes();
+                        let _ = store.append_external_committed(&key, Some(bytes), commit_ts);
                     }
                 }
                 None => {
@@ -320,13 +706,9 @@ impl MvccTableStorage {
                             if let Some(data) = tx.get(&key).map_err(|e| {
                                 QueryError::ExecutionError(format!("MVCC get error: {}", e))
                             })? {
-                                let record: MvccRecord =
-                                    serde_json::from_slice(&data).map_err(|e| {
-                                        QueryError::ExecutionError(format!(
-                                            "Deserialize error: {}",
-                                            e
-                                        ))
-                                    })?;
+                                let record = MvccRecord::from_bytes(&data).map_err(|e| {
+                                    QueryError::ExecutionError(format!("Deserialize error: {}", e))
+                                })?;
                                 out.push((key, record));
                             }
                         }
@@ -345,7 +727,7 @@ impl MvccTableStorage {
         })?;
         let mut out = Vec::with_capacity(entries.len());
         for (key, data) in entries {
-            let record: MvccRecord = serde_json::from_slice(&data)
+            let record = MvccRecord::from_bytes(&data)
                 .map_err(|e| QueryError::ExecutionError(format!("Deserialize error: {}", e)))?;
             out.push((key, record));
         }
@@ -420,15 +802,13 @@ impl MvccTableStorage {
 
                 match value {
                     Some(data) => {
-                        let record = serde_json::from_slice::<MvccRecord>(data)
+                        let record = MvccRecord::from_bytes(data)
                             .map_err(|e| format!("Corrupt MVCC record on commit: {e}"))?;
                         let row = record.to_row_data();
                         if let Some(existing_id) = record.amorphic_id {
                             // Detect which columns actually changed relative to prior committed value
                             if let Some(prev_bytes) = self.get_committed_value(key) {
-                                if let Ok(prev_rec) =
-                                    serde_json::from_slice::<MvccRecord>(&prev_bytes)
-                                {
+                                if let Ok(prev_rec) = MvccRecord::from_bytes(&prev_bytes) {
                                     for ((col, new_v), old_v) in row
                                         .columns
                                         .iter()
@@ -474,7 +854,7 @@ impl MvccTableStorage {
                     None => {
                         let amorphic_id = self
                             .get_committed_value(key)
-                            .and_then(|orig| serde_json::from_slice::<MvccRecord>(&orig).ok())
+                            .and_then(|orig| MvccRecord::from_bytes(&orig).ok())
                             .and_then(|r| r.amorphic_id);
                         if let Some(aid) = amorphic_id {
                             batch_ops.push(AtomicBatchOp::Delete { id: aid });
@@ -502,9 +882,7 @@ impl MvccTableStorage {
                     if let Some(&real_id) = id_lookup.get(&k_idx) {
                         rec.amorphic_id = Some(real_id);
                         map.entry(tbl).or_default().insert(real_id, mvcc_id);
-                        if let Ok(bytes) = serde_json::to_vec(&rec) {
-                            rewritten.push((ordered_keys[k_idx].clone(), bytes));
-                        }
+                        rewritten.push((ordered_keys[k_idx].clone(), rec.to_bytes()));
                     }
                 }
             }
@@ -643,7 +1021,7 @@ impl MvccTableStorage {
                     })?;
                     let mut rows = Vec::with_capacity(entries.len());
                     for (_key, data) in entries {
-                        let record: MvccRecord = serde_json::from_slice(&data).map_err(|e| {
+                        let record = MvccRecord::from_bytes(&data).map_err(|e| {
                             QueryError::ExecutionError(format!("Deserialize error: {}", e))
                         })?;
                         rows.push(record.to_row_data());
@@ -664,7 +1042,7 @@ impl MvccTableStorage {
         })?;
         let mut rows = Vec::with_capacity(entries.len());
         for (_key, data) in entries {
-            let record: MvccRecord = serde_json::from_slice(&data)
+            let record = MvccRecord::from_bytes(&data)
                 .map_err(|e| QueryError::ExecutionError(format!("Deserialize error: {}", e)))?;
             rows.push(record.to_row_data());
         }
@@ -678,8 +1056,7 @@ impl MvccTableStorage {
                 let record_id = self.next_temp_id.fetch_add(1, Ordering::Relaxed);
                 let key = encode_record_key(table, record_id);
                 let record = MvccRecord::from_row_data(row);
-                let data = serde_json::to_vec(&record)
-                    .map_err(|e| QueryError::ExecutionError(format!("Serialize error: {}", e)))?;
+                let data = record.to_bytes();
                 tx.put(&key, &data)
                     .map_err(|e| QueryError::ExecutionError(format!("MVCC put error: {}", e)))?;
                 Ok(())
@@ -727,9 +1104,7 @@ impl MvccTableStorage {
                             values: new_values,
                             amorphic_id: record.amorphic_id,
                         };
-                        let new_data = serde_json::to_vec(&new_record).map_err(|e| {
-                            QueryError::ExecutionError(format!("Serialize error: {}", e))
-                        })?;
+                        let new_data = new_record.to_bytes();
                         self.with_session(sid, |tx| {
                             tx.put(&key, &new_data).map_err(|e| {
                                 QueryError::ExecutionError(format!("MVCC put error: {}", e))
@@ -770,33 +1145,41 @@ impl MvccTableStorage {
                         .unwrap_or(true);
 
                     if matches {
-                        let json_row: Vec<serde_json::Value> = row
-                            .values
-                            .iter()
-                            .map(|v| crate::json_ops::ast_value_to_json(v))
-                            .collect();
-
+                        let mut json_row_cache: Option<Vec<serde_json::Value>> = None;
                         let mut new_values = row.values.clone();
                         for (col, expr) in assignments {
                             if let Some(idx) = row.columns.iter().position(|c| c == col) {
-                                let json_val = crate::query::evaluate_expression(
+                                if let Some(fast_v) = try_eval_fast_ast_assignment(
                                     expr,
                                     &row.columns,
-                                    &json_row,
+                                    &row.values,
                                     params,
-                                );
-                                new_values[idx] = crate::json_ops::json_to_ast_value(&json_val);
+                                ) {
+                                    new_values[idx] = fast_v;
+                                } else {
+                                    let jr = json_row_cache.get_or_insert_with(|| {
+                                        row.values
+                                            .iter()
+                                            .map(crate::json_ops::ast_value_to_json)
+                                            .collect()
+                                    });
+                                    let json_val = crate::query::evaluate_expression(
+                                        expr,
+                                        &row.columns,
+                                        jr,
+                                        params,
+                                    );
+                                    new_values[idx] = crate::json_ops::json_to_ast_value(&json_val);
+                                }
                             }
                         }
 
                         let new_record = MvccRecord {
-                            columns: row.columns.clone(),
+                            columns: row.columns,
                             values: new_values,
                             amorphic_id: record.amorphic_id,
                         };
-                        let new_data = serde_json::to_vec(&new_record).map_err(|e| {
-                            QueryError::ExecutionError(format!("Serialize error: {}", e))
-                        })?;
+                        let new_data = new_record.to_bytes();
                         self.with_session(sid, |tx| {
                             tx.put(&key, &new_data).map_err(|e| {
                                 QueryError::ExecutionError(format!("MVCC put error: {}", e))
@@ -903,9 +1286,7 @@ impl MvccTableStorage {
                             values: new_values.clone(),
                             amorphic_id: record.amorphic_id,
                         };
-                        let new_data = serde_json::to_vec(&new_record).map_err(|e| {
-                            QueryError::ExecutionError(format!("Serialize error: {}", e))
-                        })?;
+                        let new_data = new_record.to_bytes();
                         self.with_session(sid, |tx| {
                             tx.put(&key, &new_data).map_err(|e| {
                                 QueryError::ExecutionError(format!("MVCC put error: {}", e))

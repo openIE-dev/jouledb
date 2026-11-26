@@ -263,16 +263,12 @@ fn uuid_from_hash(subject: &str, time: DateTime<Utc>) -> String {
     let hash = hasher.finalize();
     format!(
         "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
-        u32::from_be_bytes(hash[0..4].try_into().unwrap()),
-        u16::from_be_bytes(hash[4..6].try_into().unwrap()),
-        u16::from_be_bytes(hash[6..8].try_into().unwrap()),
-        u16::from_be_bytes(hash[8..10].try_into().unwrap()),
+        u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]),
+        u16::from_be_bytes([hash[4], hash[5]]),
+        u16::from_be_bytes([hash[6], hash[7]]),
+        u16::from_be_bytes([hash[8], hash[9]]),
         // Use 6 bytes for the last segment.
-        u64::from_be_bytes({
-            let mut buf = [0u8; 8];
-            buf[2..8].copy_from_slice(&hash[10..16]);
-            buf
-        }),
+        u64::from_be_bytes([0, 0, hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]]),
     )
 }
 

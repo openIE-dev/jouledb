@@ -584,12 +584,12 @@ impl DerivativeComputer {
     fn compute_chain(&self, values: &[f64], dt: f64) -> DerivativeChain {
         let mut chain = DerivativeChain::default();
 
-        if values.is_empty() {
+        let Some(&last_v) = values.last() else {
             return chain;
-        }
+        };
 
         // 0th derivative: use last value
-        chain.value = *values.last().unwrap();
+        chain.value = last_v;
 
         // Compute successive derivatives
         let mut current = values.to_vec();

@@ -550,7 +550,7 @@ pub fn validate_column_refs(expr: &Expression, available: &[String]) -> Result<(
             {
                 Ok(())
             } else if name.contains('.') {
-                let bare = name.rsplit('.').next().unwrap();
+                let bare = name.rsplit('.').next().unwrap_or(name);
                 if available.iter().any(|c| c == bare)
                     || available.iter().any(|c| c.ends_with(&format!(".{}", bare)))
                 {

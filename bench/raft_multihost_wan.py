@@ -2,8 +2,8 @@
 """Multi-Host Cross-Machine WAN/Tailscale 5-Node TCP Raft Fault-Injection + Clojure `elle` Harness.
 
 Deploys 5 real OS `raft_wan_node` processes across two distinct physical Linux hosts over
-encrypted Tailscale WAN (default: 3 nodes on bare-metal `100.91.48.80` + 2 nodes on cloud
-VM `100.64.236.125`, with `--local-only` fallback for single-machine reproduction):
+encrypted Tailscale WAN (default: 3 nodes on bare-metal Host A + 2 nodes on cloud
+VM Host B via `--host-a` / `--host-b`, with `--local-only` fallback for single-machine reproduction):
   - Phase 0: Cross-host TCP RTT measurement & initial 5-node Raft leader election
   - Phase 1: Concurrent cross-WAN linearizable `propose_and_commit` writes & §6.4 `ReadIndex` reads
   - Phase 2: Bidirectional WAN partition isolating `{old_leader, remote_peer}` (2/5 minority)
@@ -273,11 +273,11 @@ def parse_val(v) -> Optional[int]:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--local-only", action="store_true")
-    ap.add_argument("--host-a", default="100.91.48.80")
-    ap.add_argument("--host-a-ssh", default="", help="Optional SSH target for Host A when coordinator runs off-box")
+    ap.add_argument("--host-a", default=os.environ.get("JOULEDB_WAN_HOST_A", "100.64.0.1"))
+    ap.add_argument("--host-a-ssh", default=os.environ.get("JOULEDB_WAN_HOST_A_SSH", ""), help="Optional SSH target for Host A when coordinator runs off-box")
     ap.add_argument("--host-a-label", default="framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)")
-    ap.add_argument("--host-b", default="100.64.236.125")
-    ap.add_argument("--host-b-ssh", default="dcharlot@100.64.236.125")
+    ap.add_argument("--host-b", default=os.environ.get("JOULEDB_WAN_HOST_B", "100.64.0.2"))
+    ap.add_argument("--host-b-ssh", default=os.environ.get("JOULEDB_WAN_HOST_B_SSH", "ubuntu@100.64.0.2"))
     ap.add_argument("--host-b-label", default="openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)")
     ap.add_argument("--local-bin", default="./target/release/examples/raft_wan_node")
     ap.add_argument("--remote-bin", default="/tmp/jdb_wan_raft/raft_wan_node")

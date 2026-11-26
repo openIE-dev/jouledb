@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! jouledb-cli — the public JouleDB command-line interface.
 //!
 //! Derived from `crates/bin/joule-cli`. Retains only the database +

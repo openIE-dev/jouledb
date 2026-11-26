@@ -1,4 +1,4 @@
-# Cookbook Recipes (`v0.6.0`)
+# Cookbook Recipes (`v0.10.0`)
 
 ## 1. Run the 5-Node Networked TCP Raft Fault-Injection Suite + Official `elle` (`0.2.8`)
 ```bash
@@ -27,5 +27,5 @@ jouledb amorphic stream-corpus --dir /tmp/unsilo_demo --generate-bytes 50000000 
 ## 5. Run Technical Security-Control Self-Tests (Unaudited) & Export CycloneDX SBOM
 ```bash
 jouledb trust
-jouledb trust --sbom > sbom-v0.6.0.cdx.json
+jouledb trust --sbom > sbom-v0.10.0.cdx.json
 ```

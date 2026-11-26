@@ -106,7 +106,7 @@ impl FlightSqlService for JouleFlightSql {
             .map_err(Status::internal)?;
         let handle = uuid::Uuid::new_v4().to_string();
         {
-            let mut m = self.results.lock().unwrap();
+            let mut m = self.results.lock().unwrap_or_else(|e| e.into_inner());
             m.retain(|_, (t, _)| t.elapsed() < RESULT_TTL);
             m.insert(handle.clone(), (Instant::now(), batch.clone()));
         }
@@ -136,7 +136,7 @@ impl FlightSqlService for JouleFlightSql {
         let (_, batch) = self
             .results
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .remove(&handle)
             .ok_or_else(|| Status::not_found("result handle expired or already fetched"))?;
         let schema = batch.schema();

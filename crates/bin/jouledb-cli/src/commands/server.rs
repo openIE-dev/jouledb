@@ -154,17 +154,14 @@ async fn start_server(
     }
 
     // Try to find the server binary
-    let server_binary = find_server_binary();
-
-    if server_binary.is_none() {
+    let Some(binary_path) = find_server_binary() else {
         output.error("Server binary 'joule-db-server' not found in PATH");
         output.info("To start the server manually, run:");
         output.raw(&format!("  joule-db-server {}", args.join(" ")));
         output.info("Install the server with: cargo install joule-db-server");
         return Err(CliError::Server("Server binary not found".to_string()));
-    }
+    };
 
-    let binary_path = server_binary.unwrap();
     output.verbose(&format!("Using server binary: {}", binary_path));
 
     if foreground {

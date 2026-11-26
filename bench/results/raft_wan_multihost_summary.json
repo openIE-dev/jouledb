@@ -9,31 +9,31 @@
     "nodes": [
       {
         "id": "n1",
-        "host_ip": "100.91.48.80",
+        "host_ip": "100.64.x.1 (tailnet-host-a)",
         "raft_port": 19401,
         "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)"
       },
       {
         "id": "n2",
-        "host_ip": "100.91.48.80",
+        "host_ip": "100.64.x.1 (tailnet-host-a)",
         "raft_port": 19402,
         "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)"
       },
       {
         "id": "n3",
-        "host_ip": "100.91.48.80",
+        "host_ip": "100.64.x.1 (tailnet-host-a)",
         "raft_port": 19403,
         "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)"
       },
       {
         "id": "n4",
-        "host_ip": "100.64.236.125",
+        "host_ip": "100.64.x.2 (tailnet-host-b)",
         "raft_port": 19404,
         "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)"
       },
       {
         "id": "n5",
-        "host_ip": "100.64.236.125",
+        "host_ip": "100.64.x.2 (tailnet-host-b)",
         "raft_port": 19405,
         "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)"
       }
@@ -65,7 +65,7 @@
     "isolated_old_leader_linearizable_read_rejected": true,
     "majority_partition_committed_ops": 24,
     "sigkill_crashed_node": "n5",
-    "sigkill_host": "100.64.236.125",
+    "sigkill_host": "100.64.x.2 (tailnet-host-b)",
     "ops_committed_during_sigkill": 16,
     "wal_rejoin_all_5_converged": true
   },
@@ -91,7 +91,7 @@
       "ok": true,
       "role": "Follower",
       "term": 2,
-      "host_ip": "100.91.48.80",
+      "host_ip": "100.64.x.1 (tailnet-host-a)",
       "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)",
       "x_int": 68,
       "y_int": 39
@@ -105,7 +105,7 @@
       "ok": true,
       "role": "Follower",
       "term": 2,
-      "host_ip": "100.91.48.80",
+      "host_ip": "100.64.x.1 (tailnet-host-a)",
       "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)",
       "x_int": 68,
       "y_int": 39
@@ -119,7 +119,7 @@
       "ok": true,
       "role": "Leader",
       "term": 2,
-      "host_ip": "100.91.48.80",
+      "host_ip": "100.64.x.1 (tailnet-host-a)",
       "host_label": "framework-128gb-0000 (Bare-Metal AMD Ryzen AI Max+ 395, Linux 7.0)",
       "x_int": 68,
       "y_int": 39
@@ -133,7 +133,7 @@
       "ok": true,
       "role": "Follower",
       "term": 2,
-      "host_ip": "100.64.236.125",
+      "host_ip": "100.64.x.2 (tailnet-host-b)",
       "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)",
       "x_int": 68,
       "y_int": 39
@@ -147,7 +147,7 @@
       "ok": true,
       "role": "Follower",
       "term": 2,
-      "host_ip": "100.64.236.125",
+      "host_ip": "100.64.x.2 (tailnet-host-b)",
       "host_label": "openie-core-1 (Cloud AMD64 VM, Debian 12 Linux 6.1)",
       "x_int": 68,
       "y_int": 39

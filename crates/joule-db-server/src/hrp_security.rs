@@ -56,9 +56,15 @@ impl WriteToken {
 
     /// Deserialize from fixed-size bytes.
     pub fn from_bytes(buf: &[u8; Self::WIRE_SIZE]) -> Self {
-        let epoch = u64::from_be_bytes(buf[0..8].try_into().unwrap());
-        let sequence = u64::from_be_bytes(buf[8..16].try_into().unwrap());
-        let term = u64::from_be_bytes(buf[16..24].try_into().unwrap());
+        let epoch = u64::from_be_bytes([
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ]);
+        let sequence = u64::from_be_bytes([
+            buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
+        ]);
+        let term = u64::from_be_bytes([
+            buf[16], buf[17], buf[18], buf[19], buf[20], buf[21], buf[22], buf[23],
+        ]);
         let mut hmac = [0u8; 32];
         hmac.copy_from_slice(&buf[24..56]);
         Self {

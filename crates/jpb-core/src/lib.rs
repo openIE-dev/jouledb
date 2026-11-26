@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! JoulesPerBit shared types — canonical definitions used across the workspace.
 //!
 //! All decision-path values are integer-only: no floats.

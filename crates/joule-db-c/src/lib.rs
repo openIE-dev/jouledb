@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! JouleDB C Foreign Function Interface
 //!
 //! Provides a SQLite-style C API for embedding JouleDB in any language.

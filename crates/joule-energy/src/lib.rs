@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # Joule Energy
 //!
 //! Unified energy tracking, policy, and heterogeneous compute scheduling.

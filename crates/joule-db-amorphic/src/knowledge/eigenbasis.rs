@@ -312,7 +312,7 @@ fn power_iteration_eigenvectors(
         // Initialize random vector
         let mut v = [0.0; NUM_PATTERNS];
         for (i, val) in v.iter_mut().enumerate() {
-            *val = ((i as f64 * 2.718281828 + 1.0).sin()) * 1.0; // Deterministic "random"
+            *val = ((i as f64 * std::f64::consts::E + 1.0).sin()) * 1.0; // Deterministic "random"
         }
 
         // Power iteration: v = M*v / ||M*v|| repeated

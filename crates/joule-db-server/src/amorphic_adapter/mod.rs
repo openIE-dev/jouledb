@@ -469,10 +469,11 @@ impl HoloLock {
                                     .saturating_sub(last.load(std::sync::atomic::Ordering::Relaxed))
                                     >= Self::IDLE_MS
                                 {
-                                    let (ids, holos) = plan.take().unwrap();
-                                    g.apply_catch_up_plan(ids, holos);
-                                    if g.pending_holograms() == 0 {
-                                        flag.store(false, std::sync::atomic::Ordering::Release);
+                                    if let Some((ids, holos)) = plan.take() {
+                                        g.apply_catch_up_plan(ids, holos);
+                                        if g.pending_holograms() == 0 {
+                                            flag.store(false, std::sync::atomic::Ordering::Release);
+                                        }
                                     }
                                 }
                                 break;

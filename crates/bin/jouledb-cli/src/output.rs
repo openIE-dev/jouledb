@@ -180,12 +180,11 @@ impl Progress {
     /// Create new progress bar
     pub fn new(total: u64, message: &str) -> Self {
         let bar = indicatif::ProgressBar::new(total);
-        bar.set_style(
-            indicatif::ProgressStyle::default_bar()
-                .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-                .unwrap()
-                .progress_chars("█▓░"),
-        );
+        let style = indicatif::ProgressStyle::default_bar()
+            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
+            .progress_chars("█▓░");
+        bar.set_style(style);
         bar.set_message(message.to_string());
         Self { bar }
     }
@@ -193,11 +192,10 @@ impl Progress {
     /// Create spinner
     pub fn spinner(message: &str) -> Self {
         let bar = indicatif::ProgressBar::new_spinner();
-        bar.set_style(
-            indicatif::ProgressStyle::default_spinner()
-                .template("{spinner:.green} {msg}")
-                .unwrap(),
-        );
+        let style = indicatif::ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap_or_else(|_| indicatif::ProgressStyle::default_spinner());
+        bar.set_style(style);
         bar.set_message(message.to_string());
         bar.enable_steady_tick(std::time::Duration::from_millis(100));
         Self { bar }

@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # Joule Wire Protocol (JWP)
 //!
 //! A custom binary framing protocol where every frame header carries

@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Packed ternary encoding: 5 trits per byte (1.58 bits/trit).
 //!
 //! Stores balanced ternary values {-1, 0, +1} with LUT-based decoding

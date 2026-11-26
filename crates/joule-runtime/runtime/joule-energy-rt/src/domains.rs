@@ -752,8 +752,8 @@ impl DomainReader for GpuDomainReader {
     fn read_energy(&self) -> Result<f64> {
         // For now, use time-based estimation
         // In a full implementation, this would use NVML/ROCm/Metal APIs
-        let mut last = self.last_read.lock().unwrap();
-        let mut accumulated = self.accumulated_energy_j.lock().unwrap();
+        let mut last = self.last_read.lock().unwrap_or_else(|e| e.into_inner());
+        let mut accumulated = self.accumulated_energy_j.lock().unwrap_or_else(|e| e.into_inner());
 
         let now = std::time::Instant::now();
         let dt = now.duration_since(*last).as_secs_f64();
@@ -810,7 +810,7 @@ impl EstimatedDomainReader {
 
     /// Record bytes transferred
     pub fn record_bytes(&self, bytes: u64) {
-        let mut total = self.total_bytes.lock().unwrap();
+        let mut total = self.total_bytes.lock().unwrap_or_else(|e| e.into_inner());
         *total = total.saturating_add(bytes);
     }
 }
@@ -825,9 +825,9 @@ impl DomainReader for EstimatedDomainReader {
     }
 
     fn read_energy(&self) -> Result<f64> {
-        let mut last = self.last_read.lock().unwrap();
-        let mut accumulated = self.accumulated_energy_j.lock().unwrap();
-        let total_bytes = *self.total_bytes.lock().unwrap();
+        let mut last = self.last_read.lock().unwrap_or_else(|e| e.into_inner());
+        let mut accumulated = self.accumulated_energy_j.lock().unwrap_or_else(|e| e.into_inner());
+        let total_bytes = *self.total_bytes.lock().unwrap_or_else(|e| e.into_inner());
 
         let now = std::time::Instant::now();
         let dt = now.duration_since(*last).as_secs_f64();
@@ -1569,8 +1569,8 @@ impl DomainReader for HlmlDomainReader {
         // We integrate power over time to get energy.
         let power_w = self.read_power_w()?;
 
-        let mut last = self.last_read.lock().unwrap();
-        let mut accumulated = self.accumulated_energy_j.lock().unwrap();
+        let mut last = self.last_read.lock().unwrap_or_else(|e| e.into_inner());
+        let mut accumulated = self.accumulated_energy_j.lock().unwrap_or_else(|e| e.into_inner());
 
         let now = Instant::now();
         let dt = now.duration_since(*last).as_secs_f64();
@@ -1682,8 +1682,8 @@ impl DomainReader for TpuDomainReader {
 
     fn read_energy(&self) -> Result<f64> {
         // Tier 3 estimation: energy = TDP * elapsed_time
-        let mut last = self.last_read.lock().unwrap();
-        let mut accumulated = self.accumulated_energy_j.lock().unwrap();
+        let mut last = self.last_read.lock().unwrap_or_else(|e| e.into_inner());
+        let mut accumulated = self.accumulated_energy_j.lock().unwrap_or_else(|e| e.into_inner());
 
         let now = Instant::now();
         let dt = now.duration_since(*last).as_secs_f64();
@@ -1796,8 +1796,8 @@ impl DomainReader for NeuronDomainReader {
 
     fn read_energy(&self) -> Result<f64> {
         // Tier 3 estimation: energy = TDP * elapsed_time
-        let mut last = self.last_read.lock().unwrap();
-        let mut accumulated = self.accumulated_energy_j.lock().unwrap();
+        let mut last = self.last_read.lock().unwrap_or_else(|e| e.into_inner());
+        let mut accumulated = self.accumulated_energy_j.lock().unwrap_or_else(|e| e.into_inner());
 
         let now = Instant::now();
         let dt = now.duration_since(*last).as_secs_f64();
@@ -1883,8 +1883,8 @@ impl DomainReader for GroqDomainReader {
 
     fn read_energy(&self) -> Result<f64> {
         // Tier 3 estimation: energy = TDP * elapsed_time
-        let mut last = self.last_read.lock().unwrap();
-        let mut accumulated = self.accumulated_energy_j.lock().unwrap();
+        let mut last = self.last_read.lock().unwrap_or_else(|e| e.into_inner());
+        let mut accumulated = self.accumulated_energy_j.lock().unwrap_or_else(|e| e.into_inner());
 
         let now = Instant::now();
         let dt = now.duration_since(*last).as_secs_f64();

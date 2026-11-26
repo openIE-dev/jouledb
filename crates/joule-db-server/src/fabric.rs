@@ -550,7 +550,7 @@ fn wgpu_sum(values: &[f64]) -> Result<f64, String> {
             if out.len() < 4 {
                 return Err("wgpu aggregate returned a short buffer".into());
             }
-            let arr: [u8; 4] = out[0..4].try_into().unwrap();
+            let arr: [u8; 4] = [out[0], out[1], out[2], out[3]];
             Ok(f32::from_le_bytes(arr) as f64)
         })
     })

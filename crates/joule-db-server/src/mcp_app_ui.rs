@@ -314,7 +314,7 @@ const STUDIO_HTML: &str = r#"<!DOCTYPE html>
     <div class="brand">
       <span class="brand-dot"></span>
       <span>JouleDB Studio</span>
-      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">MCP App &middot; v0.9.0</span>
+      <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">MCP App &middot; v0.10.0</span>
     </div>
     <div class="badges">
       <span class="badge" id="badge-rows">0 rows</span>
@@ -862,7 +862,7 @@ const STUDIO_HTML: &str = r#"<!DOCTYPE html>
   // Perform `ui/initialize` handshake
   sendRequest("ui/initialize", {
     protocolVersion: "2026-01-26",
-    appInfo: { name: "JouleDB Studio", version: "0.9.0" },
+    appInfo: { name: "JouleDB Studio", version: "0.10.0" },
     appCapabilities: {}
   }).then(function(initRes) {
     if (initRes) {

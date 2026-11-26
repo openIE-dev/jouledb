@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # JouleDB Server
 //!
 //! Server implementation for JouleDB with HTTP and WebSocket support.
@@ -834,11 +835,12 @@ impl Server {
                 // Pre-populate the route table synchronously using a oneshot runtime
                 let drm2 = drm.clone();
                 let _ = std::thread::spawn(move || {
-                    let rt = tokio::runtime::Builder::new_current_thread()
+                    if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
                         .enable_all()
                         .build()
-                        .unwrap();
-                    rt.block_on(drm2.register(ep.path, ep.method, ep.handler_sql));
+                    {
+                        rt.block_on(drm2.register(ep.path, ep.method, ep.handler_sql));
+                    }
                 })
                 .join();
             }
@@ -3804,26 +3806,30 @@ async fn security_headers_middleware(
     req: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
+    use axum::http::HeaderValue;
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
-    headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
-    headers.insert("X-Frame-Options", "DENY".parse().unwrap());
-    headers.insert("X-XSS-Protection", "1; mode=block".parse().unwrap());
+    headers.insert("X-Content-Type-Options", HeaderValue::from_static("nosniff"));
+    headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
+    headers.insert(
+        "X-XSS-Protection",
+        HeaderValue::from_static("1; mode=block"),
+    );
     headers.insert(
         "Referrer-Policy",
-        "strict-origin-when-cross-origin".parse().unwrap(),
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
     headers.insert(
         "Content-Security-Policy",
-        "default-src 'self'".parse().unwrap(),
+        HeaderValue::from_static("default-src 'self'"),
     );
     headers.insert(
         "Permissions-Policy",
-        "geolocation=(), microphone=(), camera=()".parse().unwrap(),
+        HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
     );
     headers.insert(
         "Strict-Transport-Security",
-        "max-age=31536000; includeSubDomains".parse().unwrap(),
+        HeaderValue::from_static("max-age=31536000; includeSubDomains"),
     );
     response
 }

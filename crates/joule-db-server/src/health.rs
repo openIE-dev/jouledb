@@ -60,7 +60,7 @@ impl HealthCheckManager {
             overall_status: Arc::new(RwLock::new(HealthStatus::Unknown)),
             startup_time: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .as_millis() as u64,
         }
     }

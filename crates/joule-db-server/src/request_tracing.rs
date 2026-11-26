@@ -22,11 +22,6 @@ impl TraceId {
         Ok(Self(Uuid::parse_str(s)?))
     }
 
-    /// Convert to string
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-
     /// Get as bytes
     pub fn as_bytes(&self) -> &[u8; 16] {
         self.0.as_bytes()

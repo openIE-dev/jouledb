@@ -1,0 +1,262 @@
+{
+  "benchmark": "TPC-H Official 22-Query Relational Analytics Suite",
+  "scale_factor": 1.0,
+  "total_rows": 8661245,
+  "table_row_counts": {
+    "region": 5,
+    "nation": 25,
+    "supplier": 10000,
+    "customer": 150000,
+    "part": 200000,
+    "partsupp": 800000,
+    "orders": 1500000,
+    "lineitem": 6001215
+  },
+  "transport": "TCP pgwire (psycopg3) vs DuckDB native Python C++ API",
+  "duckdb_version": "2.0.1",
+  "platform": {
+    "system": "Linux",
+    "machine": "x86_64",
+    "processor": "",
+    "cpu_count": 32,
+    "energy_tag": "reported_j"
+  },
+  "ingest": {
+    "jouledb_parquet_copy_s": 9.8165,
+    "jouledb_per_table_s": {
+      "region": 0.0232,
+      "nation": 0.0151,
+      "supplier": 0.0294,
+      "customer": 0.1983,
+      "part": 0.1275,
+      "partsupp": 0.646,
+      "orders": 0.7194,
+      "lineitem": 2.649
+    },
+    "jouledb_reported_j": 1202.307314,
+    "duckdb_parquet_load_s": 2.0761,
+    "duckdb_reported_j": 277.056931,
+    "energy_tag": "reported_j"
+  },
+  "summary": {
+    "queries_total": 22,
+    "queries_verified_exact": 13,
+    "jouledb_faster_or_equal_count": 0,
+    "jouledb_total_ms": 50673.729,
+    "duckdb_total_ms": 280.165,
+    "geomean_jdb_over_duckdb": 112.7544,
+    "median_jdb_over_duckdb": 178.1286
+  },
+  "queries": {
+    "Q01": {
+      "query_nr": 1,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 4,
+      "jouledb_median_ms": 84.178,
+      "duckdb_median_ms": 11.662,
+      "ratio_jdb_over_duckdb": 7.2184,
+      "jouledb_reported_j": 12.013188,
+      "duckdb_reported_j": 1.636909,
+      "energy_tag": "reported_j"
+    },
+    "Q02": {
+      "query_nr": 2,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 100,
+      "jouledb_median_ms": 14794.221,
+      "duckdb_median_ms": 21.065,
+      "ratio_jdb_over_duckdb": 702.3086,
+      "jouledb_reported_j": 1380.345989,
+      "duckdb_reported_j": 2.402693,
+      "energy_tag": "reported_j"
+    },
+    "Q03": {
+      "query_nr": 3,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 10,
+      "jouledb_median_ms": 2871.643,
+      "duckdb_median_ms": 31.427,
+      "ratio_jdb_over_duckdb": 91.3759,
+      "jouledb_reported_j": 223.04355,
+      "duckdb_reported_j": 2.712705,
+      "energy_tag": "reported_j"
+    },
+    "Q04": {
+      "query_nr": 4,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 19.722
+    },
+    "Q05": {
+      "query_nr": 5,
+      "status": "error",
+      "error": "server VmRSS (36.2 GB) exceeded --max-rss-gb=36.0 GB cap",
+      "duckdb_median_ms": 32.517
+    },
+    "Q06": {
+      "query_nr": 6,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 1,
+      "jouledb_median_ms": 336.836,
+      "duckdb_median_ms": 8.729,
+      "ratio_jdb_over_duckdb": 38.5872,
+      "jouledb_reported_j": 18.855683,
+      "duckdb_reported_j": 0.490057,
+      "energy_tag": "reported_j"
+    },
+    "Q07": {
+      "query_nr": 7,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 25.619
+    },
+    "Q08": {
+      "query_nr": 8,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 12.159
+    },
+    "Q09": {
+      "query_nr": 9,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 31.66
+    },
+    "Q10": {
+      "query_nr": 10,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 20,
+      "jouledb_median_ms": 3496.474,
+      "duckdb_median_ms": 32.766,
+      "ratio_jdb_over_duckdb": 106.7117,
+      "jouledb_reported_j": 351.576515,
+      "duckdb_reported_j": 3.48598,
+      "energy_tag": "reported_j"
+    },
+    "Q11": {
+      "query_nr": 11,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 1048,
+      "jouledb_median_ms": 4683.466,
+      "duckdb_median_ms": 7.28,
+      "ratio_jdb_over_duckdb": 643.3098,
+      "jouledb_reported_j": 389.189727,
+      "duckdb_reported_j": 0.867326,
+      "energy_tag": "reported_j"
+    },
+    "Q12": {
+      "query_nr": 12,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 30.531
+    },
+    "Q13": {
+      "query_nr": 13,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 42,
+      "jouledb_median_ms": 7538.587,
+      "duckdb_median_ms": 79.915,
+      "ratio_jdb_over_duckdb": 94.3324,
+      "jouledb_reported_j": 402.412204,
+      "duckdb_reported_j": 5.053892,
+      "energy_tag": "reported_j"
+    },
+    "Q14": {
+      "query_nr": 14,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 1,
+      "jouledb_median_ms": 2405.544,
+      "duckdb_median_ms": 8.612,
+      "ratio_jdb_over_duckdb": 279.3171,
+      "jouledb_reported_j": 139.342602,
+      "duckdb_reported_j": 0.494954,
+      "energy_tag": "reported_j"
+    },
+    "Q15": {
+      "query_nr": 15,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 1,
+      "jouledb_median_ms": 70.834,
+      "duckdb_median_ms": 9.63,
+      "ratio_jdb_over_duckdb": 7.3559,
+      "jouledb_reported_j": 5.77529,
+      "duckdb_reported_j": 0.875916,
+      "energy_tag": "reported_j"
+    },
+    "Q16": {
+      "query_nr": 16,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 18314,
+      "jouledb_median_ms": 4205.736,
+      "duckdb_median_ms": 23.611,
+      "ratio_jdb_over_duckdb": 178.1286,
+      "jouledb_reported_j": 322.777955,
+      "duckdb_reported_j": 2.35466,
+      "energy_tag": "reported_j"
+    },
+    "Q17": {
+      "query_nr": 17,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 9.527
+    },
+    "Q18": {
+      "query_nr": 18,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 19.874
+    },
+    "Q19": {
+      "query_nr": 19,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 1,
+      "jouledb_median_ms": 3393.506,
+      "duckdb_median_ms": 13.535,
+      "ratio_jdb_over_duckdb": 250.7117,
+      "jouledb_reported_j": 229.897016,
+      "duckdb_reported_j": 1.102009,
+      "energy_tag": "reported_j"
+    },
+    "Q20": {
+      "query_nr": 20,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 186,
+      "jouledb_median_ms": 2797.206,
+      "duckdb_median_ms": 13.596,
+      "ratio_jdb_over_duckdb": 205.7379,
+      "jouledb_reported_j": 193.859069,
+      "duckdb_reported_j": 1.462205,
+      "energy_tag": "reported_j"
+    },
+    "Q21": {
+      "query_nr": 21,
+      "status": "error",
+      "error": "query exceeded wall timeout of 25.0s",
+      "duckdb_median_ms": 18.33
+    },
+    "Q22": {
+      "query_nr": 22,
+      "status": "ok",
+      "verification": "exact_or_float_tol_match",
+      "row_count": 7,
+      "jouledb_median_ms": 3995.497,
+      "duckdb_median_ms": 18.337,
+      "ratio_jdb_over_duckdb": 217.892,
+      "jouledb_reported_j": 265.445623,
+      "duckdb_reported_j": 1.528592,
+      "energy_tag": "reported_j"
+    }
+  }
+}

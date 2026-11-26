@@ -509,9 +509,19 @@ where
                         body[o + 3],
                     ]));
                 }
-                let ( in_p_oids, in_sel_cols ) = executor
-                    .describe_query(&sql)
-                    .unwrap_or_else(|| (Vec::new(), None));
+                let (in_p_oids, in_sel_cols) =
+                    if let Some(cached_desc) = conn_state.describe_cache.get(&sql) {
+                        cached_desc.clone()
+                    } else {
+                        let d = executor
+                            .describe_query(&sql)
+                            .unwrap_or_else(|| (Vec::new(), None));
+                        if conn_state.describe_cache.len() >= 256 {
+                            conn_state.describe_cache.clear();
+                        }
+                        conn_state.describe_cache.insert(sql.clone(), d.clone());
+                        d
+                    };
                 let total_params = param_count
                     .max(oids.len())
                     .max(in_p_oids.len())
@@ -817,7 +827,8 @@ where
                 let (portal_name, _offset) = extract_cstring(&body, 0);
 
                 if let Some(portal) = conn_state.portals.get_mut(&portal_name) {
-                    let sql = bound_sql(portal);
+                    let raw_sql = portal.sql.clone();
+                    let portal_params = portal.params.clone();
                     let formats = portal.result_formats.clone();
                     let cached = portal.described.take();
                     let timeout = if config.query_timeout_ms > 0 {
@@ -825,28 +836,44 @@ where
                     } else {
                         None
                     };
-                    if let Some(copy) = parse_copy(&sql) {
-                        handle_copy(
-                            copy,
-                            &mut reader,
-                            &mut writer,
-                            &executor,
-                            &mut conn_state,
-                            timeout,
-                        )
-                        .await?;
-                        continue;
+                    let is_copy_prefix = raw_sql
+                        .trim_start()
+                        .get(..5)
+                        .is_some_and(|p| p.eq_ignore_ascii_case("COPY "));
+                    if is_copy_prefix {
+                        let sql = substitute_params(&raw_sql, &portal_params);
+                        if let Some(copy) = parse_copy(&sql) {
+                            handle_copy(
+                                copy,
+                                &mut reader,
+                                &mut writer,
+                                &executor,
+                                &mut conn_state,
+                                timeout,
+                            )
+                            .await?;
+                            continue;
+                        }
                     }
                     stats.queries_executed.fetch_add(1, Ordering::Relaxed);
                     let res = match cached {
                         Some(r) => r,
-                        None => run_statement(&sql, &executor, &mut conn_state, timeout),
+                        None if portal_params.is_empty() => {
+                            run_statement(&raw_sql, &executor, &mut conn_state, timeout)
+                        }
+                        None => run_statement_with_args(
+                            &raw_sql,
+                            &portal_params,
+                            &executor,
+                            &mut conn_state,
+                            timeout,
+                        ),
                     };
                     if res.is_err() {
                         discard_until_sync = true;
                     }
                     write_statement_result(
-                        &sql,
+                        &raw_sql,
                         res,
                         &mut writer,
                         stats,
@@ -1432,8 +1459,18 @@ fn run_statement(
     conn_state: &mut ConnectionState,
     query_timeout_ms: Option<u64>,
 ) -> Result<QueryResponse, QueryErrorResponse> {
+    run_statement_with_args(sql, &[], executor, conn_state, query_timeout_ms)
+}
+
+fn run_statement_with_args(
+    sql: &str,
+    args: &[serde_json::Value],
+    executor: &Arc<dyn QueryExecutor>,
+    conn_state: &mut ConnectionState,
+    query_timeout_ms: Option<u64>,
+) -> Result<QueryResponse, QueryErrorResponse> {
     let t = std::time::Instant::now();
-    let r = run_statement_inner(sql, executor, conn_state, query_timeout_ms);
+    let r = run_statement_inner(sql, args, executor, conn_state, query_timeout_ms);
     if crate::query::lat_trace() {
         eprintln!("lat pgwire run_statement={:?}", t.elapsed());
     }
@@ -1442,11 +1479,14 @@ fn run_statement(
 
 fn run_statement_inner(
     sql: &str,
+    args: &[serde_json::Value],
     executor: &Arc<dyn QueryExecutor>,
     conn_state: &mut ConnectionState,
     query_timeout_ms: Option<u64>,
 ) -> Result<QueryResponse, QueryErrorResponse> {
-    if let Some(r) = show_setting(sql).or_else(|| type_info_lookup(sql)) {
+    if args.is_empty()
+        && let Some(r) = show_setting(sql).or_else(|| type_info_lookup(sql))
+    {
         return Ok(r);
     }
     {
@@ -1455,6 +1495,10 @@ fn run_statement_inner(
         let u = t.to_ascii_uppercase();
         let mut w = u.split_whitespace();
         let first = w.next().unwrap_or("");
+        if matches!(first, "CREATE" | "DROP" | "ALTER" | "TRUNCATE") {
+            conn_state.describe_cache.clear();
+            conn_state.select_cols.clear();
+        }
         if first == "DEALLOCATE" || u == "DISCARD ALL" {
             let name = t
                 .split_whitespace()
@@ -1466,6 +1510,7 @@ fn run_statement_inner(
                 conn_state.prepared_statements = PreparedStatementCache::new(256);
                 conn_state.param_oids.clear();
                 conn_state.select_cols.clear();
+                conn_state.describe_cache.clear();
             } else {
                 conn_state.prepared_statements.remove(&name);
                 conn_state.param_oids.remove(&name);
@@ -1484,7 +1529,7 @@ fn run_statement_inner(
     let request = QueryRequest {
         sql: strip_pg_catalog(sql),
         params: HashMap::new(),
-        args: Vec::new(),
+        args: args.to_vec(),
         explain: false,
         limit: None,
         session_id: conn_state.session_id.clone(),
@@ -3203,6 +3248,8 @@ struct ConnectionState {
     param_oids: HashMap<String, Vec<i32>>,
     /// Statically inferred result `(col_name, oid)` metadata cached at Parse time
     select_cols: HashMap<String, Option<Vec<(String, i32)>>>,
+    /// Per-SQL cached `describe_query` output across repeated `Parse` of unnamed statements
+    describe_cache: HashMap<String, (Vec<i32>, Option<Vec<(String, i32)>>)>,
 }
 
 /// A prepared statement parsed from a Parse message
@@ -3367,6 +3414,7 @@ impl ConnectionState {
             session_id: None,
             param_oids: HashMap::new(),
             select_cols: HashMap::new(),
+            describe_cache: HashMap::new(),
             user_id: "anonymous".to_string(),
             roles: vec!["superuser".to_string()],
         }
@@ -3381,6 +3429,7 @@ impl ConnectionState {
             session_id: None,
             param_oids: HashMap::new(),
             select_cols: HashMap::new(),
+            describe_cache: HashMap::new(),
             user_id,
             // When auth is enabled, default to readonly; when disabled, grant superuser
             roles: if auth_enabled {

@@ -280,7 +280,7 @@ pub async fn execute_shell(config: &Config, output: &Output, database: Option<&s
                         continue;
                     }
                     _ if line.starts_with("\\d ") => {
-                        let table = line.strip_prefix("\\d ").unwrap().trim();
+                        let table = line.strip_prefix("\\d ").unwrap_or("").trim();
                         let query = format!(
                             "SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_name = '{}'",
                             table
@@ -292,7 +292,7 @@ pub async fn execute_shell(config: &Config, output: &Output, database: Option<&s
                         continue;
                     }
                     _ if line.starts_with("\\c ") => {
-                        let new_db = line.strip_prefix("\\c ").unwrap().trim();
+                        let new_db = line.strip_prefix("\\c ").unwrap_or("").trim();
                         output.success(&format!("Connected to database '{}'", new_db));
                         // In a real implementation, this would change the connection
                         continue;

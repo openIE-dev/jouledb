@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # JouleDB LangGraph Integration
 //!
 //! This crate provides checkpoint and message stores for LangGraph, powered by

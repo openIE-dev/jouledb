@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Post-quantum cryptography for Invisible Infrastructure.
 //!
 //! This crate provides real implementations of:

@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Shared hyperdimensional computing types for cross-layer HDC pipeline.
 //!
 //! **ask-davidc (Phasor) → joule-db (BinaryHV) → NeuralFS (semantic search)**

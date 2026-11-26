@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! # joule-db-client
 //!
 //! The core Rust client SDK for [JouleDB](https://joule-db.dev).

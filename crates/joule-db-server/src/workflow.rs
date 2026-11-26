@@ -390,11 +390,10 @@ impl WorkflowManager {
             let mut succeeded = false;
             let mut attempts = 0u32;
 
-            for attempt in 0..retry.max_attempts {
-                attempts = attempt + 1;
+            if retry.max_attempts > 0 {
+                attempts = 1;
                 // Simulated execution: all steps succeed on first attempt
                 succeeded = true;
-                break;
             }
 
             total_energy = total_energy.saturating_add(step_energy);

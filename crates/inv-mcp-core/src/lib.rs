@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Shared MCP (Model Context Protocol) tool handler traits.
 //!
 //! Enables any layer to expose tools via a uniform `db.*`, `search.*`, etc.

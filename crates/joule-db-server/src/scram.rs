@@ -406,12 +406,18 @@ impl ScramClient {
             .map_err(|e| format!("bad server signature: {}", e))?;
 
         // Recompute expected server signature
-        let combined_nonce = parse_attribute(server_first, 'r').unwrap();
-        let salt_b64 = parse_attribute(server_first, 's').unwrap();
-        let iterations_str = parse_attribute(server_first, 'i').unwrap();
+        let combined_nonce =
+            parse_attribute(server_first, 'r').ok_or("missing r= in server-first")?;
+        let salt_b64 = parse_attribute(server_first, 's').ok_or("missing s= in server-first")?;
+        let iterations_str =
+            parse_attribute(server_first, 'i').ok_or("missing i= in server-first")?;
 
-        let salt = BASE64.decode(salt_b64).unwrap();
-        let iterations: u32 = iterations_str.parse().unwrap();
+        let salt = BASE64
+            .decode(salt_b64)
+            .map_err(|e| format!("bad salt in server-first: {e}"))?;
+        let iterations: u32 = iterations_str
+            .parse()
+            .map_err(|e| format!("bad iterations in server-first: {e}"))?;
 
         let salted_password = pbkdf2_hmac_sha256(self.password.as_bytes(), &salt, iterations);
         let server_key = hmac_sha256(&salted_password, b"Server Key");

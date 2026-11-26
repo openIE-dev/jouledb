@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 pub mod attestation;
 pub mod capability;
 pub mod compliance;

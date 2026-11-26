@@ -955,10 +955,12 @@ impl QueryExecutor for SimpleQueryExecutor {
         // Visualization hint inference (when viz feature enabled, SELECT-only)
         #[cfg(feature = "viz")]
         let result = if let Ok(mut response) = result {
-            if is_read_only_query(&request.sql) && !response.rows.is_empty() {
-                use joule_db_query::sql::{SqlParser, SqlStatement};
-                let mut parser = SqlParser::new();
-                if let Ok(SqlStatement::Select(query)) = parser.parse(&request.sql) {
+            if (response.columns.len() >= 2 || response.rows.len() > 1)
+                && is_read_only_query(&request.sql)
+                && !response.rows.is_empty()
+            {
+                use joule_db_query::sql::SqlStatement;
+                if let Ok(SqlStatement::Select(query)) = parse_sql_cached(&request.sql) {
                     let metadata = extract_select_metadata(&query);
                     const VIZ_SAMPLE_ROWS: usize = 100;
                     let sample: Vec<Vec<serde_json::Value>> = response
@@ -1035,11 +1037,134 @@ impl QueryExecutor for SimpleQueryExecutor {
 
 /// Check if a SQL string is a read-only query (eligible for energy routing).
 fn is_read_only_query(sql: &str) -> bool {
-    let t = sql.trim_start().to_uppercase();
-    t.starts_with("SELECT ")
-        || t.starts_with("SHOW ")
-        || t.starts_with("DESCRIBE ")
-        || t.starts_with("EXPLAIN ")
+    let t = sql.trim_start();
+    t.get(..7).is_some_and(|p| p.eq_ignore_ascii_case("SELECT "))
+        || t.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("SHOW "))
+        || t.get(..9)
+            .is_some_and(|p| p.eq_ignore_ascii_case("DESCRIBE "))
+        || t.get(..8)
+            .is_some_and(|p| p.eq_ignore_ascii_case("EXPLAIN "))
+}
+
+/// Thread-local bounded SQL AST cache (`<= 512` statements per worker thread) so
+/// repeated OLTP (`BEGIN`, `SELECT`, `UPDATE`, `INSERT`, `COMMIT`) and benchmark
+/// statements skip re-lexing and re-parsing.
+fn parse_sql_cached(
+    sql: &str,
+) -> Result<joule_db_query::sql::SqlStatement, joule_db_query::error::QueryError> {
+    use joule_db_query::sql::{SqlParser, SqlStatement};
+    use std::cell::RefCell;
+
+    thread_local! {
+        static AST_CACHE: RefCell<rustc_hash::FxHashMap<String, SqlStatement>> =
+            RefCell::new(rustc_hash::FxHashMap::default());
+    }
+
+    if sql.len() <= 8192 {
+        if let Some(hit) = AST_CACHE.with(|c| c.borrow().get(sql).cloned()) {
+            return Ok(hit);
+        }
+    }
+    let mut parser = SqlParser::new();
+    let parsed = parser.parse(sql)?;
+    if sql.len() <= 8192 {
+        AST_CACHE.with(|c| {
+            let mut map = c.borrow_mut();
+            if map.len() >= 512 {
+                map.clear();
+            }
+            map.insert(sql.to_string(), parsed.clone());
+        });
+    }
+    Ok(parsed)
+}
+
+/// Fallback `$1..$N` SQL text substitution for rare statements whose parameters sit
+/// inside nested subqueries or DDL where direct AST parameter binding returns `None`.
+fn substitute_sql_args_fallback(sql: &str, params: &[serde_json::Value]) -> String {
+    if params.is_empty() {
+        return sql.to_string();
+    }
+    let mut result = String::with_capacity(sql.len() + params.len() * 8);
+    let bytes = sql.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'$' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit() {
+            let start = i + 1;
+            let mut end = start;
+            while end < bytes.len() && bytes[end].is_ascii_digit() {
+                end += 1;
+            }
+            if let Ok(idx) = sql[start..end].parse::<usize>()
+                && idx >= 1
+                && idx <= params.len()
+            {
+                match &params[idx - 1] {
+                    serde_json::Value::Null => result.push_str("NULL"),
+                    serde_json::Value::Bool(b) => {
+                        result.push_str(if *b { "TRUE" } else { "FALSE" });
+                    }
+                    serde_json::Value::Number(n) => {
+                        let s = n.to_string();
+                        if s.starts_with('-') {
+                            result.push('(');
+                            result.push_str(&s);
+                            result.push(')');
+                        } else {
+                            result.push_str(&s);
+                        }
+                    }
+                    serde_json::Value::String(s) => {
+                        result.push('\'');
+                        for ch in s.chars() {
+                            if ch == '\'' {
+                                result.push_str("''");
+                            } else {
+                                result.push(ch);
+                            }
+                        }
+                        result.push('\'');
+                    }
+                    other => {
+                        let json_str = other.to_string();
+                        result.push('\'');
+                        for ch in json_str.chars() {
+                            if ch == '\'' {
+                                result.push_str("''");
+                            } else {
+                                result.push(ch);
+                            }
+                        }
+                        result.push('\'');
+                    }
+                }
+                i = end;
+                continue;
+            }
+        }
+        if bytes[i] == b'\'' {
+            result.push('\'');
+            i += 1;
+            while i < bytes.len() {
+                if bytes[i] == b'\'' {
+                    result.push('\'');
+                    i += 1;
+                    if i < bytes.len() && bytes[i] == b'\'' {
+                        result.push('\'');
+                        i += 1;
+                        continue;
+                    }
+                    break;
+                }
+                result.push(bytes[i] as char);
+                i += 1;
+            }
+            continue;
+        }
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
@@ -1532,11 +1657,22 @@ impl SimpleQueryExecutor {
             );
         }
 
-        // Default: SQL parser
+        // Default: SQL parser (with per-thread AST cache)
         crate::energy_executor::begin_stage(joule_db_ledger::ExecutionStage::Parse);
-        let mut parser = SqlParser::new();
-        match parser.parse(&sql) {
-            Ok(stmt) => {
+        match parse_sql_cached(&sql) {
+            Ok(parsed_stmt) => {
+                // Fast-path AST parameter binding (`$1..$N`) without SQL string formatting
+                let stmt = if !request.args.is_empty() {
+                    if let Some(bound) = Self::bind_statement_params(&parsed_stmt, &request.args) {
+                        bound
+                    } else {
+                        let sub_sql = substitute_sql_args_fallback(&sql, &request.args);
+                        parse_sql_cached(&sub_sql)
+                            .map_err(|e| QueryErrorResponse::syntax_error(&e.to_string(), 1, 1))?
+                    }
+                } else {
+                    parsed_stmt
+                };
                 // Handle EXPLAIN from both parser and text-prefix approaches
                 let (effective_stmt, explain_mode) = match &stmt {
                     SqlStatement::Explain { analyze, statement } => {
@@ -7015,8 +7151,6 @@ impl SimpleQueryExecutor {
                         "FLOAT"
                             | "DOUBLE"
                             | "REAL"
-                            | "NUMERIC"
-                            | "DECIMAL"
                             | "BOOLEAN"
                             | "BOOL"
                             | "TEXT"
@@ -7158,7 +7292,85 @@ impl SimpleQueryExecutor {
                 return None;
             }
         }
+        for j in &mut q.joins {
+            if j.source_subquery.is_some() {
+                return None;
+            }
+            if let Some(ref mut cond) = j.condition
+                && !Self::bind_expr_params(cond, params)
+            {
+                return None;
+            }
+        }
+        if !q.ctes.is_empty() || q.set_op.is_some() {
+            return None;
+        }
+        if let Some(ref f) = q.from
+            && matches!(f.source, FromSource::Subquery(_))
+        {
+            return None;
+        }
         Some(q)
+    }
+
+    fn bind_statement_params(
+        stmt: &SqlStatement,
+        params: &[serde_json::Value],
+    ) -> Option<SqlStatement> {
+        match stmt {
+            SqlStatement::Select(q) => Self::bind_select_query_params(q, params).map(SqlStatement::Select),
+            SqlStatement::Update(u) => {
+                let mut u2 = u.clone();
+                for (_, expr) in &mut u2.assignments {
+                    if !Self::bind_expr_params(expr, params) {
+                        return None;
+                    }
+                }
+                if let Some(ref mut w) = u2.where_clause
+                    && !Self::bind_expr_params(w, params)
+                {
+                    return None;
+                }
+                Some(SqlStatement::Update(u2))
+            }
+            SqlStatement::Delete(d) => {
+                let mut d2 = d.clone();
+                if let Some(ref mut w) = d2.where_clause
+                    && !Self::bind_expr_params(w, params)
+                {
+                    return None;
+                }
+                Some(SqlStatement::Delete(d2))
+            }
+            SqlStatement::Insert(ins) => {
+                let mut i2 = ins.clone();
+                match &mut i2.source {
+                    InsertSource::Values(rows) => {
+                        for row in rows {
+                            for expr in row {
+                                if !Self::bind_expr_params(expr, params) {
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                    InsertSource::Select(sq) => {
+                        *sq = Box::new(Self::bind_select_query_params(sq, params)?);
+                    }
+                }
+                if let Some(ref mut oc) = i2.on_conflict
+                    && let OnConflictAction::DoUpdate(ref mut assigns) = oc.action
+                {
+                    for (_, expr) in assigns {
+                        if !Self::bind_expr_params(expr, params) {
+                            return None;
+                        }
+                    }
+                }
+                Some(SqlStatement::Insert(i2))
+            }
+            _ => None,
+        }
     }
 
     fn bulk_insert_eligible(
@@ -7565,6 +7777,21 @@ impl SimpleQueryExecutor {
             }
         }
 
+        // Vectorized `.jcol` / `col_cache` fast path for single-table CTEs, derived subqueries,
+        // and decorrelated `GROUP BY` subqueries (`TPC-H` `Q15, Q17, Q18, Q20, Q22`)!
+        if session_id.is_none()
+            && params.is_empty()
+            && query.ctes.is_empty()
+            && query.joins.is_empty()
+            && query.set_op.is_none()
+            && query.as_of_timestamp.is_none()
+            && let Some(tbl) = query.from.as_ref().and_then(|f| f.table_name())
+            && !cte_tables.contains_key(tbl)
+            && let Some(vec_resp) = self.try_vectorized_select(query, request_limit, start)
+        {
+            return Ok(vec_resp);
+        }
+
         // Columnar aggregate short-circuit: detect simple SELECT agg(col) FROM table
         // with no WHERE, no GROUP BY, no JOIN, no subquery, no CTE dependencies
         if query.ctes.is_empty()
@@ -7578,6 +7805,78 @@ impl SimpleQueryExecutor {
             if let Some(result) = self.try_columnar_aggregate(query, start) {
                 return Ok(result);
             }
+        }
+
+        // Pre-materialize derived tables (JOIN subqueries) into cte_tables BEFORE join
+        // planning & FROM pushdown so their column schemas are visible to `optimize_comma_joins`!
+        for join in &query.joins {
+            if let Some(ref subquery) = join.source_subquery {
+                let alias = join.alias.as_ref().unwrap_or(&join.table);
+                if !cte_tables.contains_key(alias) {
+                    let sub_result =
+                        self.execute_select(subquery, params, None, start, session_id, None)?;
+                    cte_tables.insert(alias.clone(), (sub_result.columns, sub_result.rows));
+                }
+            }
+        }
+
+        // Determine if all joins are INNER / CROSS (no nullable OUTER sides), allowing safe
+        // single-table WHERE conjunct & column-projection pushdown into `.jcol` segments!
+        let all_joins_inner_or_cross = !query.joins.is_empty()
+            && query
+                .joins
+                .iter()
+                .all(|j| matches!(j.join_type, JoinType::Inner | JoinType::Cross));
+
+        // Factor common conjuncts out of top-level `OR` branches (`(J AND P1) OR (J AND P2)` -> `J AND (P1 OR P2)`,
+        // e.g. TPC-H Q19 & Q07) so single-table pushdown and `O(N+M)` hash joins apply automatically.
+        let pre_where: Option<Expression> = query
+            .where_clause
+            .as_ref()
+            .map(Self::factor_common_or_conjuncts);
+
+        // Build schema metadata `(alias -> bare_cols)` and estimated row counts across all
+        // tables in `FROM` + `JOIN` so `optimize_comma_joins` converts ANSI-89 comma joins into
+        // ordered `INNER` hash joins (even for multi-alias self-joins like `nation n1, nation n2`)!
+        let mut join_schema_cols: HashMap<String, Vec<String>> = HashMap::new();
+        let mut join_est_rows: HashMap<String, usize> = HashMap::new();
+        let mut register_schema = |alias_key: &str, real_name: &str| {
+            if let Some((cols, rows)) = cte_tables
+                .get(alias_key)
+                .or_else(|| cte_tables.get(real_name))
+            {
+                join_schema_cols.insert(alias_key.to_string(), cols.clone());
+                join_est_rows.insert(alias_key.to_string(), rows.len());
+            } else if let Ok(cols) = self.amorphic.columns(real_name) {
+                let est = self
+                    .amorphic
+                    .disk_column_table(real_name)
+                    .map(|dt| dt.total_rows)
+                    .or_else(|| {
+                        self.amorphic
+                            .cached_table_columns(real_name)
+                            .map(|tc| tc.len)
+                    })
+                    .or_else(|| {
+                        self.amorphic
+                            .get_table_statistics(real_name)
+                            .ok()
+                            .map(|s| s.row_count)
+                    })
+                    .unwrap_or(1_000_000);
+                join_schema_cols.insert(alias_key.to_string(), cols);
+                join_est_rows.insert(alias_key.to_string(), est);
+            }
+        };
+        if let Some(ref f) = query.from
+            && let FromSource::Table(ref t) = f.source
+        {
+            let a = f.alias.as_deref().unwrap_or(t.as_str());
+            register_schema(a, t);
+        }
+        for j in &query.joins {
+            let a = j.alias.as_deref().unwrap_or(j.table.as_str());
+            register_schema(a, &j.table);
         }
 
         // Start with the FROM clause - could be a table, a CTE reference, or a subquery
@@ -7600,15 +7899,31 @@ impl SimpleQueryExecutor {
                     } else if let Some(view_result) =
                         self.try_expand_view(table_name, params, start, session_id, None)?
                     {
+                        if !join_schema_cols.contains_key(alias) {
+                            join_schema_cols.insert(alias.to_string(), view_result.0.clone());
+                            join_est_rows.insert(alias.to_string(), view_result.1.len());
+                        }
                         view_result
                     } else if let Some(ts) = query.as_of_timestamp {
                         // AS OF TIMESTAMP: time-travel read at the given epoch
                         self.load_table_at_timestamp(table_name, ts)
                             .unwrap_or_else(|| (Vec::new(), Vec::new()))
                     } else if session_id.is_none() {
-                        // Use load_table_with_ids for physical tables (not in MVCC session)
-                        // to enable FTS/spatial index optimizations
-                        if let Some((cols, table_rows, rec_ids)) =
+                        // Fast vectorized `.jcol` projection + single-table WHERE pushdown when
+                        // joining segmented analytical tables (`TPC-H` `lineitem`, `orders`, etc.)
+                        if !query.joins.is_empty()
+                            && let Some((cols, fast_rows)) = self.try_load_jcol_table_for_join(
+                                table_name,
+                                alias,
+                                query,
+                                pre_where.as_ref(),
+                                all_joins_inner_or_cross,
+                                params,
+                                &join_schema_cols,
+                            )
+                        {
+                            (cols, fast_rows)
+                        } else if let Some((cols, table_rows, rec_ids)) =
                             self.load_table_with_ids(table_name)
                         {
                             table_record_ids = rec_ids;
@@ -7657,6 +7972,8 @@ impl SimpleQueryExecutor {
                     let subquery_result =
                         self.execute_select(subquery, params, None, start, session_id, None)?;
                     let alias = from.alias.as_deref().unwrap_or("subquery");
+                    join_schema_cols.insert(alias.to_string(), subquery_result.columns.clone());
+                    join_est_rows.insert(alias.to_string(), subquery_result.rows.len());
 
                     // Prefix columns with alias
                     let prefixed_cols: Vec<String> = subquery_result
@@ -7694,46 +8011,45 @@ impl SimpleQueryExecutor {
             })
             .unwrap_or_default();
 
-        // Build combined table columns map for predicate pushdown
-        // CTEs are included directly; amorphic tables are loaded on demand
-        let all_tables: HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)> =
-            cte_tables.clone();
-
-        let (optimized_joins, optimized_where) = self.optimize_comma_joins(
+        let (optimized_joins, mut optimized_where) = self.optimize_comma_joins(
             &query.joins,
-            query.where_clause.as_ref(),
+            pre_where.as_ref(),
             &[from_table.clone()],
-            &all_tables,
+            &join_schema_cols,
+            &join_est_rows,
         );
 
         // Build list of known tables as we process joins
         let mut known_tables = vec![from_table];
-
-        // Materialize derived tables (JOIN subqueries) into cte_tables
-        for join in &optimized_joins {
-            if let Some(ref subquery) = join.source_subquery {
-                let alias = join.alias.as_ref().unwrap_or(&join.table);
-                if !cte_tables.contains_key(alias) {
-                    let sub_result =
-                        self.execute_select(subquery, params, None, start, session_id, None)?;
-                    cte_tables.insert(alias.clone(), (sub_result.columns, sub_result.rows));
-                }
-            }
-        }
 
         // Process JOINs (using optimized versions)
         for join in &optimized_joins {
             let join_table = &join.table;
             let join_alias = join.alias.as_ref().unwrap_or(join_table);
 
-            // Check CTEs first, then views, then amorphic tables
+            // Check CTEs first (by alias for derived subqueries, then by table name), then views, then amorphic tables
             let (join_columns, join_rows): (Vec<String>, Vec<Vec<serde_json::Value>>) =
-                if let Some((cols, cte_rows)) = cte_tables.get(join_table) {
+                if let Some((cols, cte_rows)) = cte_tables
+                    .get(join_alias)
+                    .or_else(|| cte_tables.get(join_table))
+                {
                     (cols.clone(), cte_rows.clone())
                 } else if let Some(view_result) =
                     self.try_expand_view(join_table, params, start, session_id, None)?
                 {
                     view_result
+                } else if session_id.is_none()
+                    && let Some((cols, fast_rows)) = self.try_load_jcol_table_for_join(
+                        join_table,
+                        join_alias,
+                        query,
+                        optimized_where.as_ref(),
+                        all_joins_inner_or_cross,
+                        params,
+                        &join_schema_cols,
+                    )
+                {
+                    (cols, fast_rows)
                 } else if let Some((cols, table_rows)) = self.load_table(join_table, session_id) {
                     (cols, table_rows)
                 } else {
@@ -7801,12 +8117,19 @@ impl SimpleQueryExecutor {
                 join.condition.clone()
             };
 
-            // Try to extract equi-join keys for hash join optimization
-            let equi_keys = self.extract_equi_join_keys(
-                resolved_condition.as_ref(),
-                &left_columns,
-                &right_columns,
-            );
+            // Try to extract equi-join keys for hash join optimization.
+            // Note: `right_columns` is doubled (`alias.col` at `0..K`, bare `col` at `K..2K`),
+            // whereas `join_rows` (`right_rows`) is raw (`0..K`), so wrap right indices modulo `K`!
+            let equi_keys = self
+                .extract_equi_join_keys(resolved_condition.as_ref(), &left_columns, &right_columns)
+                .map(|(lk, rk)| {
+                    let norm_rk = if join_col_count > 0 {
+                        rk.into_iter().map(|idx| idx % join_col_count).collect()
+                    } else {
+                        rk
+                    };
+                    (lk, norm_rk)
+                });
 
             // Perform the join - use hash join if equi-join keys found
             result_rows = match join.join_type {
@@ -7969,36 +8292,91 @@ impl SimpleQueryExecutor {
             known_tables.push(join_alias.to_string());
         }
 
+        // Pre-materialize uncorrelated subqueries (`IN`, scalar `WHERE`/`HAVING`) and execute
+        // correlated `EXISTS`/`NOT EXISTS` semi/anti-joins (`Q04, Q21, Q22`) + correlated scalar
+        // `GROUP BY` decorrelations (`Q02, Q17, Q20`) BEFORE building `tables_for_ctx` so we
+        // never materialize multi-million-row tables for per-row nested-loop subqueries!
+        if optimized_where
+            .as_ref()
+            .is_some_and(Self::expr_contains_subquery)
+        {
+            optimized_where = self.accelerate_where_subqueries(
+                optimized_where,
+                &result_columns,
+                &mut result_rows,
+                &mut table_record_ids,
+                &join_schema_cols,
+                &cte_tables,
+                params,
+                start,
+                session_id,
+            )?;
+        }
+        let mut having_rewritten_query: Option<SqlQuery> = None;
+        if let Some(ref h) = query.having
+            && Self::expr_contains_subquery(h)
+        {
+            let outer_set: Vec<(String, Vec<String>)> = join_schema_cols
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            let new_h = self.materialize_uncorrelated_expr_subqueries(
+                h,
+                &outer_set,
+                &cte_tables,
+                params,
+                start,
+                session_id,
+            )?;
+            let mut q_clone = query.clone();
+            q_clone.having = Some(new_h);
+            having_rewritten_query = Some(q_clone);
+        }
+        let query = having_rewritten_query.as_ref().unwrap_or(query);
+
         // Apply WHERE clause (using optimized version with pushed predicates removed)
         // - with tables context for subquery support
-        // Build EvalContext tables from CTEs + referenced physical tables
-        let mut tables_for_ctx: HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)> =
-            cte_tables.clone();
-
-        // Add physical tables so subqueries in WHERE can reference them
-        for table_name in &known_tables {
-            if !tables_for_ctx.contains_key(table_name) {
-                if let Some(data) = self.load_table(table_name, session_id) {
-                    tables_for_ctx.insert(table_name.clone(), data);
-                }
-            }
-        }
-
-        // Also load tables referenced by subqueries in WHERE/HAVING clauses
+        // Build EvalContext tables from CTEs + referenced physical tables ONLY when
+        // WHERE, HAVING, or SELECT actually contains a Subquery / Exists expression!
+        let mut subquery_tables = Vec::new();
         if let Some(ref wc) = optimized_where {
-            let mut subquery_tables = Vec::new();
             collect_subquery_tables(wc, &mut subquery_tables);
-            for tbl in &subquery_tables {
-                if !tables_for_ctx.contains_key(tbl) {
-                    if let Some(data) = self.load_table(tbl, session_id) {
-                        tables_for_ctx.insert(tbl.clone(), data);
+        }
+        if let Some(ref having) = query.having {
+            collect_subquery_tables(having, &mut subquery_tables);
+        }
+        for col in &query.columns {
+            collect_subquery_tables(&col.expr, &mut subquery_tables);
+        }
+        let has_any_subquery = !subquery_tables.is_empty()
+            || optimized_where
+                .as_ref()
+                .is_some_and(Self::expr_contains_subquery)
+            || query
+                .having
+                .as_ref()
+                .is_some_and(Self::expr_contains_subquery)
+            || query
+                .columns
+                .iter()
+                .any(|c| Self::expr_contains_subquery(&c.expr));
+
+        let mut tables_for_ctx: HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)> =
+            if has_any_subquery {
+                cte_tables.clone()
+            } else {
+                HashMap::new()
+            };
+
+        if has_any_subquery {
+            // Add physical tables so correlated/uncorrelated subqueries in WHERE/HAVING/SELECT can reference them
+            for table_name in &known_tables {
+                if !tables_for_ctx.contains_key(table_name) {
+                    if let Some(data) = self.load_table(table_name, session_id) {
+                        tables_for_ctx.insert(table_name.clone(), data);
                     }
                 }
             }
-        }
-        if let Some(ref having) = query.having {
-            let mut subquery_tables = Vec::new();
-            collect_subquery_tables(having, &mut subquery_tables);
             for tbl in &subquery_tables {
                 if !tables_for_ctx.contains_key(tbl) {
                     if let Some(data) = self.load_table(tbl, session_id) {
@@ -8272,8 +8650,9 @@ impl SimpleQueryExecutor {
         // (where raw group rows are available for aggregate computation).
         // This post-projection HAVING only applies for non-GROUP-BY cases (e.g., aggregate without GROUP BY).
         let final_rows: Vec<Vec<serde_json::Value>> =
-            if query.having.is_some() && query.group_by.is_empty() {
-                let having = query.having.as_ref().unwrap();
+            if let Some(ref having) = query.having
+                && query.group_by.is_empty()
+            {
                 // First resolve aliases, then evaluate the HAVING expression as an aggregate
                 // against the pre-projection source rows. This allows HAVING to reference
                 // aggregates not in the SELECT list (e.g., HAVING COUNT(*) > 3).
@@ -9797,14 +10176,17 @@ impl SimpleQueryExecutor {
         // Build hash table
         let mut hash_table: HashMap<String, Vec<usize>> = HashMap::new();
         for (idx, row) in build_rows.iter().enumerate() {
-            let key = self.compute_hash_key(row, build_keys);
-            hash_table.entry(key).or_default().push(idx);
+            if let Some(key) = self.compute_hash_key(row, build_keys) {
+                hash_table.entry(key).or_default().push(idx);
+            }
         }
 
         // Probe phase
         let mut result = Vec::new();
         for probe_row in probe_rows {
-            let key = self.compute_hash_key(probe_row, probe_keys);
+            let Some(key) = self.compute_hash_key(probe_row, probe_keys) else {
+                continue;
+            };
 
             if let Some(matches) = hash_table.get(&key) {
                 for &build_idx in matches {
@@ -9859,17 +10241,19 @@ impl SimpleQueryExecutor {
         // Build hash table from right side
         let mut hash_table: HashMap<String, Vec<usize>> = HashMap::new();
         for (idx, row) in right_rows.iter().enumerate() {
-            let key = self.compute_hash_key(row, right_key_indices);
-            hash_table.entry(key).or_default().push(idx);
+            if let Some(key) = self.compute_hash_key(row, right_key_indices) {
+                hash_table.entry(key).or_default().push(idx);
+            }
         }
 
         // Probe with left side, keeping all left rows
         let mut result = Vec::new();
         for left_row in left_rows {
-            let key = self.compute_hash_key(left_row, left_key_indices);
             let mut matched = false;
 
-            if let Some(matches) = hash_table.get(&key) {
+            if let Some(key) = self.compute_hash_key(left_row, left_key_indices)
+                && let Some(matches) = hash_table.get(&key)
+            {
                 for &right_idx in matches {
                     let right_row = &right_rows[right_idx];
 
@@ -9919,17 +10303,19 @@ impl SimpleQueryExecutor {
         // Build hash table from left side
         let mut hash_table: HashMap<String, Vec<usize>> = HashMap::new();
         for (idx, row) in left_rows.iter().enumerate() {
-            let key = self.compute_hash_key(row, left_key_indices);
-            hash_table.entry(key).or_default().push(idx);
+            if let Some(key) = self.compute_hash_key(row, left_key_indices) {
+                hash_table.entry(key).or_default().push(idx);
+            }
         }
 
         // Probe with right side, keeping all right rows
         let mut result = Vec::new();
         for right_row in right_rows {
-            let key = self.compute_hash_key(right_row, right_key_indices);
             let mut matched = false;
 
-            if let Some(matches) = hash_table.get(&key) {
+            if let Some(key) = self.compute_hash_key(right_row, right_key_indices)
+                && let Some(matches) = hash_table.get(&key)
+            {
                 for &left_idx in matches {
                     let left_row = &left_rows[left_idx];
 
@@ -9963,17 +10349,50 @@ impl SimpleQueryExecutor {
         result
     }
 
-    /// Compute a hash key from selected columns of a row
-    fn compute_hash_key(&self, row: &[serde_json::Value], key_indices: &[usize]) -> String {
-        key_indices
-            .iter()
-            .map(|&idx| {
-                row.get(idx)
-                    .map(|v| format!("{:?}", v))
-                    .unwrap_or_else(|| "NULL".to_string())
-            })
-            .collect::<Vec<_>>()
-            .join("|")
+    #[inline]
+    fn canonical_hash_scalar(v: &serde_json::Value) -> Option<String> {
+        match v {
+            serde_json::Value::Null => None,
+            serde_json::Value::Bool(b) => Some(if *b {
+                "B:1".to_string()
+            } else {
+                "B:0".to_string()
+            }),
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    Some(format!("N:{i}"))
+                } else if let Some(f) = n.as_f64() {
+                    if f.fract() == 0.0 && f >= i64::MIN as f64 && f <= i64::MAX as f64 {
+                        Some(format!("N:{}", f as i64))
+                    } else {
+                        Some(format!("F:{f:.8}"))
+                    }
+                } else {
+                    None
+                }
+            }
+            serde_json::Value::String(s) => Some(format!("S:{s}")),
+            other => Some(format!("J:{other}")),
+        }
+    }
+
+    /// Compute a canonical hash key from selected columns of a row.
+    /// Returns `None` if any join key column is `NULL` (SQL `NULL = NULL` is unknown/false).
+    fn compute_hash_key(&self, row: &[serde_json::Value], key_indices: &[usize]) -> Option<String> {
+        if key_indices.is_empty() {
+            return None;
+        }
+        if key_indices.len() == 1 {
+            return Self::canonical_hash_scalar(row.get(key_indices[0])?);
+        }
+        let mut out = String::new();
+        for (pos, &idx) in key_indices.iter().enumerate() {
+            if pos > 0 {
+                out.push('|');
+            }
+            out.push_str(&Self::canonical_hash_scalar(row.get(idx)?)?);
+        }
+        Some(out)
     }
 
     /// Extract non-equi (residual) conditions from a join condition
@@ -10044,70 +10463,1271 @@ impl SimpleQueryExecutor {
     // Predicate Pushdown - Convert comma-joins to hash-joinable INNER JOINs
     // =========================================================================
 
-    /// Optimize comma-joins by pushing WHERE predicates to JOIN conditions
-    /// Converts: FROM a, b WHERE a.id = b.id
-    /// To:       FROM a INNER JOIN b ON a.id = b.id
+    fn factor_common_or_conjuncts(expr: &Expression) -> Expression {
+        fn flatten_or<'a>(e: &'a Expression, out: &mut Vec<&'a Expression>) {
+            if let Expression::Binary {
+                left,
+                op: Operator::Or,
+                right,
+            } = e
+            {
+                flatten_or(left, out);
+                flatten_or(right, out);
+            } else {
+                out.push(e);
+            }
+        }
+        fn flatten_and(e: &Expression, out: &mut Vec<Expression>) {
+            if let Expression::Binary {
+                left,
+                op: Operator::And,
+                right,
+            } = e
+            {
+                flatten_and(left, out);
+                flatten_and(right, out);
+            } else {
+                out.push(e.clone());
+            }
+        }
+        fn join_and(items: Vec<Expression>) -> Option<Expression> {
+            let mut it = items.into_iter();
+            let first = it.next()?;
+            Some(it.fold(first, |acc, x| Expression::Binary {
+                left: Box::new(acc),
+                op: Operator::And,
+                right: Box::new(x),
+            }))
+        }
+        fn join_or(items: Vec<Expression>) -> Option<Expression> {
+            let mut it = items.into_iter();
+            let first = it.next()?;
+            Some(it.fold(first, |acc, x| Expression::Binary {
+                left: Box::new(acc),
+                op: Operator::Or,
+                right: Box::new(x),
+            }))
+        }
+
+        let mut branches = Vec::new();
+        flatten_or(expr, &mut branches);
+        if branches.len() < 2 {
+            if let Expression::Binary {
+                left,
+                op: Operator::And,
+                right,
+            } = expr
+            {
+                return Expression::Binary {
+                    left: Box::new(Self::factor_common_or_conjuncts(left)),
+                    op: Operator::And,
+                    right: Box::new(Self::factor_common_or_conjuncts(right)),
+                };
+            }
+            return expr.clone();
+        }
+        let mut branch_conjs: Vec<Vec<Expression>> = branches
+            .iter()
+            .map(|b| {
+                let mut v = Vec::new();
+                flatten_and(b, &mut v);
+                v
+            })
+            .collect();
+        let mut common = Vec::new();
+        let first_snapshot = branch_conjs[0].clone();
+        for cand in first_snapshot {
+            if branch_conjs.iter().all(|bc| bc.contains(&cand)) {
+                for bc in &mut branch_conjs {
+                    if let Some(pos) = bc.iter().position(|x| x == &cand) {
+                        bc.remove(pos);
+                    }
+                }
+                common.push(cand);
+            }
+        }
+        if common.is_empty() {
+            return expr.clone();
+        }
+        let Some(common_expr) = join_and(common) else {
+            return expr.clone();
+        };
+        if branch_conjs.iter().any(|bc| bc.is_empty()) {
+            return common_expr;
+        }
+        let rem_branches: Vec<Expression> = branch_conjs
+            .into_iter()
+            .filter_map(join_and)
+            .collect();
+        if let Some(or_rem) = join_or(rem_branches) {
+            Expression::Binary {
+                left: Box::new(common_expr),
+                op: Operator::And,
+                right: Box::new(or_rem),
+            }
+        } else {
+            common_expr
+        }
+    }
+
+    fn sql_query_from_ast_query(q: &joule_db_query::ast::Query) -> Option<SqlQuery> {
+        let src = q.source.as_ref()?;
+        let columns: Vec<joule_db_query::sql::SqlColumn> = q
+            .columns
+            .iter()
+            .map(|cn| {
+                if cn == "*" {
+                    joule_db_query::sql::SqlColumn {
+                        expr: Expression::Wildcard,
+                        alias: None,
+                    }
+                } else if let Some(dexpr) = q.derived_columns.get(cn) {
+                    joule_db_query::sql::SqlColumn {
+                        expr: dexpr.clone(),
+                        alias: Some(cn.clone()),
+                    }
+                } else {
+                    joule_db_query::sql::SqlColumn {
+                        expr: Expression::Column(cn.clone()),
+                        alias: None,
+                    }
+                }
+            })
+            .collect();
+        let mut ctes = Vec::with_capacity(q.ctes.len());
+        for c in &q.ctes {
+            ctes.push(joule_db_query::sql::SqlCTE {
+                name: c.name.clone(),
+                columns: c.columns.clone(),
+                query: Box::new(Self::sql_query_from_ast_query(&c.query)?),
+                recursive: c.recursive,
+            });
+        }
+        let joins: Vec<SqlJoin> = q
+            .joins
+            .iter()
+            .map(|j| SqlJoin {
+                join_type: j.join_type,
+                table: j.table.clone(),
+                alias: j.alias.clone(),
+                condition: j.condition.clone(),
+                using_columns: j.using_columns.clone(),
+                source_subquery: None,
+                lateral: false,
+            })
+            .collect();
+        Some(SqlQuery {
+            ctes,
+            distinct: q.distinct,
+            columns,
+            from: Some(joule_db_query::sql::SqlFrom {
+                source: FromSource::Table(src.clone()),
+                alias: q.source_alias.clone(),
+                lateral: false,
+            }),
+            joins,
+            where_clause: q.filter.clone(),
+            group_by: q.group_by.clone(),
+            having: q.having.clone(),
+            order_by: q.order_by.clone(),
+            limit: q.limit,
+            offset: q.offset,
+            set_op: None,
+            as_of_timestamp: None,
+        })
+    }
+
+    fn schemas_for_subquery(
+        &self,
+        sub_sql: &SqlQuery,
+        cte_tables: &HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)>,
+    ) -> Option<Vec<(String, Vec<String>)>> {
+        let mut out: Vec<(String, Vec<String>)> = Vec::new();
+        let mut local_ctes: HashMap<String, Vec<String>> = cte_tables
+            .iter()
+            .map(|(k, (c, _))| (k.clone(), c.clone()))
+            .collect();
+        for c in &sub_sql.ctes {
+            let cols: Vec<String> = if !c.columns.is_empty() {
+                c.columns.clone()
+            } else {
+                c.query.columns.iter().map(|sc| sc.to_string()).collect()
+            };
+            local_ctes.insert(c.name.clone(), cols);
+        }
+        let lookup = |tbl: &str| -> Option<Vec<String>> {
+            if let Some(c) = local_ctes.get(tbl) {
+                Some(c.clone())
+            } else {
+                self.amorphic.columns(tbl).ok()
+            }
+        };
+        if let Some(ref f) = sub_sql.from {
+            let FromSource::Table(ref t) = f.source else {
+                return None;
+            };
+            let cols = lookup(t)?;
+            if let Some(ref a) = f.alias {
+                out.push((a.clone(), cols.clone()));
+            }
+            out.push((t.clone(), cols));
+        }
+        for j in &sub_sql.joins {
+            let cols = lookup(&j.table)?;
+            if let Some(ref a) = j.alias {
+                out.push((a.clone(), cols.clone()));
+            }
+            out.push((j.table.clone(), cols));
+        }
+        Some(out)
+    }
+
+    fn expr_has_outer_ref(
+        &self,
+        expr: &Expression,
+        in_scope: &[(String, Vec<String>)],
+        cte_tables: &HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)>,
+    ) -> bool {
+        match expr {
+            Expression::Column(_) | Expression::QualifiedColumn { .. } => {
+                !Self::col_belongs_to_set(expr, in_scope)
+            }
+            Expression::Binary { left, right, .. } => {
+                self.expr_has_outer_ref(left, in_scope, cte_tables)
+                    || self.expr_has_outer_ref(right, in_scope, cte_tables)
+            }
+            Expression::Unary { expr: inner, .. }
+            | Expression::IsNull { expr: inner, .. }
+            | Expression::Like { expr: inner, .. }
+            | Expression::RegexMatch { expr: inner, .. }
+            | Expression::SimilarTo { expr: inner, .. }
+            | Expression::LikeMeaning { expr: inner, .. }
+            | Expression::Cast { expr: inner, .. } => {
+                self.expr_has_outer_ref(inner, in_scope, cte_tables)
+            }
+            Expression::Function { args, .. } | Expression::WindowFunction { args, .. } => args
+                .iter()
+                .any(|a| self.expr_has_outer_ref(a, in_scope, cte_tables)),
+            Expression::Case {
+                operand,
+                when_clauses,
+                else_clause,
+            } => {
+                operand
+                    .as_deref()
+                    .is_some_and(|o| self.expr_has_outer_ref(o, in_scope, cte_tables))
+                    || when_clauses.iter().any(|(w, t)| {
+                        self.expr_has_outer_ref(w, in_scope, cte_tables)
+                            || self.expr_has_outer_ref(t, in_scope, cte_tables)
+                    })
+                    || else_clause
+                        .as_deref()
+                        .is_some_and(|e| self.expr_has_outer_ref(e, in_scope, cte_tables))
+            }
+            Expression::In {
+                expr: inner, list, ..
+            } => {
+                self.expr_has_outer_ref(inner, in_scope, cte_tables)
+                    || list
+                        .iter()
+                        .any(|x| self.expr_has_outer_ref(x, in_scope, cte_tables))
+            }
+            Expression::Between {
+                expr: inner,
+                low,
+                high,
+                ..
+            } => {
+                self.expr_has_outer_ref(inner, in_scope, cte_tables)
+                    || self.expr_has_outer_ref(low, in_scope, cte_tables)
+                    || self.expr_has_outer_ref(high, in_scope, cte_tables)
+            }
+            Expression::Subquery(sub) | Expression::Exists(sub) => {
+                let Some(sub_sql) = Self::sql_query_from_ast_query(sub) else {
+                    return true;
+                };
+                let Some(mut nested_scope) = self.schemas_for_subquery(&sub_sql, cte_tables) else {
+                    return true;
+                };
+                nested_scope.extend_from_slice(in_scope);
+                self.subquery_has_outer_ref(&sub_sql, &nested_scope, cte_tables)
+            }
+            _ => false,
+        }
+    }
+
+    fn subquery_has_outer_ref(
+        &self,
+        sub_sql: &SqlQuery,
+        in_scope: &[(String, Vec<String>)],
+        cte_tables: &HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)>,
+    ) -> bool {
+        sub_sql
+            .columns
+            .iter()
+            .any(|c| self.expr_has_outer_ref(&c.expr, in_scope, cte_tables))
+            || sub_sql
+                .where_clause
+                .as_ref()
+                .is_some_and(|w| self.expr_has_outer_ref(w, in_scope, cte_tables))
+            || sub_sql
+                .joins
+                .iter()
+                .any(|j| {
+                    j.condition
+                        .as_ref()
+                        .is_some_and(|c| self.expr_has_outer_ref(c, in_scope, cte_tables))
+                })
+            || sub_sql
+                .group_by
+                .iter()
+                .any(|g| self.expr_has_outer_ref(g, in_scope, cte_tables))
+            || sub_sql
+                .having
+                .as_ref()
+                .is_some_and(|h| self.expr_has_outer_ref(h, in_scope, cte_tables))
+    }
+
+    fn materialize_uncorrelated_expr_subqueries(
+        &self,
+        expr: &Expression,
+        outer_set: &[(String, Vec<String>)],
+        cte_tables: &HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)>,
+        params: &[serde_json::Value],
+        start: Instant,
+        session_id: Option<&str>,
+    ) -> Result<Expression, QueryErrorResponse> {
+        let _ = outer_set;
+        match expr {
+            Expression::Subquery(sub) => {
+                if let Some(sub_sql) = Self::sql_query_from_ast_query(sub)
+                    && let Some(inner_scope) = self.schemas_for_subquery(&sub_sql, cte_tables)
+                    && !self.subquery_has_outer_ref(&sub_sql, &inner_scope, cte_tables)
+                {
+                    let res = self.execute_select_inner(
+                        &sub_sql,
+                        params,
+                        None,
+                        start,
+                        session_id,
+                        None,
+                        cte_tables,
+                    )?;
+                    if res.rows.len() > 1 {
+                        return Err(QueryErrorResponse::execution_error(
+                            "more than one row returned by a subquery used as an expression",
+                        ));
+                    }
+                    let val = res
+                        .rows
+                        .first()
+                        .and_then(|r| r.first())
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null);
+                    return Ok(Expression::Literal(json_to_ast_value(&val)));
+                }
+                Ok(expr.clone())
+            }
+            Expression::Exists(sub) => {
+                if let Some(mut sub_sql) = Self::sql_query_from_ast_query(sub)
+                    && let Some(inner_scope) = self.schemas_for_subquery(&sub_sql, cte_tables)
+                    && !self.subquery_has_outer_ref(&sub_sql, &inner_scope, cte_tables)
+                {
+                    sub_sql.limit = Some(1);
+                    let res = self.execute_select_inner(
+                        &sub_sql,
+                        params,
+                        Some(1),
+                        start,
+                        session_id,
+                        None,
+                        cte_tables,
+                    )?;
+                    return Ok(Expression::Literal(AstValue::Bool(!res.rows.is_empty())));
+                }
+                Ok(expr.clone())
+            }
+            Expression::Binary { left, op, right } => Ok(Expression::Binary {
+                left: Box::new(self.materialize_uncorrelated_expr_subqueries(
+                    left,
+                    outer_set,
+                    cte_tables,
+                    params,
+                    start,
+                    session_id,
+                )?),
+                op: *op,
+                right: Box::new(self.materialize_uncorrelated_expr_subqueries(
+                    right,
+                    outer_set,
+                    cte_tables,
+                    params,
+                    start,
+                    session_id,
+                )?),
+            }),
+            Expression::Unary { op, expr: inner } => Ok(Expression::Unary {
+                op: *op,
+                expr: Box::new(self.materialize_uncorrelated_expr_subqueries(
+                    inner,
+                    outer_set,
+                    cte_tables,
+                    params,
+                    start,
+                    session_id,
+                )?),
+            }),
+            Expression::Between {
+                expr: inner,
+                low,
+                high,
+                negated,
+            } => Ok(Expression::Between {
+                expr: Box::new(self.materialize_uncorrelated_expr_subqueries(
+                    inner,
+                    outer_set,
+                    cte_tables,
+                    params,
+                    start,
+                    session_id,
+                )?),
+                low: Box::new(self.materialize_uncorrelated_expr_subqueries(
+                    low,
+                    outer_set,
+                    cte_tables,
+                    params,
+                    start,
+                    session_id,
+                )?),
+                high: Box::new(self.materialize_uncorrelated_expr_subqueries(
+                    high,
+                    outer_set,
+                    cte_tables,
+                    params,
+                    start,
+                    session_id,
+                )?),
+                negated: *negated,
+            }),
+            Expression::Case {
+                operand,
+                when_clauses,
+                else_clause,
+            } => {
+                let op_new = match operand {
+                    Some(o) => Some(Box::new(self.materialize_uncorrelated_expr_subqueries(
+                        o,
+                        outer_set,
+                        cte_tables,
+                        params,
+                        start,
+                        session_id,
+                    )?)),
+                    None => None,
+                };
+                let mut wc_new = Vec::with_capacity(when_clauses.len());
+                for (w, t) in when_clauses {
+                    wc_new.push((
+                        self.materialize_uncorrelated_expr_subqueries(
+                            w,
+                            outer_set,
+                            cte_tables,
+                            params,
+                            start,
+                            session_id,
+                        )?,
+                        self.materialize_uncorrelated_expr_subqueries(
+                            t,
+                            outer_set,
+                            cte_tables,
+                            params,
+                            start,
+                            session_id,
+                        )?,
+                    ));
+                }
+                let el_new = match else_clause {
+                    Some(el) => Some(Box::new(self.materialize_uncorrelated_expr_subqueries(
+                        el,
+                        outer_set,
+                        cte_tables,
+                        params,
+                        start,
+                        session_id,
+                    )?)),
+                    None => None,
+                };
+                Ok(Expression::Case {
+                    operand: op_new,
+                    when_clauses: wc_new,
+                    else_clause: el_new,
+                })
+            }
+            _ => Ok(expr.clone()),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn accelerate_where_subqueries(
+        &self,
+        where_expr: Option<Expression>,
+        result_columns: &[String],
+        result_rows: &mut Vec<Vec<serde_json::Value>>,
+        table_record_ids: &mut Vec<String>,
+        outer_schemas: &HashMap<String, Vec<String>>,
+        cte_tables: &HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)>,
+        params: &[serde_json::Value],
+        start: Instant,
+        session_id: Option<&str>,
+    ) -> Result<Option<Expression>, QueryErrorResponse> {
+        let Some(we) = where_expr else {
+            return Ok(None);
+        };
+        fn split_and(e: &Expression, out: &mut Vec<Expression>) {
+            if let Expression::Binary {
+                left,
+                op: Operator::And,
+                right,
+            } = e
+            {
+                split_and(left, out);
+                split_and(right, out);
+            } else {
+                out.push(e.clone());
+            }
+        }
+        fn join_and(items: Vec<Expression>) -> Option<Expression> {
+            let mut it = items.into_iter();
+            let first = it.next()?;
+            Some(it.fold(first, |acc, x| Expression::Binary {
+                left: Box::new(acc),
+                op: Operator::And,
+                right: Box::new(x),
+            }))
+        }
+
+        let outer_set: Vec<(String, Vec<String>)> = outer_schemas
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        let mut conjuncts = Vec::new();
+        split_and(&we, &mut conjuncts);
+        let mut kept: Vec<Expression> = Vec::new();
+
+        for conj in conjuncts {
+            // 1. Top-level `lhs [NOT] IN (SELECT ...)` with uncorrelated subquery -> O(1) HashSet probe
+            if let Expression::In {
+                expr: ref lhs_expr,
+                ref list,
+                negated,
+            } = conj
+                && list.len() == 1
+                && let Expression::Subquery(ref sub) = list[0]
+                && let Some(sub_sql) = Self::sql_query_from_ast_query(sub)
+                && let Some(inner_scope) = self.schemas_for_subquery(&sub_sql, cte_tables)
+                && !self.subquery_has_outer_ref(&sub_sql, &inner_scope, cte_tables)
+            {
+                let sub_res = self.execute_select_inner(
+                    &sub_sql,
+                    params,
+                    None,
+                    start,
+                    session_id,
+                    None,
+                    cte_tables,
+                )?;
+                let mut set: std::collections::HashSet<String> =
+                    std::collections::HashSet::with_capacity(sub_res.rows.len());
+                let mut has_null = false;
+                for r in &sub_res.rows {
+                    match r.first() {
+                        None | Some(serde_json::Value::Null) => has_null = true,
+                        Some(v) => {
+                            if let Some(k) = Self::canonical_hash_scalar(v) {
+                                set.insert(k);
+                            }
+                        }
+                    }
+                }
+                table_record_ids.clear();
+                result_rows.retain(|row| {
+                    let v = evaluate_expression(lhs_expr, result_columns, row, params);
+                    let Some(k) = Self::canonical_hash_scalar(&v) else {
+                        return false;
+                    };
+                    if set.contains(&k) {
+                        !negated
+                    } else if has_null {
+                        false
+                    } else {
+                        negated
+                    }
+                });
+                continue;
+            }
+
+            // 2. Top-level correlated `EXISTS (SELECT ...)` or `NOT EXISTS (SELECT ...)` semi/anti-join
+            let exists_match = match &conj {
+                Expression::Exists(sub) => Some((sub.as_ref(), false)),
+                Expression::Unary {
+                    op: joule_db_query::ast::UnaryOperator::Not,
+                    expr: inner,
+                } => match inner.as_ref() {
+                    Expression::Exists(sub) => Some((sub.as_ref(), true)),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some((sub, is_not_exists)) = exists_match
+                && sub.joins.is_empty()
+                && sub.group_by.is_empty()
+                && sub.having.is_none()
+                && let Some(sub_sql) = Self::sql_query_from_ast_query(sub)
+                && let Some(inner_scope) = self.schemas_for_subquery(&sub_sql, cte_tables)
+                && let Some(ref from) = sub_sql.from
+                && let FromSource::Table(ref inner_tbl) = from.source
+            {
+                let inner_alias = from.alias.as_deref().unwrap_or(inner_tbl.as_str());
+                let mut sub_conjs = Vec::new();
+                if let Some(ref sf) = sub_sql.where_clause {
+                    split_and(sf, &mut sub_conjs);
+                }
+                let mut inner_only_preds: Vec<Expression> = Vec::new();
+                let mut equi_pairs: Vec<(Expression, Expression)> = Vec::new();
+                let mut ne_pair: Option<(Expression, Expression)> = None;
+                let mut can_semi = true;
+
+                for sc in sub_conjs {
+                    if !self.expr_has_outer_ref(&sc, &inner_scope, cte_tables) {
+                        inner_only_preds.push(sc);
+                    } else if let Expression::Binary {
+                        ref left,
+                        op: Operator::Eq,
+                        ref right,
+                    } = sc
+                    {
+                        let l_in = !self.expr_has_outer_ref(left, &inner_scope, cte_tables)
+                            && Self::col_belongs_to_set(left, &inner_scope);
+                        let r_in = !self.expr_has_outer_ref(right, &inner_scope, cte_tables)
+                            && Self::col_belongs_to_set(right, &inner_scope);
+                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables)
+                            && !l_in;
+                        let r_out = !self.expr_has_outer_ref(right, &outer_set, cte_tables)
+                            && !r_in;
+                        if l_in && r_out {
+                            equi_pairs.push((left.as_ref().clone(), right.as_ref().clone()));
+                        } else if r_in && l_out {
+                            equi_pairs.push((right.as_ref().clone(), left.as_ref().clone()));
+                        } else {
+                            can_semi = false;
+                            break;
+                        }
+                    } else if let Expression::Binary {
+                        ref left,
+                        op: Operator::Ne,
+                        ref right,
+                    } = sc
+                        && ne_pair.is_none()
+                    {
+                        let l_in = !self.expr_has_outer_ref(left, &inner_scope, cte_tables)
+                            && Self::col_belongs_to_set(left, &inner_scope);
+                        let r_in = !self.expr_has_outer_ref(right, &inner_scope, cte_tables)
+                            && Self::col_belongs_to_set(right, &inner_scope);
+                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables)
+                            && !l_in;
+                        let r_out = !self.expr_has_outer_ref(right, &outer_set, cte_tables)
+                            && !r_in;
+                        if l_in && r_out {
+                            ne_pair = Some((left.as_ref().clone(), right.as_ref().clone()));
+                        } else if r_in && l_out {
+                            ne_pair = Some((right.as_ref().clone(), left.as_ref().clone()));
+                        } else {
+                            can_semi = false;
+                            break;
+                        }
+                    } else {
+                        can_semi = false;
+                        break;
+                    }
+                }
+
+                if can_semi && !equi_pairs.is_empty() {
+                    let inner_where_expr = join_and(inner_only_preds);
+                    let mut dummy_cols: Vec<joule_db_query::sql::SqlColumn> = equi_pairs
+                        .iter()
+                        .map(|(ie, _)| joule_db_query::sql::SqlColumn {
+                            expr: ie.clone(),
+                            alias: None,
+                        })
+                        .collect();
+                    if let Some((ref ine, _)) = ne_pair {
+                        dummy_cols.push(joule_db_query::sql::SqlColumn {
+                            expr: ine.clone(),
+                            alias: None,
+                        });
+                    }
+                    let dummy_q = SqlQuery {
+                        ctes: Vec::new(),
+                        distinct: false,
+                        columns: dummy_cols,
+                        from: Some(joule_db_query::sql::SqlFrom {
+                            source: FromSource::Table(inner_tbl.clone()),
+                            alias: Some(inner_alias.to_string()),
+                            lateral: false,
+                        }),
+                        joins: Vec::new(),
+                        where_clause: inner_where_expr.clone(),
+                        group_by: Vec::new(),
+                        having: None,
+                        order_by: Vec::new(),
+                        limit: None,
+                        offset: None,
+                        set_op: None,
+                        as_of_timestamp: None,
+                    };
+                    let mut single_schema = HashMap::new();
+                    if let Some((_, cols)) = inner_scope.first() {
+                        single_schema.insert(inner_alias.to_string(), cols.clone());
+                    }
+                    let loaded_opt = if let Some((c, r)) = cte_tables.get(inner_tbl) {
+                        Some((c.clone(), r.clone()))
+                    } else if session_id.is_none()
+                        && let Some(fast) = self.try_load_jcol_table_for_join(
+                            inner_tbl,
+                            inner_alias,
+                            &dummy_q,
+                            inner_where_expr.as_ref(),
+                            true,
+                            params,
+                            &single_schema,
+                        )
+                    {
+                        Some(fast)
+                    } else {
+                        self.load_table(inner_tbl, session_id)
+                    };
+
+                    if let Some((in_cols, in_rows)) = loaded_opt {
+                        let pref_in_cols: Vec<String> = in_cols
+                            .iter()
+                            .map(|c| format!("{inner_alias}.{c}"))
+                            .chain(in_cols.iter().map(|c| format!("{inner_tbl}.{c}")))
+                            .chain(in_cols.iter().cloned())
+                            .collect();
+                        let resolve_in_idx = |e: &Expression| -> Option<usize> {
+                            match e {
+                                Expression::QualifiedColumn { column, .. } => {
+                                    in_cols.iter().position(|c| c.eq_ignore_ascii_case(column))
+                                }
+                                Expression::Column(name) => {
+                                    let bare = name.rsplit_once('.').map_or(name.as_str(), |(_, c)| c);
+                                    in_cols.iter().position(|c| c.eq_ignore_ascii_case(bare))
+                                }
+                                _ => None,
+                            }
+                        };
+                        let in_equi_idxs: Option<Vec<usize>> =
+                            equi_pairs.iter().map(|(ie, _)| resolve_in_idx(ie)).collect();
+                        let in_ne_idx: Option<usize> = match &ne_pair {
+                            Some((ine, _)) => resolve_in_idx(ine),
+                            None => None,
+                        };
+                        if let Some(eq_idxs) = in_equi_idxs
+                            && (ne_pair.is_none() || in_ne_idx.is_some())
+                        {
+                            // Fast check for simple inner_only_where (`col < col`, etc.) without cloning row!
+                            let mut row_buf = Vec::new();
+                            if let Some((_, ref outer_ne_expr)) = ne_pair {
+                                let ne_ci = in_ne_idx.unwrap_or(0);
+                                let mut ne_map: HashMap<String, (String, bool)> = HashMap::new();
+                                for r in &in_rows {
+                                    if let Some(ref iw) = inner_where_expr {
+                                        row_buf.clear();
+                                        row_buf.extend(r.iter().cloned());
+                                        row_buf.extend(r.iter().cloned());
+                                        row_buf.extend(r.iter().cloned());
+                                        if !evaluate_where(iw, &pref_in_cols, &row_buf, params) {
+                                            continue;
+                                        }
+                                    }
+                                    let Some(k) = self.compute_hash_key(r, &eq_idxs) else {
+                                        continue;
+                                    };
+                                    let Some(nv) = r.get(ne_ci).and_then(Self::canonical_hash_scalar)
+                                    else {
+                                        continue;
+                                    };
+                                    ne_map
+                                        .entry(k)
+                                        .and_modify(|(first_v, multi)| {
+                                            if !*multi && first_v != &nv {
+                                                *multi = true;
+                                            }
+                                        })
+                                        .or_insert((nv, false));
+                                }
+                                table_record_ids.clear();
+                                result_rows.retain(|row| {
+                                    let mut key_str = String::new();
+                                    for (pi, (_, oe)) in equi_pairs.iter().enumerate() {
+                                        let ov = evaluate_expression(oe, result_columns, row, params);
+                                        let Some(ok) = Self::canonical_hash_scalar(&ov) else {
+                                            return is_not_exists;
+                                        };
+                                        if pi > 0 {
+                                            key_str.push('|');
+                                        }
+                                        key_str.push_str(&ok);
+                                    }
+                                    let one_val = evaluate_expression(
+                                        outer_ne_expr,
+                                        result_columns,
+                                        row,
+                                        params,
+                                    );
+                                    let Some(one_k) = Self::canonical_hash_scalar(&one_val) else {
+                                        return is_not_exists;
+                                    };
+                                    let matched = ne_map
+                                        .get(&key_str)
+                                        .is_some_and(|(fv, multi)| *multi || fv != &one_k);
+                                    matched != is_not_exists
+                                });
+                                continue;
+                            } else {
+                                let mut semi_set: std::collections::HashSet<String> =
+                                    std::collections::HashSet::new();
+                                for r in &in_rows {
+                                    if let Some(ref iw) = inner_where_expr {
+                                        row_buf.clear();
+                                        row_buf.extend(r.iter().cloned());
+                                        row_buf.extend(r.iter().cloned());
+                                        row_buf.extend(r.iter().cloned());
+                                        if !evaluate_where(iw, &pref_in_cols, &row_buf, params) {
+                                            continue;
+                                        }
+                                    }
+                                    if let Some(k) = self.compute_hash_key(r, &eq_idxs) {
+                                        semi_set.insert(k);
+                                    }
+                                }
+                                table_record_ids.clear();
+                                result_rows.retain(|row| {
+                                    let mut key_str = String::new();
+                                    for (pi, (_, oe)) in equi_pairs.iter().enumerate() {
+                                        let ov = evaluate_expression(oe, result_columns, row, params);
+                                        let Some(ok) = Self::canonical_hash_scalar(&ov) else {
+                                            return is_not_exists;
+                                        };
+                                        if pi > 0 {
+                                            key_str.push('|');
+                                        }
+                                        key_str.push_str(&ok);
+                                    }
+                                    semi_set.contains(&key_str) != is_not_exists
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Top-level correlated scalar aggregate `outer_lhs <op> (SELECT agg(...) FROM ... WHERE inner_k = outer_k ...)`
+            let corr_cmp = if let Expression::Binary {
+                ref left,
+                op,
+                ref right,
+            } = conj
+                && matches!(
+                    op,
+                    Operator::Eq
+                        | Operator::Ne
+                        | Operator::Lt
+                        | Operator::Le
+                        | Operator::Gt
+                        | Operator::Ge
+                )
+            {
+                if let Expression::Subquery(sub) = right.as_ref() {
+                    Some((left.as_ref().clone(), op, sub.as_ref()))
+                } else if let Expression::Subquery(sub) = left.as_ref() {
+                    let flipped = match op {
+                        Operator::Lt => Operator::Gt,
+                        Operator::Le => Operator::Ge,
+                        Operator::Gt => Operator::Lt,
+                        Operator::Ge => Operator::Le,
+                        same => same,
+                    };
+                    Some((right.as_ref().clone(), flipped, sub.as_ref()))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some((outer_lhs, cmp_op, sub)) = corr_cmp
+                && let Some(sub_sql) = Self::sql_query_from_ast_query(sub)
+                && sub_sql.group_by.is_empty()
+                && sub_sql.having.is_none()
+                && sub_sql.columns.len() == 1
+                && is_aggregate_expr(&sub_sql.columns[0].expr)
+                && let Some(inner_scope) = self.schemas_for_subquery(&sub_sql, cte_tables)
+                && !self.expr_has_outer_ref(&sub_sql.columns[0].expr, &inner_scope, cte_tables)
+                && self.subquery_has_outer_ref(&sub_sql, &inner_scope, cte_tables)
+            {
+                let mut sub_conjs = Vec::new();
+                if let Some(ref sf) = sub_sql.where_clause {
+                    split_and(sf, &mut sub_conjs);
+                }
+                let mut inner_only_preds: Vec<Expression> = Vec::new();
+                let mut equi_pairs: Vec<(Expression, Expression)> = Vec::new();
+                let mut can_decorr = true;
+                for sc in sub_conjs {
+                    if !self.expr_has_outer_ref(&sc, &inner_scope, cte_tables) {
+                        inner_only_preds.push(sc);
+                    } else if let Expression::Binary {
+                        ref left,
+                        op: Operator::Eq,
+                        ref right,
+                    } = sc
+                    {
+                        let l_in = !self.expr_has_outer_ref(left, &inner_scope, cte_tables)
+                            && Self::col_belongs_to_set(left, &inner_scope);
+                        let r_in = !self.expr_has_outer_ref(right, &inner_scope, cte_tables)
+                            && Self::col_belongs_to_set(right, &inner_scope);
+                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables)
+                            && !l_in;
+                        let r_out = !self.expr_has_outer_ref(right, &outer_set, cte_tables)
+                            && !r_in;
+                        if l_in && r_out {
+                            equi_pairs.push((left.as_ref().clone(), right.as_ref().clone()));
+                        } else if r_in && l_out {
+                            equi_pairs.push((right.as_ref().clone(), left.as_ref().clone()));
+                        } else {
+                            can_decorr = false;
+                            break;
+                        }
+                    } else {
+                        can_decorr = false;
+                        break;
+                    }
+                }
+                if can_decorr && !equi_pairs.is_empty() {
+                    let key_len = equi_pairs.len();
+                    // Unwrap `scale * AGG(...)` / `AGG(...) * scale` (`TPC-H Q17` `0.2 * avg(l_quantity)`,
+                    // `Q20` `0.5 * sum(l_quantity)`) so `try_vectorized_select` executes `AGG(...)`
+                    // in 32-thread `.jcol` / `col_cache` vectorized mode!
+                    let (inner_agg_expr, post_scale): (Expression, Option<f64>) =
+                        match &sub_sql.columns[0].expr {
+                            Expression::Binary {
+                                left,
+                                op: Operator::Mul,
+                                right,
+                            } => {
+                                let num_lit = |e: &Expression| -> Option<f64> {
+                                    match e {
+                                        Expression::Literal(AstValue::Float(f)) => Some(*f),
+                                        Expression::Literal(AstValue::Int(i)) => Some(*i as f64),
+                                        _ => None,
+                                    }
+                                };
+                                if let Some(sc) = num_lit(left)
+                                    && matches!(right.as_ref(), Expression::Function { .. })
+                                {
+                                    (right.as_ref().clone(), Some(sc))
+                                } else if let Some(sc) = num_lit(right)
+                                    && matches!(left.as_ref(), Expression::Function { .. })
+                                {
+                                    (left.as_ref().clone(), Some(sc))
+                                } else {
+                                    (sub_sql.columns[0].expr.clone(), None)
+                                }
+                            }
+                            other => (other.clone(), None),
+                        };
+                    let mut g_cols: Vec<joule_db_query::sql::SqlColumn> = equi_pairs
+                        .iter()
+                        .enumerate()
+                        .map(|(ki, (ie, _))| joule_db_query::sql::SqlColumn {
+                            expr: ie.clone(),
+                            alias: Some(format!("__corr_k{ki}")),
+                        })
+                        .collect();
+                    g_cols.push(joule_db_query::sql::SqlColumn {
+                        expr: inner_agg_expr,
+                        alias: sub_sql.columns[0].alias.clone(),
+                    });
+                    let g_by: Vec<Expression> =
+                        equi_pairs.iter().map(|(ie, _)| ie.clone()).collect();
+                    let grouped_sql = SqlQuery {
+                        ctes: sub_sql.ctes.clone(),
+                        distinct: false,
+                        columns: g_cols,
+                        from: sub_sql.from.clone(),
+                        joins: sub_sql.joins.clone(),
+                        where_clause: join_and(inner_only_preds),
+                        group_by: g_by,
+                        having: None,
+                        order_by: Vec::new(),
+                        limit: None,
+                        offset: None,
+                        set_op: None,
+                        as_of_timestamp: None,
+                    };
+                    let gres = self.execute_select_inner(
+                        &grouped_sql,
+                        params,
+                        None,
+                        start,
+                        session_id,
+                        None,
+                        cte_tables,
+                    )?;
+                    let key_idxs: Vec<usize> = (0..key_len).collect();
+                    let mut agg_map: HashMap<String, serde_json::Value> =
+                        HashMap::with_capacity(gres.rows.len());
+                    for gr in &gres.rows {
+                        if let Some(k) = self.compute_hash_key(gr, &key_idxs)
+                            && let Some(av) = gr.get(key_len)
+                        {
+                            let scaled_av = if let Some(sc) = post_scale {
+                                if let Some(fv) = av.as_f64() {
+                                    serde_json::Number::from_f64(fv * sc)
+                                        .map(serde_json::Value::Number)
+                                        .unwrap_or(serde_json::Value::Null)
+                                } else {
+                                    serde_json::Value::Null
+                                }
+                            } else {
+                                av.clone()
+                            };
+                            agg_map.insert(k, scaled_av);
+                        }
+                    }
+                    table_record_ids.clear();
+                    result_rows.retain(|row| {
+                        let lhs_v = evaluate_expression(&outer_lhs, result_columns, row, params);
+                        if lhs_v.is_null() {
+                            return false;
+                        }
+                        let mut key_str = String::new();
+                        for (pi, (_, oe)) in equi_pairs.iter().enumerate() {
+                            let ov = evaluate_expression(oe, result_columns, row, params);
+                            let Some(ok) = Self::canonical_hash_scalar(&ov) else {
+                                return false;
+                            };
+                            if pi > 0 {
+                                key_str.push('|');
+                            }
+                            key_str.push_str(&ok);
+                        }
+                        let Some(rhs_v) = agg_map.get(&key_str) else {
+                            return false;
+                        };
+                        if rhs_v.is_null() {
+                            return false;
+                        }
+                        let cmp = iso_date_vs_epoch_cmp(&lhs_v, rhs_v)
+                            .unwrap_or_else(|| json_compare(&lhs_v, rhs_v));
+                        match cmp_op {
+                            Operator::Eq => {
+                                iso_date_vs_epoch_cmp(&lhs_v, rhs_v).is_some_and(|c| c == 0)
+                                    || json_equals(&lhs_v, rhs_v)
+                            }
+                            Operator::Ne => {
+                                !(iso_date_vs_epoch_cmp(&lhs_v, rhs_v).is_some_and(|c| c == 0)
+                                    || json_equals(&lhs_v, rhs_v))
+                            }
+                            Operator::Lt => cmp < 0,
+                            Operator::Le => cmp <= 0,
+                            Operator::Gt => cmp > 0,
+                            Operator::Ge => cmp >= 0,
+                            _ => false,
+                        }
+                    });
+                    continue;
+                }
+            }
+
+            // 4. Materialize any remaining uncorrelated scalar subqueries inside `conj`
+            let rewritten = self.materialize_uncorrelated_expr_subqueries(
+                &conj,
+                &outer_set,
+                cte_tables,
+                params,
+                start,
+                session_id,
+            )?;
+            kept.push(rewritten);
+        }
+
+        Ok(join_and(kept))
+    }
+
+    fn expr_contains_subquery(e: &Expression) -> bool {
+        match e {
+            Expression::Subquery(_) | Expression::Exists(_) => true,
+            Expression::Binary { left, right, .. } => {
+                Self::expr_contains_subquery(left) || Self::expr_contains_subquery(right)
+            }
+            Expression::Unary { expr: inner, .. }
+            | Expression::IsNull { expr: inner, .. }
+            | Expression::Like { expr: inner, .. }
+            | Expression::RegexMatch { expr: inner, .. }
+            | Expression::SimilarTo { expr: inner, .. }
+            | Expression::LikeMeaning { expr: inner, .. }
+            | Expression::Cast { expr: inner, .. } => Self::expr_contains_subquery(inner),
+            Expression::Function { args, .. } | Expression::WindowFunction { args, .. } => {
+                args.iter().any(Self::expr_contains_subquery)
+            }
+            Expression::Case {
+                operand,
+                when_clauses,
+                else_clause,
+            } => {
+                operand.as_deref().is_some_and(Self::expr_contains_subquery)
+                    || when_clauses.iter().any(|(w, t)| {
+                        Self::expr_contains_subquery(w) || Self::expr_contains_subquery(t)
+                    })
+                    || else_clause
+                        .as_deref()
+                        .is_some_and(Self::expr_contains_subquery)
+            }
+            Expression::In {
+                expr: inner, list, ..
+            } => {
+                Self::expr_contains_subquery(inner)
+                    || list.iter().any(Self::expr_contains_subquery)
+            }
+            Expression::Between {
+                expr: inner,
+                low,
+                high,
+                ..
+            } => {
+                Self::expr_contains_subquery(inner)
+                    || Self::expr_contains_subquery(low)
+                    || Self::expr_contains_subquery(high)
+            }
+            _ => false,
+        }
+    }
+
+    /// Optimize comma-joins by pushing WHERE predicates to JOIN conditions and greedily
+    /// ordering comma-joined tables so equi-join edges (`O(N+M)` hash joins) run before
+    /// unconnected tables (avoiding accidental Cartesian blowups on `FROM part, supplier, lineitem`!).
     fn optimize_comma_joins(
         &self,
         joins: &[SqlJoin],
         where_clause: Option<&Expression>,
         known_tables: &[String],
-        table_columns: &HashMap<String, (Vec<String>, Vec<Vec<serde_json::Value>>)>,
+        table_columns: &HashMap<String, Vec<String>>,
+        table_est_rows: &HashMap<String, usize>,
     ) -> (Vec<SqlJoin>, Option<Expression>) {
-        let mut optimized_joins = joins.to_vec();
+        let mut result_joins = Vec::with_capacity(joins.len());
         let mut remaining_where = where_clause.cloned();
         let mut accumulated_tables = known_tables.to_vec();
 
-        // Process each CROSS JOIN (from comma-separated tables)
-        for join in optimized_joins.iter_mut() {
-            if join.join_type == JoinType::Cross && join.condition.is_none() {
-                let join_table = join.alias.as_ref().unwrap_or(&join.table).clone();
-                let join_table_real = &join.table;
-
-                // Get columns for this join table
-                let join_cols: Vec<String> = table_columns
-                    .get(join_table_real)
-                    .map(|(cols, _)| cols.clone())
-                    .unwrap_or_default();
-
-                // Get columns for accumulated (left) tables
-                let left_cols: Vec<String> = accumulated_tables
-                    .iter()
-                    .flat_map(|t| {
-                        table_columns
-                            .get(t)
-                            .map(|(cols, _)| cols.clone())
-                            .unwrap_or_default()
-                    })
-                    .collect();
-
-                // Try to find equi-join predicates in WHERE
-                if let Some(ref where_expr) = remaining_where {
-                    let (predicate, remaining) =
-                        self.extract_join_predicate_by_columns(where_expr, &left_cols, &join_cols);
-
-                    if let Some(pred) = predicate {
-                        // Convert CROSS JOIN to INNER JOIN with the predicate
-                        join.join_type = JoinType::Inner;
-                        join.condition = Some(pred);
-                        remaining_where = remaining;
-                    }
+        let mut idx = 0usize;
+        while idx < joins.len() {
+            if joins[idx].join_type == JoinType::Cross
+                && joins[idx].condition.is_none()
+                && joins[idx].using_columns.is_empty()
+            {
+                let mut end = idx + 1;
+                while end < joins.len()
+                    && joins[end].join_type == JoinType::Cross
+                    && joins[end].condition.is_none()
+                    && joins[end].using_columns.is_empty()
+                {
+                    end += 1;
                 }
+                let mut pool: Vec<SqlJoin> = joins[idx..end].to_vec();
+                while !pool.is_empty() {
+                    let left_set: Vec<(String, Vec<String>)> = accumulated_tables
+                        .iter()
+                        .map(|t| {
+                            (
+                                t.clone(),
+                                table_columns.get(t).cloned().unwrap_or_default(),
+                            )
+                        })
+                        .collect();
 
-                // Add this table to accumulated for subsequent joins
-                accumulated_tables.push(join_table);
+                    let mut best_pos: Option<(usize, usize)> = None;
+                    if let Some(ref where_expr) = remaining_where {
+                        for (p_idx, cand) in pool.iter().enumerate() {
+                            let cand_alias = cand.alias.as_ref().unwrap_or(&cand.table).clone();
+                            let cand_cols = table_columns
+                                .get(&cand_alias)
+                                .or_else(|| table_columns.get(&cand.table))
+                                .cloned()
+                                .unwrap_or_default();
+                            let right_set = [(cand_alias.clone(), cand_cols)];
+                            let (pred, _) = self.extract_join_predicate_by_tables(
+                                where_expr,
+                                &left_set,
+                                &right_set,
+                            );
+                            if pred.is_some() {
+                                let est = table_est_rows
+                                    .get(&cand_alias)
+                                    .copied()
+                                    .unwrap_or(usize::MAX);
+                                if best_pos.is_none_or(|(_, best_est)| est < best_est) {
+                                    best_pos = Some((p_idx, est));
+                                }
+                            }
+                        }
+                    }
+
+                    let chosen_idx = best_pos.map_or(0, |(pi, _)| pi);
+                    let mut chosen = pool.remove(chosen_idx);
+                    let chosen_alias = chosen.alias.as_ref().unwrap_or(&chosen.table).clone();
+                    let chosen_cols = table_columns
+                        .get(&chosen_alias)
+                        .or_else(|| table_columns.get(&chosen.table))
+                        .cloned()
+                        .unwrap_or_default();
+                    let right_set = [(chosen_alias.clone(), chosen_cols)];
+
+                    if let Some(ref where_expr) = remaining_where {
+                        let (predicate, remaining) = self.extract_join_predicate_by_tables(
+                            where_expr,
+                            &left_set,
+                            &right_set,
+                        );
+                        if let Some(pred) = predicate {
+                            chosen.join_type = JoinType::Inner;
+                            chosen.condition = Some(pred);
+                            remaining_where = remaining;
+                        }
+                    }
+                    accumulated_tables.push(chosen_alias);
+                    result_joins.push(chosen);
+                }
+                idx = end;
+            } else {
+                let j = joins[idx].clone();
+                let j_alias = j.alias.as_ref().unwrap_or(&j.table).clone();
+                accumulated_tables.push(j_alias);
+                result_joins.push(j);
+                idx += 1;
             }
         }
 
-        (optimized_joins, remaining_where)
+        (result_joins, remaining_where)
     }
 
-    /// Extract equi-join predicates by matching column names
-    fn extract_join_predicate_by_columns(
+    /// Extract equi-join predicates connecting `left_set` `(alias, cols)` and `right_set` `(alias, cols)`
+    /// while strictly honoring table aliases (`nation n1` vs `nation n2`!).
+    fn extract_join_predicate_by_tables(
         &self,
         expr: &Expression,
-        left_cols: &[String],
-        right_cols: &[String],
+        left_set: &[(String, Vec<String>)],
+        right_set: &[(String, Vec<String>)],
     ) -> (Option<Expression>, Option<Expression>) {
         match expr {
             Expression::Binary {
@@ -10115,13 +11735,11 @@ impl SimpleQueryExecutor {
                 op: Operator::And,
                 right,
             } => {
-                // Process AND - check both sides
                 let (left_pred, left_remaining) =
-                    self.extract_join_predicate_by_columns(left, left_cols, right_cols);
+                    self.extract_join_predicate_by_tables(left, left_set, right_set);
                 let (right_pred, right_remaining) =
-                    self.extract_join_predicate_by_columns(right, left_cols, right_cols);
+                    self.extract_join_predicate_by_tables(right, left_set, right_set);
 
-                // Combine predicates for this join
                 let combined_pred = match (left_pred, right_pred) {
                     (Some(l), Some(r)) => Some(Expression::Binary {
                         left: Box::new(l),
@@ -10132,8 +11750,6 @@ impl SimpleQueryExecutor {
                     (None, Some(r)) => Some(r),
                     (None, None) => None,
                 };
-
-                // Combine remaining WHERE
                 let combined_remaining = match (left_remaining, right_remaining) {
                     (Some(l), Some(r)) => Some(Expression::Binary {
                         left: Box::new(l),
@@ -10144,7 +11760,6 @@ impl SimpleQueryExecutor {
                     (None, Some(r)) => Some(r),
                     (None, None) => None,
                 };
-
                 (combined_pred, combined_remaining)
             }
             Expression::Binary {
@@ -10152,69 +11767,492 @@ impl SimpleQueryExecutor {
                 op: Operator::Eq,
                 right,
             } => {
-                // Check if this is an equi-join between left and right columns
-                if self.is_cross_column_predicate(left, right, left_cols, right_cols) {
-                    // This predicate belongs to the JOIN
+                if Self::is_cross_table_eq(left, right, left_set, right_set) {
                     (Some(expr.clone()), None)
                 } else {
-                    // Keep in WHERE
                     (None, Some(expr.clone()))
                 }
             }
-            _ => {
-                // Keep other predicates in WHERE
-                (None, Some(expr.clone()))
-            }
+            _ => (None, Some(expr.clone())),
         }
     }
 
-    /// Check if an equality predicate relates columns from left tables to right table
-    fn is_cross_column_predicate(
-        &self,
-        left_expr: &Expression,
-        right_expr: &Expression,
-        left_cols: &[String],
-        right_cols: &[String],
-    ) -> bool {
-        let left_col_name = self.extract_predicate_column_name(left_expr);
-        let right_col_name = self.extract_predicate_column_name(right_expr);
-
-        match (left_col_name, right_col_name) {
-            (Some(left_name), Some(right_name)) => {
-                // Check if one column is in left tables and other is in right table
-                let left_in_left = left_cols
-                    .iter()
-                    .any(|c| c == &left_name || c.ends_with(&format!(".{}", left_name)));
-                let left_in_right = right_cols
-                    .iter()
-                    .any(|c| c == &left_name || c.ends_with(&format!(".{}", left_name)));
-                let right_in_left = left_cols
-                    .iter()
-                    .any(|c| c == &right_name || c.ends_with(&format!(".{}", right_name)));
-                let right_in_right = right_cols
-                    .iter()
-                    .any(|c| c == &right_name || c.ends_with(&format!(".{}", right_name)));
-
-                (left_in_left && right_in_right) || (left_in_right && right_in_left)
+    fn col_belongs_to_set(expr: &Expression, set: &[(String, Vec<String>)]) -> bool {
+        match expr {
+            Expression::QualifiedColumn { table, column } => set.iter().any(|(t_alias, cols)| {
+                t_alias.eq_ignore_ascii_case(table)
+                    && cols.iter().any(|c| c.eq_ignore_ascii_case(column))
+            }),
+            Expression::Column(name) => {
+                if let Some((tbl, col)) = name.rsplit_once('.') {
+                    set.iter().any(|(t_alias, cols)| {
+                        t_alias.eq_ignore_ascii_case(tbl)
+                            && cols.iter().any(|c| c.eq_ignore_ascii_case(col))
+                    })
+                } else {
+                    set.iter()
+                        .any(|(_, cols)| cols.iter().any(|c| c.eq_ignore_ascii_case(name)))
+                }
             }
             _ => false,
         }
     }
 
-    /// Extract column name from an expression (handles qualified and unqualified)
-    fn extract_predicate_column_name(&self, expr: &Expression) -> Option<String> {
-        match expr {
-            Expression::QualifiedColumn { column, .. } => Some(column.clone()),
-            Expression::Column(name) => {
-                // Handle both "table.column" and plain "column" formats
-                if let Some(dot_pos) = name.rfind('.') {
-                    Some(name[dot_pos + 1..].to_string())
-                } else {
-                    Some(name.clone())
+    fn is_cross_table_eq(
+        left_expr: &Expression,
+        right_expr: &Expression,
+        left_set: &[(String, Vec<String>)],
+        right_set: &[(String, Vec<String>)],
+    ) -> bool {
+        let ll = Self::col_belongs_to_set(left_expr, left_set);
+        let lr = Self::col_belongs_to_set(left_expr, right_set);
+        let rl = Self::col_belongs_to_set(right_expr, left_set);
+        let rr = Self::col_belongs_to_set(right_expr, right_set);
+        (ll && rr && !lr && !rl) || (lr && rl && !ll && !rr)
+    }
+
+    /// Vectorized `.jcol` projection + single-table `WHERE` pushdown for multi-table `JOIN`s:
+    /// scans only referenced columns across `.jcol` segments on all CPU cores and applies
+    /// unambiguous single-table `WHERE` conjuncts before materializing join rows!
+    fn try_load_jcol_table_for_join(
+        &self,
+        table_name: &str,
+        alias: &str,
+        query: &SqlQuery,
+        where_expr: Option<&Expression>,
+        allow_where_pushdown: bool,
+        params: &[serde_json::Value],
+        all_schemas: &HashMap<String, Vec<String>>,
+    ) -> Option<(Vec<String>, Vec<Vec<serde_json::Value>>)> {
+        let disk_tbl = self.amorphic.disk_column_table(table_name);
+        let mem_tbl = if disk_tbl.is_none() {
+            self.amorphic.cached_table_columns(table_name)
+        } else {
+            None
+        };
+        if disk_tbl.is_none() && mem_tbl.is_none() {
+            return None;
+        }
+        let total_rows = disk_tbl
+            .as_ref()
+            .map(|dt| dt.total_rows)
+            .or_else(|| mem_tbl.as_ref().map(|tc| tc.len))
+            .unwrap_or(0);
+        if self
+            .amorphic
+            .get_column_defs(table_name)
+            .is_ok_and(|ds| ds.iter().any(|d| d.computed_expr.is_some()))
+        {
+            return None;
+        }
+        let columns = self.amorphic.columns(table_name).ok()?;
+        if columns.is_empty() {
+            return None;
+        }
+
+        // Collect needed columns for `alias` across SELECT / WHERE / JOIN / GROUP BY / HAVING / ORDER BY
+        let mut needed: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut wildcard = false;
+        let mark_expr = |e: &Expression,
+                         needed: &mut std::collections::HashSet<String>,
+                         wildcard: &mut bool| {
+            fn walk(
+                e: &Expression,
+                alias: &str,
+                cols: &[String],
+                needed: &mut std::collections::HashSet<String>,
+                wildcard: &mut bool,
+            ) {
+                match e {
+                    Expression::Wildcard => *wildcard = true,
+                    Expression::QualifiedWildcard(t) => {
+                        if t.eq_ignore_ascii_case(alias) {
+                            *wildcard = true;
+                        }
+                    }
+                    Expression::QualifiedColumn { table, column } => {
+                        if table.eq_ignore_ascii_case(alias)
+                            && let Some(real_c) = cols.iter().find(|c| c.eq_ignore_ascii_case(column))
+                        {
+                            needed.insert(real_c.clone());
+                        }
+                    }
+                    Expression::Column(name) => {
+                        if name == "*" {
+                            *wildcard = true;
+                        } else if let Some((tbl, col)) = name.rsplit_once('.') {
+                            if tbl.eq_ignore_ascii_case(alias)
+                                && let Some(real_c) = cols.iter().find(|c| c.eq_ignore_ascii_case(col))
+                            {
+                                needed.insert(real_c.clone());
+                            }
+                        } else if let Some(real_c) = cols.iter().find(|c| c.eq_ignore_ascii_case(name))
+                        {
+                            needed.insert(real_c.clone());
+                        }
+                    }
+                    Expression::Binary { left, right, .. } => {
+                        walk(left, alias, cols, needed, wildcard);
+                        walk(right, alias, cols, needed, wildcard);
+                    }
+                    Expression::Unary { expr: inner, .. }
+                    | Expression::IsNull { expr: inner, .. }
+                    | Expression::Like { expr: inner, .. }
+                    | Expression::RegexMatch { expr: inner, .. }
+                    | Expression::SimilarTo { expr: inner, .. }
+                    | Expression::LikeMeaning { expr: inner, .. }
+                    | Expression::Cast { expr: inner, .. } => {
+                        walk(inner, alias, cols, needed, wildcard);
+                    }
+                    Expression::Function { args, .. } | Expression::WindowFunction { args, .. } => {
+                        for a in args {
+                            walk(a, alias, cols, needed, wildcard);
+                        }
+                    }
+                    Expression::Case {
+                        operand,
+                        when_clauses,
+                        else_clause,
+                    } => {
+                        if let Some(op) = operand {
+                            walk(op, alias, cols, needed, wildcard);
+                        }
+                        for (w, t) in when_clauses {
+                            walk(w, alias, cols, needed, wildcard);
+                            walk(t, alias, cols, needed, wildcard);
+                        }
+                        if let Some(el) = else_clause {
+                            walk(el, alias, cols, needed, wildcard);
+                        }
+                    }
+                    Expression::In {
+                        expr: inner, list, ..
+                    } => {
+                        walk(inner, alias, cols, needed, wildcard);
+                        for x in list {
+                            walk(x, alias, cols, needed, wildcard);
+                        }
+                    }
+                    Expression::Between {
+                        expr: inner,
+                        low,
+                        high,
+                        ..
+                    } => {
+                        walk(inner, alias, cols, needed, wildcard);
+                        walk(low, alias, cols, needed, wildcard);
+                        walk(high, alias, cols, needed, wildcard);
+                    }
+                    Expression::Subquery(_) | Expression::Exists(_) => {
+                        // Correlated outer references may reference any column of `alias`
+                        *wildcard = true;
+                    }
+                    _ => {}
                 }
             }
-            _ => None,
+            walk(e, alias, &columns, needed, wildcard);
+        };
+
+        for sc in &query.columns {
+            mark_expr(&sc.expr, &mut needed, &mut wildcard);
         }
+        if let Some(ref w) = query.where_clause {
+            mark_expr(w, &mut needed, &mut wildcard);
+        }
+        for j in &query.joins {
+            if !j.using_columns.is_empty() {
+                if j.using_columns.iter().any(|u| u == "*") {
+                    wildcard = true;
+                } else {
+                    for u in &j.using_columns {
+                        if let Some(real_c) = columns.iter().find(|c| c.eq_ignore_ascii_case(u)) {
+                            needed.insert(real_c.clone());
+                        }
+                    }
+                }
+            }
+            if let Some(ref cond) = j.condition {
+                mark_expr(cond, &mut needed, &mut wildcard);
+            }
+        }
+        for ge in &query.group_by {
+            mark_expr(ge, &mut needed, &mut wildcard);
+        }
+        if let Some(ref h) = query.having {
+            mark_expr(h, &mut needed, &mut wildcard);
+        }
+        for ob in &query.order_by {
+            mark_expr(&ob.expr, &mut needed, &mut wildcard);
+        }
+
+        let proj_cols: Vec<String> = if wildcard {
+            columns.clone()
+        } else {
+            let mut v: Vec<String> = columns
+                .iter()
+                .filter(|c| needed.contains(*c))
+                .cloned()
+                .collect();
+            if v.is_empty() {
+                v.push(columns[0].clone());
+            }
+            v
+        };
+
+        // Extract unambiguous single-table `WHERE` conjuncts for `alias`
+        let other_cols: Vec<(String, Vec<String>)> = all_schemas
+            .iter()
+            .filter(|(k, _)| !k.eq_ignore_ascii_case(alias))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let this_set = [(alias.to_string(), columns.clone())];
+
+        fn split_and<'a>(e: &'a Expression, out: &mut Vec<&'a Expression>) {
+            if let Expression::Binary {
+                left,
+                op: Operator::And,
+                right,
+            } = e
+            {
+                split_and(left, out);
+                split_and(right, out);
+            } else {
+                out.push(e);
+            }
+        }
+
+        fn check_only_this(
+            e: &Expression,
+            this_set: &[(String, Vec<String>)],
+            other_set: &[(String, Vec<String>)],
+            saw_col: &mut bool,
+        ) -> bool {
+            match e {
+                Expression::Subquery(_)
+                | Expression::Exists(_)
+                | Expression::Parameter(_)
+                | Expression::NamedParameter(_)
+                | Expression::WindowFunction { .. } => false,
+                Expression::QualifiedColumn { .. } | Expression::Column(_) => {
+                    if SimpleQueryExecutor::col_belongs_to_set(e, this_set)
+                        && !SimpleQueryExecutor::col_belongs_to_set(e, other_set)
+                    {
+                        *saw_col = true;
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Expression::Literal(_) => true,
+                Expression::Binary { left, right, .. } => {
+                    check_only_this(left, this_set, other_set, saw_col)
+                        && check_only_this(right, this_set, other_set, saw_col)
+                }
+                Expression::Unary { expr: inner, .. }
+                | Expression::IsNull { expr: inner, .. }
+                | Expression::Like { expr: inner, .. }
+                | Expression::Cast { expr: inner, .. } => {
+                    check_only_this(inner, this_set, other_set, saw_col)
+                }
+                Expression::Function { args, .. } => args
+                    .iter()
+                    .all(|a| check_only_this(a, this_set, other_set, saw_col)),
+                Expression::In {
+                    expr: inner, list, ..
+                } => {
+                    check_only_this(inner, this_set, other_set, saw_col)
+                        && list
+                            .iter()
+                            .all(|x| check_only_this(x, this_set, other_set, saw_col))
+                }
+                Expression::Between {
+                    expr: inner,
+                    low,
+                    high,
+                    ..
+                } => {
+                    check_only_this(inner, this_set, other_set, saw_col)
+                        && check_only_this(low, this_set, other_set, saw_col)
+                        && check_only_this(high, this_set, other_set, saw_col)
+                }
+                _ => false,
+            }
+        }
+
+        fn strip_table_qual(e: &Expression, cols: &[String]) -> Expression {
+            match e {
+                Expression::QualifiedColumn { column, .. } => {
+                    let real = cols
+                        .iter()
+                        .find(|c| c.eq_ignore_ascii_case(column))
+                        .cloned()
+                        .unwrap_or_else(|| column.clone());
+                    Expression::Column(real)
+                }
+                Expression::Column(name) => {
+                    let bare = name.rsplit_once('.').map_or(name.as_str(), |(_, c)| c);
+                    let real = cols
+                        .iter()
+                        .find(|c| c.eq_ignore_ascii_case(bare))
+                        .cloned()
+                        .unwrap_or_else(|| bare.to_string());
+                    Expression::Column(real)
+                }
+                Expression::Binary { left, op, right } => Expression::Binary {
+                    left: Box::new(strip_table_qual(left, cols)),
+                    op: *op,
+                    right: Box::new(strip_table_qual(right, cols)),
+                },
+                Expression::Unary { op, expr: inner } => Expression::Unary {
+                    op: *op,
+                    expr: Box::new(strip_table_qual(inner, cols)),
+                },
+                Expression::IsNull {
+                    expr: inner,
+                    negated,
+                } => Expression::IsNull {
+                    expr: Box::new(strip_table_qual(inner, cols)),
+                    negated: *negated,
+                },
+                Expression::Like {
+                    expr: inner,
+                    pattern,
+                    negated,
+                    case_insensitive,
+                } => Expression::Like {
+                    expr: Box::new(strip_table_qual(inner, cols)),
+                    pattern: pattern.clone(),
+                    negated: *negated,
+                    case_insensitive: *case_insensitive,
+                },
+                Expression::Cast {
+                    expr: inner,
+                    target_type,
+                } => Expression::Cast {
+                    expr: Box::new(strip_table_qual(inner, cols)),
+                    target_type: target_type.clone(),
+                },
+                Expression::Function { name, args } => Expression::Function {
+                    name: name.clone(),
+                    args: args.iter().map(|a| strip_table_qual(a, cols)).collect(),
+                },
+                Expression::In {
+                    expr: inner,
+                    list,
+                    negated,
+                } => Expression::In {
+                    expr: Box::new(strip_table_qual(inner, cols)),
+                    list: list.iter().map(|x| strip_table_qual(x, cols)).collect(),
+                    negated: *negated,
+                },
+                Expression::Between {
+                    expr: inner,
+                    low,
+                    high,
+                    negated,
+                } => Expression::Between {
+                    expr: Box::new(strip_table_qual(inner, cols)),
+                    low: Box::new(strip_table_qual(low, cols)),
+                    high: Box::new(strip_table_qual(high, cols)),
+                    negated: *negated,
+                },
+                other => other.clone(),
+            }
+        }
+
+        let mut pushed_where: Option<Expression> = None;
+        if allow_where_pushdown
+            && params.is_empty()
+            && let Some(we) = where_expr
+        {
+            let mut conjs = Vec::new();
+            split_and(we, &mut conjs);
+            for conj in conjs {
+                let mut saw_col = false;
+                if check_only_this(conj, &this_set, &other_cols, &mut saw_col) && saw_col {
+                    let clean = strip_table_qual(conj, &columns);
+                    pushed_where = Some(match pushed_where {
+                        None => clean,
+                        Some(prev) => Expression::Binary {
+                            left: Box::new(prev),
+                            op: Operator::And,
+                            right: Box::new(clean),
+                        },
+                    });
+                }
+            }
+        }
+
+        let make_sub_query = |wc: Option<Expression>| SqlQuery {
+            columns: proj_cols
+                .iter()
+                .map(|cn| joule_db_query::sql::SqlColumn {
+                    expr: Expression::Column(cn.clone()),
+                    alias: None,
+                })
+                .collect(),
+            from: Some(joule_db_query::sql::SqlFrom {
+                source: FromSource::Table(table_name.to_string()),
+                alias: None,
+                lateral: false,
+            }),
+            where_clause: wc,
+            group_by: Vec::new(),
+            having: None,
+            order_by: Vec::new(),
+            limit: if pushed_where.is_none() && total_rows > 250_000 {
+                Some(total_rows)
+            } else {
+                None
+            },
+            offset: None,
+            joins: Vec::new(),
+            ctes: Vec::new(),
+            distinct: false,
+            set_op: None,
+            as_of_timestamp: None,
+        };
+
+        let vec_res = if let Some(ref dt) = disk_tbl {
+            if let Some(wc) = pushed_where.clone() {
+                crate::columnar_exec::execute_segmented(&make_sub_query(Some(wc)), dt)
+                    .or_else(|| crate::columnar_exec::execute_segmented(&make_sub_query(None), dt))?
+            } else {
+                crate::columnar_exec::execute_segmented(&make_sub_query(None), dt)?
+            }
+        } else if let Some(ref tc) = mem_tbl {
+            if let Some(wc) = pushed_where.clone() {
+                crate::columnar_exec::execute(&make_sub_query(Some(wc)), tc)
+                    .or_else(|| crate::columnar_exec::execute(&make_sub_query(None), tc))?
+            } else {
+                crate::columnar_exec::execute(&make_sub_query(None), tc)?
+            }
+        } else {
+            return None;
+        };
+
+        if proj_cols.len() == columns.len() {
+            return Some((columns, vec_res.rows));
+        }
+        let col_map: Vec<usize> = proj_cols
+            .iter()
+            .filter_map(|pc| columns.iter().position(|c| c == pc))
+            .collect();
+        let ncols = columns.len();
+        let full_rows: Vec<Vec<serde_json::Value>> = vec_res
+            .rows
+            .into_iter()
+            .map(|prow| {
+                let mut r = vec![serde_json::Value::Null; ncols];
+                for (pi, val) in prow.into_iter().enumerate() {
+                    if let Some(&dst) = col_map.get(pi) {
+                        r[dst] = val;
+                    }
+                }
+                r
+            })
+            .collect();
+        Some((columns, full_rows))
     }
 
     /// Apply GROUP BY and aggregate functions
@@ -10929,7 +12967,7 @@ fn evaluate_aggregate(
                         for row in rows {
                             let t = evaluate_expression(&args[1], columns, row, params).as_i64();
                             if let Some(t) = t {
-                                if best_time.is_none() || t < best_time.unwrap() {
+                                if best_time.is_none_or(|bt| t < bt) {
                                     best_time = Some(t);
                                     best_row = Some(row);
                                 }
@@ -10955,7 +12993,7 @@ fn evaluate_aggregate(
                         for row in rows {
                             let t = evaluate_expression(&args[1], columns, row, params).as_i64();
                             if let Some(t) = t {
-                                if best_time.is_none() || t > best_time.unwrap() {
+                                if best_time.is_none_or(|bt| t > bt) {
                                     best_time = Some(t);
                                     best_row = Some(row);
                                 }
@@ -11570,12 +13608,34 @@ fn evaluate_expression_with_context(expr: &Expression, ctx: &EvalContext) -> ser
             }
 
             match op {
-                Operator::Eq => serde_json::Value::Bool(json_equals(&left_val, &right_val)),
-                Operator::Ne => serde_json::Value::Bool(!json_equals(&left_val, &right_val)),
-                Operator::Lt => serde_json::Value::Bool(json_compare(&left_val, &right_val) < 0),
-                Operator::Le => serde_json::Value::Bool(json_compare(&left_val, &right_val) <= 0),
-                Operator::Gt => serde_json::Value::Bool(json_compare(&left_val, &right_val) > 0),
-                Operator::Ge => serde_json::Value::Bool(json_compare(&left_val, &right_val) >= 0),
+                Operator::Eq => serde_json::Value::Bool(
+                    iso_date_vs_epoch_cmp(&left_val, &right_val).is_some_and(|c| c == 0)
+                        || json_equals(&left_val, &right_val),
+                ),
+                Operator::Ne => serde_json::Value::Bool(
+                    !(iso_date_vs_epoch_cmp(&left_val, &right_val).is_some_and(|c| c == 0)
+                        || json_equals(&left_val, &right_val)),
+                ),
+                Operator::Lt => serde_json::Value::Bool(
+                    iso_date_vs_epoch_cmp(&left_val, &right_val)
+                        .unwrap_or_else(|| json_compare(&left_val, &right_val))
+                        < 0,
+                ),
+                Operator::Le => serde_json::Value::Bool(
+                    iso_date_vs_epoch_cmp(&left_val, &right_val)
+                        .unwrap_or_else(|| json_compare(&left_val, &right_val))
+                        <= 0,
+                ),
+                Operator::Gt => serde_json::Value::Bool(
+                    iso_date_vs_epoch_cmp(&left_val, &right_val)
+                        .unwrap_or_else(|| json_compare(&left_val, &right_val))
+                        > 0,
+                ),
+                Operator::Ge => serde_json::Value::Bool(
+                    iso_date_vs_epoch_cmp(&left_val, &right_val)
+                        .unwrap_or_else(|| json_compare(&left_val, &right_val))
+                        >= 0,
+                ),
                 Operator::And => {
                     // SQL three-valued logic: TRUE AND NULL = NULL, FALSE AND NULL = FALSE
                     let l_bool = match &left_val {
@@ -11879,7 +13939,11 @@ fn evaluate_expression_with_context(expr: &Expression, ctx: &EvalContext) -> ser
             if val.is_null() || low_val.is_null() || high_val.is_null() {
                 return serde_json::Value::Null;
             }
-            let in_range = json_compare(&val, &low_val) >= 0 && json_compare(&val, &high_val) <= 0;
+            let lo_cmp = iso_date_vs_epoch_cmp(&val, &low_val)
+                .unwrap_or_else(|| json_compare(&val, &low_val));
+            let hi_cmp = iso_date_vs_epoch_cmp(&val, &high_val)
+                .unwrap_or_else(|| json_compare(&val, &high_val));
+            let in_range = lo_cmp >= 0 && hi_cmp <= 0;
             serde_json::Value::Bool(if *negated { !in_range } else { in_range })
         }
 
@@ -12032,6 +14096,51 @@ fn evaluate_expression_with_context(expr: &Expression, ctx: &EvalContext) -> ser
     }
 }
 
+fn parse_iso_date_epoch_secs(s: &str) -> Option<i64> {
+    let trimmed = s.trim();
+    if trimmed.len() < 10 {
+        return None;
+    }
+    let bytes = trimmed.as_bytes();
+    if bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || !bytes[..4].iter().all(u8::is_ascii_digit)
+        || !bytes[5..7].iter().all(u8::is_ascii_digit)
+        || !bytes[8..10].iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    let nd = chrono::NaiveDate::parse_from_str(&trimmed[..10], "%Y-%m-%d").ok()?;
+    Some(nd.and_hms_opt(0, 0, 0)?.and_utc().timestamp())
+}
+
+/// Compare an ISO `"YYYY-MM-DD"` date string against an `AstValue::Timestamp` Unix epoch integer
+/// (e.g. `l_shipdate >= DATE '1995-09-01'` or `l_shipdate <= DATE '1998-12-01' - INTERVAL '90' DAY`)
+/// without altering `json_compare`'s cross-type total-order contract.
+fn iso_date_vs_epoch_cmp(a: &serde_json::Value, b: &serde_json::Value) -> Option<i32> {
+    match (a, b) {
+        (serde_json::Value::String(s), serde_json::Value::Number(n)) => {
+            let ts_a = parse_iso_date_epoch_secs(s)?;
+            let ts_b = n.as_i64()?;
+            Some(match ts_a.cmp(&ts_b) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            })
+        }
+        (serde_json::Value::Number(n), serde_json::Value::String(s)) => {
+            let ts_a = n.as_i64()?;
+            let ts_b = parse_iso_date_epoch_secs(s)?;
+            Some(match ts_a.cmp(&ts_b) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            })
+        }
+        _ => None,
+    }
+}
+
 fn cast_json_value(val: &serde_json::Value, target_type: &str) -> serde_json::Value {
     match target_type {
         "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "INT2" | "INT4" | "INT8" | "SERIAL" => {
@@ -12149,11 +14258,19 @@ fn cast_json_value(val: &serde_json::Value, target_type: &str) -> serde_json::Va
                     ))
                 }
             }
+            serde_json::Value::Number(n) => {
+                if let Some(ts) = n.as_i64()
+                    && let Some(dt) = chrono::DateTime::from_timestamp(ts, 0)
+                {
+                    serde_json::Value::String(dt.format("%Y-%m-%d").to_string())
+                } else {
+                    serde_json::json!("ERROR: cannot cast type integer to date")
+                }
+            }
             serde_json::Value::Null => serde_json::Value::Null,
             _ => serde_json::json!(format!(
                 "ERROR: cannot cast type {} to date",
                 match val {
-                    serde_json::Value::Number(_) => "integer",
                     serde_json::Value::Bool(_) => "boolean",
                     _ => "unknown",
                 }
@@ -12801,21 +14918,10 @@ fn execute_subquery(
 
     // Handle implicit aggregates BEFORE projection (e.g., SELECT AVG(age) FROM t — no GROUP BY)
     // Must use filtered_rows (in source-table column layout) for aggregate computation.
-    let has_aggregates = query.derived_columns.values().any(|expr| {
-        matches!(
-            expr,
-            Expression::Function { name, .. }
-            if matches!(
-                name.to_uppercase().as_str(),
-                "COUNT" | "SUM" | "AVG" | "MIN" | "MAX" | "COUNT_DISTINCT"
-                    | "SUM_DISTINCT" | "AVG_DISTINCT" | "MIN_DISTINCT" | "MAX_DISTINCT"
-                    | "STRING_AGG" | "GROUP_CONCAT" | "JSON_AGG" | "JSON_OBJECT_AGG"
-                    | "STDDEV" | "STDDEV_POP"
-                    | "STDDEV_SAMP" | "VARIANCE" | "VAR_POP" | "VAR_SAMP" | "MEDIAN"
-                    | "APPROX_COUNT_DISTINCT" | "APPROX_PERCENTILE" | "PERCENTILE_APPROX"
-            )
-        )
-    });
+    let has_aggregates = query
+        .derived_columns
+        .values()
+        .any(|expr| is_aggregate_expr(expr));
 
     if query.group_by.is_empty() && has_aggregates {
         // filtered_rows are already in subquery_columns layout (extended with alias copies + join data)

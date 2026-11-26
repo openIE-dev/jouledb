@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Decentralized identity for Invisible Infrastructure.
 //!
 //! This crate provides:

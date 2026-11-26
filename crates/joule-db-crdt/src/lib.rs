@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Conflict-Free Replicated Data Types (CRDTs) for JouleDB
 //!
 //! Provides mathematically-guaranteed merge semantics for distributed

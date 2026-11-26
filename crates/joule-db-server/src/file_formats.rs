@@ -471,6 +471,26 @@ pub fn batches_to_columns(
                     }
                     ColData::Float(v)
                 }
+                DataType::Decimal128(p, sc) if p <= 18 => {
+                    if sc == 0 {
+                        let mut v = Vec::with_capacity(total);
+                        for a in &arrays {
+                            let vals = a.as_primitive::<Decimal128Type>().values();
+                            for &x in vals.iter() {
+                                v.push(i64::try_from(x).ok()?);
+                            }
+                        }
+                        ColData::Int(v)
+                    } else {
+                        let scale_div = 10f64.powi(sc as i32);
+                        let mut v = Vec::with_capacity(total);
+                        for a in &arrays {
+                            let vals = a.as_primitive::<Decimal128Type>().values();
+                            v.extend(vals.iter().map(|&x| (x as f64) / scale_div));
+                        }
+                        ColData::Float(v)
+                    }
+                }
                 DataType::Boolean => {
                     let mut v = Vec::with_capacity(total);
                     for a in &arrays {

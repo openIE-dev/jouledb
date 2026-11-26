@@ -1,3 +1,4 @@
+#![cfg_attr(not(test), deny(clippy::unwrap_used))]
 //! Shared energy accounting traits for the system-wide energy chain.
 //!
 //! **kernel measures → mesh aggregates → database indexes → applications display**

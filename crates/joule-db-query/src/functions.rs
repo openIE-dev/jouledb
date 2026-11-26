@@ -1224,6 +1224,24 @@ pub fn eval_scalar_function(
                 let ts_opt = match &args[1] {
                     Value::Timestamp(ts) => Some(*ts),
                     Value::Int(ts) => Some(*ts),
+                    Value::String(s) => {
+                        let st = s.trim();
+                        chrono::DateTime::parse_from_rfc3339(st)
+                            .map(|dt| dt.timestamp())
+                            .ok()
+                            .or_else(|| {
+                                chrono::NaiveDateTime::parse_from_str(st, "%Y-%m-%d %H:%M:%S")
+                                    .ok()
+                                    .map(|ndt| ndt.and_utc().timestamp())
+                            })
+                            .or_else(|| {
+                                let dpart = if st.len() >= 10 { &st[..10] } else { st };
+                                chrono::NaiveDate::parse_from_str(dpart, "%Y-%m-%d")
+                                    .ok()
+                                    .and_then(|nd| nd.and_hms_opt(0, 0, 0))
+                                    .map(|ndt| ndt.and_utc().timestamp())
+                            })
+                    }
                     _ => None,
                 };
                 if let (Value::String(part), Some(ts)) = (&args[0], ts_opt) {
@@ -1252,6 +1270,24 @@ pub fn eval_scalar_function(
                 let ts_opt = match &args[1] {
                     Value::Timestamp(ts) => Some(*ts),
                     Value::Int(ts) => Some(*ts),
+                    Value::String(s) => {
+                        let st = s.trim();
+                        chrono::DateTime::parse_from_rfc3339(st)
+                            .map(|dt| dt.timestamp())
+                            .ok()
+                            .or_else(|| {
+                                chrono::NaiveDateTime::parse_from_str(st, "%Y-%m-%d %H:%M:%S")
+                                    .ok()
+                                    .map(|ndt| ndt.and_utc().timestamp())
+                            })
+                            .or_else(|| {
+                                let dpart = if st.len() >= 10 { &st[..10] } else { st };
+                                chrono::NaiveDate::parse_from_str(dpart, "%Y-%m-%d")
+                                    .ok()
+                                    .and_then(|nd| nd.and_hms_opt(0, 0, 0))
+                                    .map(|ndt| ndt.and_utc().timestamp())
+                            })
+                    }
                     _ => None,
                 };
                 if let (Value::String(field), Some(ts)) = (&args[0], ts_opt) {
