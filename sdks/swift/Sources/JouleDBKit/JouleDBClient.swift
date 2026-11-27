@@ -3,9 +3,9 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Official Swift async/await client for JouleDB v0.13.0 (macOS, iOS, visionOS, Linux).
+/// Official Swift async/await client for JouleDB v0.14.0 (macOS, iOS, visionOS, Linux).
 public actor JouleDBClient {
-    public static let version = "0.13.0"
+    public static let version = "0.14.0"
     private let baseURL: URL
     private let token: String?
 

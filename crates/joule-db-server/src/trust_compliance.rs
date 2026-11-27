@@ -832,7 +832,8 @@ mod tests {
     #[test]
     fn test_full_trust_and_compliance_suite_maker_to_defense() {
         let res = execute_full_trust_and_compliance_suite().expect("compliance suite");
-        assert_eq!(res["all_8_global_compliance_frameworks_certified"], true);
+        assert_eq!(res["implemented_technical_controls_self_test_passed"], true);
+        assert_eq!(res["external_audit_performed"], false);
         assert_eq!(res["controls_verified"]["mldsa65_signature_bytes"], 3309);
     }
 }

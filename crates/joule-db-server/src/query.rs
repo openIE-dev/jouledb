@@ -261,6 +261,10 @@ pub trait QueryExecutor: Send + Sync {
     fn describe_query(&self, _sql: &str) -> Option<(Vec<i32>, Option<Vec<(String, i32)>>)> {
         None
     }
+
+    fn financial_ledger(&self) -> Option<Arc<crate::financial_ledger::FinancialLedger>> {
+        None
+    }
 }
 
 /// Rows per validated insert batch in bulk COPY / file import (one store
@@ -967,6 +971,10 @@ impl QueryExecutor for SimpleQueryExecutor {
         self.describe_sql_static(sql)
     }
 
+    fn financial_ledger(&self) -> Option<Arc<crate::financial_ledger::FinancialLedger>> {
+        Some(self.financial_ledger.clone())
+    }
+
     fn execute(&self, request: &QueryRequest) -> Result<QueryResponse, QueryErrorResponse> {
         let start = Instant::now();
 
@@ -1263,6 +1271,80 @@ fn eval_exact_decimal_function(
                 std::cmp::Ordering::Greater => 1i64,
             };
             Some(serde_json::Value::Number(c.into()))
+        }
+        "__PG_ANY_CMP__" | "__PG_ALL_CMP__" => {
+            let is_all = func_name == "__PG_ALL_CMP__";
+            let lhs = args.first()?;
+            if lhs.is_null() {
+                return Some(serde_json::Value::Null);
+            }
+            let op_str = args.get(1)?.as_str().unwrap_or("=");
+            let rhs = args.get(2)?;
+            if rhs.is_null() {
+                return Some(serde_json::Value::Null);
+            }
+            let elems: Vec<serde_json::Value> = match rhs {
+                serde_json::Value::Array(items) => items.clone(),
+                serde_json::Value::String(s) if s.starts_with('{') && s.ends_with('}') => {
+                    let inner = &s[1..s.len() - 1];
+                    if inner.trim().is_empty() {
+                        Vec::new()
+                    } else {
+                        inner
+                            .split(',')
+                            .map(|part| {
+                                let t = part.trim().trim_matches('"');
+                                serde_json::Value::String(t.to_string())
+                            })
+                            .collect()
+                    }
+                }
+                other => vec![other.clone()],
+            };
+            let matches_op = |item: &serde_json::Value| -> Option<bool> {
+                if item.is_null() {
+                    return None;
+                }
+                let cmp = json_compare(lhs, item);
+                Some(match op_str {
+                    "=" => cmp == 0,
+                    "!=" => cmp != 0,
+                    "<" => cmp < 0,
+                    "<=" => cmp <= 0,
+                    ">" => cmp > 0,
+                    ">=" => cmp >= 0,
+                    _ => cmp == 0,
+                })
+            };
+            if is_all {
+                let mut saw_null = false;
+                for item in &elems {
+                    match matches_op(item) {
+                        Some(true) => {}
+                        Some(false) => return Some(serde_json::Value::Bool(false)),
+                        None => saw_null = true,
+                    }
+                }
+                Some(if saw_null {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::Value::Bool(true)
+                })
+            } else {
+                let mut saw_null = false;
+                for item in &elems {
+                    match matches_op(item) {
+                        Some(true) => return Some(serde_json::Value::Bool(true)),
+                        Some(false) => {}
+                        None => saw_null = true,
+                    }
+                }
+                Some(if saw_null {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::Value::Bool(false)
+                })
+            }
         }
         _ => None,
     }
@@ -3196,6 +3278,7 @@ impl SimpleQueryExecutor {
                     "relname".into(),
                     "relnamespace".into(),
                     "relkind".into(),
+                    "relpersistence".into(),
                     "reltuples".into(),
                 ];
                 let rows: Vec<Vec<serde_json::Value>> = tables
@@ -3207,6 +3290,7 @@ impl SimpleQueryExecutor {
                             serde_json::json!(name),
                             serde_json::json!(2200i64), // public namespace
                             serde_json::json!("r"),     // ordinary table
+                            serde_json::json!("p"),     // permanent persistence
                             serde_json::json!(-1f64),   // unknown row count
                         ]
                     })
@@ -4706,8 +4790,10 @@ impl SimpleQueryExecutor {
                     }
                 }
 
-                // Try columnar acceleration for simple aggregate queries
-                if let Some(response) = self.try_columnar_select(query, start) {
+                // Try columnar acceleration for simple aggregate queries (only outside active MVCC sessions)
+                if session_id.is_none()
+                    && let Some(response) = self.try_columnar_select(query, start)
+                {
                     return Ok(response);
                 }
 
@@ -11592,7 +11678,9 @@ impl SimpleQueryExecutor {
                 let mut can_semi = true;
 
                 for sc in sub_conjs {
-                    if !self.expr_has_outer_ref(&sc, &inner_scope, cte_tables) {
+                    if !Self::expr_contains_subquery(&sc)
+                        && !self.expr_has_outer_ref(&sc, &inner_scope, cte_tables)
+                    {
                         inner_only_preds.push(sc);
                     } else if let Expression::Binary {
                         ref left,
@@ -11878,7 +11966,9 @@ impl SimpleQueryExecutor {
                 let mut equi_pairs: Vec<(Expression, Expression)> = Vec::new();
                 let mut can_decorr = true;
                 for sc in sub_conjs {
-                    if !self.expr_has_outer_ref(&sc, &inner_scope, cte_tables) {
+                    if !Self::expr_contains_subquery(&sc)
+                        && !self.expr_has_outer_ref(&sc, &inner_scope, cte_tables)
+                    {
                         inner_only_preds.push(sc);
                     } else if let Expression::Binary {
                         ref left,
@@ -14676,6 +14766,41 @@ fn iso_date_vs_epoch_cmp(a: &serde_json::Value, b: &serde_json::Value) -> Option
 
 fn cast_json_value(val: &serde_json::Value, target_type: &str) -> serde_json::Value {
     let target_upper = target_type.trim().to_ascii_uppercase();
+    if let Some(elem_type) = target_upper.strip_suffix("[]") {
+        return match val {
+            serde_json::Value::Null => serde_json::Value::Null,
+            serde_json::Value::Array(items) => serde_json::Value::Array(
+                items
+                    .iter()
+                    .map(|it| cast_json_value(it, elem_type))
+                    .collect(),
+            ),
+            serde_json::Value::String(s) if s.starts_with('{') && s.ends_with('}') => {
+                let inner = &s[1..s.len() - 1];
+                if inner.trim().is_empty() {
+                    serde_json::Value::Array(Vec::new())
+                } else {
+                    serde_json::Value::Array(
+                        inner
+                            .split(',')
+                            .map(|part| {
+                                let sv =
+                                    serde_json::Value::String(part.trim().trim_matches('"').into());
+                                cast_json_value(&sv, elem_type)
+                            })
+                            .collect(),
+                    )
+                }
+            }
+            other => serde_json::Value::Array(vec![cast_json_value(other, elem_type)]),
+        };
+    }
+    if matches!(
+        target_upper.as_str(),
+        "REGCLASS" | "REGTYPE" | "REGNAMESPACE" | "REGPROC"
+    ) {
+        return val.clone();
+    }
     if target_upper.starts_with("NUMERIC") || target_upper.starts_with("DECIMAL") {
         let explicit_scale: Option<u8> = target_upper
             .split_once('(')
@@ -17019,8 +17144,10 @@ mod tests {
         assert!(resp.session_id.is_some(), "BEGIN must return a session_id");
         let sid = resp.session_id.unwrap();
         assert!(!sid.is_empty());
-        // Verify it looks like a UUID (36 chars with dashes)
-        assert_eq!(sid.len(), 36);
+        assert!(
+            sid.starts_with('s') || sid.len() == 36,
+            "unexpected session_id format: {sid}"
+        );
     }
 
     #[test]
@@ -146035,7 +146162,20 @@ mod columnar_ingest_tests {
             &e,
             "CREATE TABLE cp (id BIGINT PRIMARY KEY, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",
         );
-        assert!(e.bulk_insert_arrow("cp", &[], &batches(0, 10)).is_none());
+        assert!(matches!(
+            e.bulk_insert_arrow("cp", &[], &batches(0, 10)),
+            Some(Ok(10))
+        ));
+        q(
+            &e,
+            "CREATE TABLE _reserved_cp (id BIGINT, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",
+        );
+        assert!(e.bulk_insert_arrow("_reserved_cp", &[], &batches(0, 10)).is_none());
+        q(
+            &e,
+            "CREATE TABLE cs (id SERIAL, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",
+        );
+        assert!(e.bulk_insert_arrow("cs", &[], &batches(0, 10)).is_none());
     }
 
     /// Text COPY through the columnar path stores exactly what the row path

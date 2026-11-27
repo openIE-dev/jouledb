@@ -14,19 +14,27 @@
 //! - **Tamper-Evident SHA-256 Hash-Chained Audit Log + `fsync` WAL:** Persisted to
 //!   `financial_ledger.jwal`, verifiable in one SQL call via `LEDGER VERIFY`, and queryable via
 //!   virtual SQL tables `jouledb_ledger_accounts`, `jouledb_ledger_transfers`, and `jouledb_ledger_legs`.
+//! - **v0.14.0 Binary `JWL1` Frames + Single-`fdatasync` Batch & FIFO Group Commit:** Compact
+//!   CRC-32 framed binary WAL (`0x89 'J' 'W' 'L' 0x01`, backward-compatible with JSONL `.jwal`),
+//!   explicit `submit_transfer_batch` (`atomic` or per-item clearing), and zero-starvation
+//!   Leader-Follower group-commit coalescing on concurrent `submit_transfer` callers.
+
+#![deny(clippy::unwrap_used)]
 
 use crate::decimal128::Decimal128;
 use crate::query::{QueryErrorResponse, QueryResponse};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs::{File, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub const LEDGER_WAL_FILENAME: &str = "financial_ledger.jwal";
+pub const JWL1_MAGIC: [u8; 5] = [0x89, b'J', b'W', b'L', 0x01];
+pub const MAX_LEDGER_BATCH_SIZE: usize = 32_768;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AccountFlags {
@@ -353,6 +361,56 @@ pub struct ResolveHoldReq {
     pub memo: Option<String>,
 }
 
+fn default_atomic_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BatchTransferReq {
+    pub transfers: Vec<CreateTransferReq>,
+    #[serde(default = "default_atomic_true")]
+    pub atomic: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchTransferItemOutcome {
+    pub index: usize,
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub receipt: Option<TransferReceipt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sqlstate: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchTransferReport {
+    pub atomic: bool,
+    pub submitted: usize,
+    pub committed: usize,
+    pub idempotent_replays: usize,
+    pub rejected: usize,
+    pub fsync_calls: usize,
+    pub wal_bytes_written: usize,
+    pub head_hash: String,
+    pub results: Vec<BatchTransferItemOutcome>,
+}
+
+enum WaiterState {
+    Waiting(Option<CreateTransferReq>),
+    PromotedToLeader(CreateTransferReq),
+    Done(Result<TransferReceipt, LedgerError>),
+}
+
+type GroupWaiterSlot = Arc<(Mutex<WaiterState>, Condvar)>;
+
+#[derive(Default)]
+struct GroupCommitQueue {
+    leader_active: bool,
+    pending: VecDeque<GroupWaiterSlot>,
+}
+
 struct LedgerState {
     accounts: BTreeMap<String, LedgerAccount>,
     transfers: Vec<LedgerTransferRecord>,
@@ -365,9 +423,12 @@ struct LedgerState {
     wal_path: Option<PathBuf>,
 }
 
-/// Thread-safe, strictly serialized Double-Entry Financial Ledger Engine.
+/// Thread-safe, strictly serialized Double-Entry Financial Ledger Engine
+/// with compact binary `JWL1` CRC-32 frames and FIFO group-commit coalescing.
 pub struct FinancialLedger {
     inner: Mutex<LedgerState>,
+    group_commit: Mutex<GroupCommitQueue>,
+    persistent: bool,
 }
 
 impl Default for FinancialLedger {
@@ -390,7 +451,14 @@ impl FinancialLedger {
                 wal_file: None,
                 wal_path: None,
             }),
+            group_commit: Mutex::new(GroupCommitQueue::default()),
+            persistent: false,
         }
+    }
+
+    #[inline]
+    pub fn is_persistent(&self) -> bool {
+        self.persistent
     }
 
     pub fn open(dir_or_file: impl AsRef<Path>) -> Result<Self, LedgerError> {
@@ -420,16 +488,12 @@ impl FinancialLedger {
         };
 
         if wal_path.exists() {
-            let f = File::open(&wal_path).map_err(|e| LedgerError::Persistence(e.to_string()))?;
-            let reader = BufReader::new(f);
-            for line_res in reader.lines() {
-                let line = line_res.map_err(|e| LedgerError::Persistence(e.to_string()))?;
-                let trimmed = line.trim();
-                if trimmed.is_empty() {
-                    continue;
-                }
-                let ev: WalEvent = serde_json::from_str(trimmed)
-                    .map_err(|e| LedgerError::Persistence(format!("corrupt ledger WAL: {e}")))?;
+            let mut raw = Vec::new();
+            let mut f =
+                File::open(&wal_path).map_err(|e| LedgerError::Persistence(e.to_string()))?;
+            f.read_to_end(&mut raw)
+                .map_err(|e| LedgerError::Persistence(e.to_string()))?;
+            for ev in decode_wal_stream(&raw)? {
                 replay_wal_event(&mut state, ev)?;
             }
         }
@@ -442,6 +506,8 @@ impl FinancialLedger {
         state.wal_file = Some(file);
         Ok(Self {
             inner: Mutex::new(state),
+            group_commit: Mutex::new(GroupCommitQueue::default()),
+            persistent: true,
         })
     }
 
@@ -509,275 +575,252 @@ impl FinancialLedger {
     }
 
     pub fn submit_transfer(&self, req: CreateTransferReq) -> Result<TransferReceipt, LedgerError> {
-        let idem = req.idempotency_key.trim().to_string();
-        if idem.is_empty() {
-            return Err(LedgerError::Syntax(
-                "idempotency_key is mandatory for financial transfers".into(),
-            ));
+        if !self.persistent {
+            let mut st = self
+                .inner
+                .lock()
+                .map_err(|e| LedgerError::Persistence(e.to_string()))?;
+            let (mut outcomes, _, _) = execute_transfer_wave_locked(&mut st, vec![req], true)?;
+            return match outcomes.pop() {
+                Some(Ok(r)) => Ok(r),
+                Some(Err(e)) => Err(e),
+                None => Err(LedgerError::Persistence(
+                    "empty single-transfer wave".into(),
+                )),
+            };
         }
 
-        let legs = if !req.legs.is_empty() {
-            req.legs.clone()
-        } else {
-            let debit = req
-                .debit_account_id
-                .as_ref()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .ok_or_else(|| LedgerError::Syntax("missing debit_account_id".into()))?;
-            let credit = req
-                .credit_account_id
-                .as_ref()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .ok_or_else(|| LedgerError::Syntax("missing credit_account_id".into()))?;
-            if debit == credit {
-                return Err(LedgerError::SameAccountTransfer(debit));
+        // Persistent WAL path: FIFO Single-Wave Leader-Follower Group Commit.
+        // At concurrency = 1, leader_active is false -> 0 allocations, 0 wait, 1 fdatasync.
+        // Under concurrency > 1, followers arriving during NVMe fdatasync coalesce into the
+        // next single-fdatasync wave with strict FIFO leadership handoff (zero starvation).
+        let mut leader_req = {
+            let mut q = self
+                .group_commit
+                .lock()
+                .map_err(|e| LedgerError::Persistence(e.to_string()))?;
+            if !q.leader_active {
+                q.leader_active = true;
+                Some(req)
+            } else {
+                let slot: GroupWaiterSlot =
+                    Arc::new((Mutex::new(WaiterState::Waiting(Some(req))), Condvar::new()));
+                q.pending.push_back(slot.clone());
+                drop(q);
+
+                let (lock, cvar) = &*slot;
+                let mut state = lock
+                    .lock()
+                    .map_err(|e| LedgerError::Persistence(e.to_string()))?;
+                loop {
+                    match &mut *state {
+                        WaiterState::Waiting(_) => {
+                            state = cvar
+                                .wait(state)
+                                .map_err(|e| LedgerError::Persistence(e.to_string()))?;
+                        }
+                        WaiterState::Done(_) => {
+                            let prev = std::mem::replace(&mut *state, WaiterState::Waiting(None));
+                            return match prev {
+                                WaiterState::Done(res) => res,
+                                _ => Err(LedgerError::Persistence(
+                                    "invalid waiter terminal state".into(),
+                                )),
+                            };
+                        }
+                        WaiterState::PromotedToLeader(_) => {
+                            let prev = std::mem::replace(&mut *state, WaiterState::Waiting(None));
+                            break match prev {
+                                WaiterState::PromotedToLeader(r) => Some(r),
+                                _ => None,
+                            };
+                        }
+                    }
+                }
             }
-            let amt = req
-                .amount_minor
-                .ok_or_else(|| LedgerError::InvalidAmount("missing amount_minor".into()))?;
-            vec![
-                LedgerLeg {
-                    account_id: debit,
-                    direction: LegDirection::Debit,
-                    amount_minor: amt,
-                },
-                LedgerLeg {
-                    account_id: credit,
-                    direction: LegDirection::Credit,
-                    amount_minor: amt,
-                },
-            ]
         };
 
-        if legs.len() < 2 {
-            return Err(LedgerError::Syntax(
-                "transfer requires at least 2 legs (debit + credit)".into(),
-            ));
-        }
-        if req.hold && legs.len() != 2 {
-            return Err(LedgerError::Syntax(
-                "two-phase HOLD requires exactly 1 debit leg and 1 credit leg".into(),
-            ));
-        }
-
-        let kind = if req.hold {
-            TransferKind::Hold
-        } else if legs.len() == 2 {
-            TransferKind::Standard
-        } else {
-            TransferKind::MultiLeg
+        let my_req = match leader_req.take() {
+            Some(r) => r,
+            None => {
+                self.handoff_group_leader();
+                return Err(LedgerError::Persistence(
+                    "missing promoted leader request".into(),
+                ));
+            }
         };
 
-        let payload_hash = compute_transfer_payload_hash(kind, &legs, None, None);
+        // Drain up to MAX_LEDGER_BATCH_SIZE - 1 followers already queued right now
+        let mut follower_slots: Vec<GroupWaiterSlot> = Vec::new();
+        let mut wave_reqs: Vec<CreateTransferReq> = Vec::new();
+        wave_reqs.push(my_req);
+        if let Ok(mut q) = self.group_commit.lock() {
+            while wave_reqs.len() < MAX_LEDGER_BATCH_SIZE {
+                let Some(slot) = q.pending.pop_front() else {
+                    break;
+                };
+                let extracted = slot.0.lock().ok().and_then(|mut g| match &mut *g {
+                    WaiterState::Waiting(opt) => opt.take(),
+                    _ => None,
+                });
+                if let Some(freq) = extracted {
+                    wave_reqs.push(freq);
+                    follower_slots.push(slot);
+                } else {
+                    if let Ok(mut g) = slot.0.lock() {
+                        *g = WaiterState::Done(Err(LedgerError::Persistence(
+                            "corrupt follower slot".into(),
+                        )));
+                    }
+                    slot.1.notify_one();
+                }
+            }
+        }
 
+        let wave_res = match self.inner.lock() {
+            Ok(mut st) => execute_transfer_wave_locked(&mut st, wave_reqs, false),
+            Err(e) => Err(LedgerError::Persistence(e.to_string())),
+        };
+
+        let my_result = match wave_res {
+            Ok((outcomes, _, _)) => {
+                let mut iter = outcomes.into_iter();
+                let leader_out = iter.next().unwrap_or_else(|| {
+                    Err(LedgerError::Persistence("missing leader outcome".into()))
+                });
+                for (slot, out) in follower_slots.into_iter().zip(iter) {
+                    if let Ok(mut g) = slot.0.lock() {
+                        *g = WaiterState::Done(out);
+                    }
+                    slot.1.notify_one();
+                }
+                leader_out
+            }
+            Err(batch_err) => {
+                for slot in follower_slots {
+                    if let Ok(mut g) = slot.0.lock() {
+                        *g = WaiterState::Done(Err(batch_err.clone()));
+                    }
+                    slot.1.notify_one();
+                }
+                Err(batch_err)
+            }
+        };
+
+        self.handoff_group_leader();
+        my_result
+    }
+
+    fn handoff_group_leader(&self) {
+        if let Ok(mut q) = self.group_commit.lock() {
+            while let Some(next_slot) = q.pending.pop_front() {
+                let promoted = next_slot.0.lock().ok().and_then(|mut g| {
+                    let req_opt = match &mut *g {
+                        WaiterState::Waiting(opt) => opt.take(),
+                        _ => None,
+                    };
+                    if let Some(r) = req_opt {
+                        *g = WaiterState::PromotedToLeader(r);
+                        Some(())
+                    } else {
+                        None
+                    }
+                });
+                if promoted.is_some() {
+                    next_slot.1.notify_one();
+                    return;
+                }
+                if let Ok(mut g) = next_slot.0.lock() {
+                    *g = WaiterState::Done(Err(LedgerError::Persistence(
+                        "dropped empty waiter".into(),
+                    )));
+                }
+                next_slot.1.notify_one();
+            }
+            q.leader_active = false;
+        }
+    }
+
+    /// Execute up to `32,768` double-entry transfers in a single lock acquisition and
+    /// a **single** `JWL1` binary WAL `write_all` + `fdatasync`.
+    ///
+    /// - `atomic = true`: All-or-nothing ACID journal batch; if any item fails validation
+    ///   (e.g. `NO_OVERDRAFT` or `IdempotencyConflict`), zero state changes or WAL bytes commit.
+    /// - `atomic = false`: High-throughput per-item core-banking clearing batch; valid items
+    ///   commit together in 1 `fdatasync` while rejected items return item-level `sqlstate` errors.
+    pub fn submit_transfer_batch(
+        &self,
+        reqs: Vec<CreateTransferReq>,
+        atomic: bool,
+    ) -> Result<BatchTransferReport, LedgerError> {
+        if reqs.is_empty() {
+            return Err(LedgerError::Syntax(
+                "transfers batch cannot be empty".into(),
+            ));
+        }
+        if reqs.len() > MAX_LEDGER_BATCH_SIZE {
+            return Err(LedgerError::Syntax(format!(
+                "batch size {} exceeds MAX_LEDGER_BATCH_SIZE ({MAX_LEDGER_BATCH_SIZE})",
+                reqs.len()
+            )));
+        }
+        let submitted = reqs.len();
         let mut st = self
             .inner
             .lock()
             .map_err(|e| LedgerError::Persistence(e.to_string()))?;
+        let (outcomes, fsync_calls, wal_bytes_written) =
+            execute_transfer_wave_locked(&mut st, reqs, atomic)?;
+        let head_hash = st.head_hash.clone();
+        drop(st);
 
-        // 1. Native End-to-End Idempotency Check
-        if let Some(&existing_idx) = st.idempotency_index.get(&idem)
-            && let Some(existing) = st.transfers.get(existing_idx)
-        {
-            if existing.payload_hash == payload_hash {
-                return Ok(TransferReceipt {
-                    record: existing.clone(),
-                    idempotent_replay: true,
-                });
-            }
-            return Err(LedgerError::IdempotencyConflict {
-                idempotency_key: idem,
-            });
-        }
+        let mut committed = 0usize;
+        let mut idempotent_replays = 0usize;
+        let mut rejected = 0usize;
+        let mut results = Vec::with_capacity(submitted);
 
-        // 2. Conservation of Money + Account Validation
-        let mut sum_debits: i128 = 0;
-        let mut sum_credits: i128 = 0;
-        let mut expected_ledger: Option<u32> = None;
-        let mut expected_scale: Option<u8> = None;
-        let mut delta_debits: HashMap<String, i128> = HashMap::new();
-        let mut delta_credits: HashMap<String, i128> = HashMap::new();
-
-        for leg in &legs {
-            if leg.amount_minor <= 0 {
-                return Err(LedgerError::InvalidAmount(
-                    "every leg amount must be strictly positive (> 0)".into(),
-                ));
-            }
-            let acct = st
-                .accounts
-                .get(&leg.account_id)
-                .ok_or_else(|| LedgerError::AccountNotFound(leg.account_id.clone()))?;
-            if acct.flags.frozen {
-                return Err(LedgerError::AccountFrozen(acct.account_id.clone()));
-            }
-            if let Some(exp_l) = expected_ledger {
-                if acct.ledger_id != exp_l {
-                    return Err(LedgerError::LedgerCurrencyMismatch {
-                        expected: exp_l,
-                        found: acct.ledger_id,
-                        account: acct.account_id.clone(),
+        for (index, out) in outcomes.into_iter().enumerate() {
+            match out {
+                Ok(receipt) => {
+                    if receipt.idempotent_replay {
+                        idempotent_replays += 1;
+                    } else {
+                        committed += 1;
+                    }
+                    results.push(BatchTransferItemOutcome {
+                        index,
+                        ok: true,
+                        receipt: Some(receipt),
+                        error: None,
+                        sqlstate: None,
                     });
                 }
-            } else {
-                expected_ledger = Some(acct.ledger_id);
-            }
-            if let Some(exp_s) = expected_scale {
-                if acct.scale != exp_s {
-                    return Err(LedgerError::ScaleMismatch {
-                        expected: exp_s,
-                        found: acct.scale,
-                        account: acct.account_id.clone(),
-                    });
-                }
-            } else {
-                expected_scale = Some(acct.scale);
-            }
-
-            match leg.direction {
-                LegDirection::Debit => {
-                    sum_debits = sum_debits.checked_add(leg.amount_minor).ok_or_else(|| {
-                        LedgerError::InvalidAmount("debit sum i128 overflow".into())
-                    })?;
-                    let entry = delta_debits.entry(leg.account_id.clone()).or_insert(0);
-                    *entry = entry
-                        .checked_add(leg.amount_minor)
-                        .ok_or_else(|| LedgerError::InvalidAmount("account debit overflow".into()))?;
-                }
-                LegDirection::Credit => {
-                    sum_credits = sum_credits.checked_add(leg.amount_minor).ok_or_else(|| {
-                        LedgerError::InvalidAmount("credit sum i128 overflow".into())
-                    })?;
-                    let entry = delta_credits.entry(leg.account_id.clone()).or_insert(0);
-                    *entry = entry.checked_add(leg.amount_minor).ok_or_else(|| {
-                        LedgerError::InvalidAmount("account credit overflow".into())
-                    })?;
-                }
-            }
-        }
-
-        if sum_debits != sum_credits {
-            return Err(LedgerError::UnbalancedLegs {
-                debits: sum_debits,
-                credits: sum_credits,
-            });
-        }
-
-        // Reject degenerate self-cancel where all legs hit one single account
-        if delta_debits.len() == 1
-            && delta_credits.len() == 1
-            && delta_debits.keys().next() == delta_credits.keys().next()
-        {
-            let same = delta_debits.keys().next().cloned().unwrap_or_default();
-            return Err(LedgerError::SameAccountTransfer(same));
-        }
-
-        // 3. Enforce Overdraft / Floor Invariants BEFORE mutating any account
-        for (acct_id, add_d) in &delta_debits {
-            if let Some(acct) = st.accounts.get(acct_id)
-                && acct.flags.debits_must_not_exceed_credits
-            {
-                let add_c = delta_credits.get(acct_id).copied().unwrap_or(0);
-                // Pending credits do NOT count as spendable funds until posted;
-                // pending debits DO reserve funds immediately.
-                let effective_credits = if req.hold {
-                    acct.posted_credits
-                } else {
-                    acct.posted_credits.saturating_add(add_c)
-                };
-                let current_reserved = acct.posted_debits.saturating_add(acct.pending_debits);
-                let required_after = current_reserved.saturating_add(*add_d);
-                if required_after > effective_credits {
-                    return Err(LedgerError::InsufficientCreditBalance {
-                        account: acct_id.clone(),
-                        available: effective_credits.saturating_sub(current_reserved),
-                        required: *add_d,
-                    });
-                }
-            }
-        }
-        for (acct_id, add_c) in &delta_credits {
-            if let Some(acct) = st.accounts.get(acct_id)
-                && acct.flags.credits_must_not_exceed_debits
-            {
-                let add_d = delta_debits.get(acct_id).copied().unwrap_or(0);
-                let effective_debits = if req.hold {
-                    acct.posted_debits
-                } else {
-                    acct.posted_debits.saturating_add(add_d)
-                };
-                let current_reserved = acct.posted_credits.saturating_add(acct.pending_credits);
-                let required_after = current_reserved.saturating_add(*add_c);
-                if required_after > effective_debits {
-                    return Err(LedgerError::InsufficientDebitBalance {
-                        account: acct_id.clone(),
-                        available: effective_debits.saturating_sub(current_reserved),
-                        required: *add_c,
+                Err(err) => {
+                    if atomic {
+                        return Err(err);
+                    }
+                    rejected += 1;
+                    results.push(BatchTransferItemOutcome {
+                        index,
+                        ok: false,
+                        receipt: None,
+                        error: Some(err.to_string()),
+                        sqlstate: Some(err.sqlstate().to_string()),
                     });
                 }
             }
         }
 
-        // 4. Construct hash-chained journal entry & fsync WAL BEFORE in-memory commit
-        let next_seq = st.seq + 1;
-        let transfer_id = req
-            .transfer_id
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| format!("tx_{next_seq:08}"));
-        if req.hold && st.holds_by_id.contains_key(&transfer_id) {
-            return Err(LedgerError::Syntax(format!(
-                "hold_id '{transfer_id}' already exists"
-            )));
-        }
-        let ts = now_ns();
-        let prev_hash = st.head_hash.clone();
-        let status = if req.hold {
-            TransferStatus::Pending
-        } else {
-            TransferStatus::Posted
-        };
-        let mut record = LedgerTransferRecord {
-            seq: next_seq,
-            transfer_id: transfer_id.clone(),
-            idempotency_key: idem.clone(),
-            kind,
-            status,
-            ledger_id: expected_ledger.unwrap_or(1),
-            scale: expected_scale.unwrap_or(2),
-            legs: legs.clone(),
-            total_amount_minor: sum_debits,
-            captured_amount_minor: None,
-            parent_hold_id: None,
-            memo: req.memo,
-            payload_hash,
-            prev_hash,
-            entry_hash: String::new(),
-            timestamp_ns: ts,
-        };
-        record.entry_hash = compute_transfer_entry_hash(&record);
-
-        let ev = WalEvent::Transfer {
-            record: record.clone(),
-        };
-        persist_wal_event(&mut st, &ev)?;
-
-        // 5. Apply atomic balance updates
-        apply_transfer_to_accounts(&mut st, &record)?;
-        let idx = st.transfers.len();
-        st.seq = next_seq;
-        st.head_hash = record.entry_hash.clone();
-        if req.hold {
-            st.holds_by_id.insert(transfer_id, idx);
-        }
-        st.idempotency_index.insert(idem, idx);
-        st.transfers.push(record.clone());
-        st.wal_events.push(ev);
-
-        Ok(TransferReceipt {
-            record,
-            idempotent_replay: false,
+        Ok(BatchTransferReport {
+            atomic,
+            submitted,
+            committed,
+            idempotent_replays,
+            rejected,
+            fsync_calls,
+            wal_bytes_written,
+            head_hash,
+            results,
         })
     }
 
@@ -1560,6 +1603,133 @@ pub fn execute_ledger_sql(
             .map_err(ledger_err_to_query_err)?;
             Ok(receipt_to_query_response(receipt, start))
         }
+        "BATCH" => {
+            // LEDGER BATCH [NON_ATOMIC] TRANSFER <amt> FROM <d> TO <c> IDEMPOTENCY [KEY] '<k>' [MEMO '<m>'] [TRANSFER ...]
+            let mut idx = 1usize;
+            let mut atomic = true;
+            if let Some(tok) = tokens.get(idx) {
+                if tok.eq_ignore_ascii_case("NON_ATOMIC")
+                    || tok.eq_ignore_ascii_case("CLEARING")
+                {
+                    atomic = false;
+                    idx += 1;
+                } else if tok.eq_ignore_ascii_case("ATOMIC") {
+                    atomic = true;
+                    idx += 1;
+                }
+            }
+            let mut reqs = Vec::new();
+            while idx < tokens.len() {
+                let verb = tokens[idx].to_ascii_uppercase();
+                if verb != "TRANSFER" && verb != "HOLD" {
+                    return Err(QueryErrorResponse::syntax_error(
+                        &format!("expected TRANSFER or HOLD inside LEDGER BATCH, got '{verb}'"),
+                        1,
+                        1,
+                    ));
+                }
+                let is_hold = verb == "HOLD";
+                let amt_minor: i128 = tokens
+                    .get(idx + 1)
+                    .and_then(|s| s.replace('_', "").parse::<i128>().ok())
+                    .ok_or_else(|| {
+                        QueryErrorResponse::syntax_error(
+                            "expected integer minor-unit amount in LEDGER BATCH item",
+                            1,
+                            1,
+                        )
+                    })?;
+                idx += 2;
+                let mut from_acct = None;
+                let mut to_acct = None;
+                let mut idem_key = None;
+                let mut hold_id = None;
+                let mut memo = None;
+                while idx < tokens.len() {
+                    let kw = tokens[idx].to_ascii_uppercase();
+                    if kw == "TRANSFER" || kw == "HOLD" {
+                        break;
+                    }
+                    match kw.as_str() {
+                        "FROM" => {
+                            idx += 1;
+                            from_acct = tokens.get(idx).cloned();
+                        }
+                        "TO" => {
+                            idx += 1;
+                            to_acct = tokens.get(idx).cloned();
+                        }
+                        "IDEMPOTENCY" => {
+                            idx += 1;
+                            if tokens.get(idx).is_some_and(|t| t.eq_ignore_ascii_case("KEY")) {
+                                idx += 1;
+                            }
+                            idem_key = tokens.get(idx).cloned();
+                        }
+                        "HOLD_ID" | "TRANSFER_ID" => {
+                            idx += 1;
+                            hold_id = tokens.get(idx).cloned();
+                        }
+                        "MEMO" => {
+                            idx += 1;
+                            memo = tokens.get(idx).cloned();
+                        }
+                        other => {
+                            return Err(QueryErrorResponse::syntax_error(
+                                &format!("unexpected token '{other}' in LEDGER BATCH item"),
+                                1,
+                                1,
+                            ));
+                        }
+                    }
+                    idx += 1;
+                }
+                reqs.push(CreateTransferReq {
+                    idempotency_key: idem_key.unwrap_or_default(),
+                    transfer_id: hold_id,
+                    debit_account_id: from_acct,
+                    credit_account_id: to_acct,
+                    amount_minor: Some(amt_minor),
+                    legs: Vec::new(),
+                    hold: is_hold,
+                    memo,
+                });
+            }
+            let rep = ledger
+                .submit_transfer_batch(reqs, atomic)
+                .map_err(ledger_err_to_query_err)?;
+            Ok(QueryResponse {
+                columns: vec![
+                    "submitted".into(),
+                    "committed".into(),
+                    "idempotent_replays".into(),
+                    "rejected".into(),
+                    "fsync_calls".into(),
+                    "wal_bytes_written".into(),
+                    "head_hash".into(),
+                ],
+                rows: vec![vec![
+                    serde_json::json!(rep.submitted as i64),
+                    serde_json::json!(rep.committed as i64),
+                    serde_json::json!(rep.idempotent_replays as i64),
+                    serde_json::json!(rep.rejected as i64),
+                    serde_json::json!(rep.fsync_calls as i64),
+                    serde_json::json!(rep.wal_bytes_written as i64),
+                    serde_json::json!(rep.head_hash),
+                ]],
+                affected_rows: Some(rep.committed),
+                execution_time_ms: start.elapsed().as_millis() as u64,
+                truncated: false,
+                warnings: Vec::new(),
+                energy_joules: None,
+                power_watts: None,
+                device_target: None,
+                algorithm_type: Some("double-entry-jwl1-batch".into()),
+                session_id: None,
+                viz_hint: None,
+                energy_receipt: None,
+            })
+        }
         other => Err(QueryErrorResponse::syntax_error(
             &format!("unknown LEDGER subcommand '{other}'"),
             1,
@@ -1620,15 +1790,805 @@ fn i128_json(v: i128) -> serde_json::Value {
 
 fn persist_wal_event(st: &mut LedgerState, ev: &WalEvent) -> Result<(), LedgerError> {
     if let Some(ref mut file) = st.wal_file {
-        let mut line =
-            serde_json::to_vec(ev).map_err(|e| LedgerError::Persistence(e.to_string()))?;
-        line.push(b'\n');
-        file.write_all(&line)
+        let mut buf = Vec::with_capacity(256);
+        encode_jwl1_frame(ev, &mut buf)?;
+        file.write_all(&buf)
             .map_err(|e| LedgerError::Persistence(e.to_string()))?;
         file.sync_data()
             .map_err(|e| LedgerError::Persistence(e.to_string()))?;
     }
     Ok(())
+}
+
+struct WaveUndoSnapshot {
+    orig_seq: u64,
+    orig_head_hash: String,
+    orig_transfers_len: usize,
+    orig_wal_events_len: usize,
+    saved_accounts: HashMap<String, LedgerAccount>,
+    added_holds: Vec<String>,
+    added_idempotency: Vec<String>,
+}
+
+impl WaveUndoSnapshot {
+    fn capture(st: &LedgerState) -> Self {
+        Self {
+            orig_seq: st.seq,
+            orig_head_hash: st.head_hash.clone(),
+            orig_transfers_len: st.transfers.len(),
+            orig_wal_events_len: st.wal_events.len(),
+            saved_accounts: HashMap::new(),
+            added_holds: Vec::new(),
+            added_idempotency: Vec::new(),
+        }
+    }
+
+    fn save_account_before_mutate(&mut self, st: &LedgerState, account_id: &str) {
+        if !self.saved_accounts.contains_key(account_id)
+            && let Some(acct) = st.accounts.get(account_id)
+        {
+            self.saved_accounts.insert(account_id.to_string(), acct.clone());
+        }
+    }
+
+    fn rollback(self, st: &mut LedgerState) {
+        st.seq = self.orig_seq;
+        st.head_hash = self.orig_head_hash;
+        st.transfers.truncate(self.orig_transfers_len);
+        st.wal_events.truncate(self.orig_wal_events_len);
+        for hid in self.added_holds {
+            st.holds_by_id.remove(&hid);
+        }
+        for ik in self.added_idempotency {
+            st.idempotency_index.remove(&ik);
+        }
+        for (aid, orig) in self.saved_accounts {
+            st.accounts.insert(aid, orig);
+        }
+    }
+}
+
+/// Validates and stages `reqs` under `st`, coalescing all newly committed `WalEvent`s into a
+/// single `JWL1` binary buffer and executing at most **one** `file.sync_data()` call.
+fn execute_transfer_wave_locked(
+    st: &mut LedgerState,
+    reqs: Vec<CreateTransferReq>,
+    atomic: bool,
+) -> Result<(Vec<Result<TransferReceipt, LedgerError>>, usize, usize), LedgerError> {
+    let mut undo = WaveUndoSnapshot::capture(st);
+    let mut outcomes: Vec<Result<TransferReceipt, LedgerError>> = Vec::with_capacity(reqs.len());
+    let mut wal_buf: Vec<u8> = if st.wal_file.is_some() {
+        Vec::with_capacity(reqs.len().saturating_mul(208))
+    } else {
+        Vec::new()
+    };
+    let mut staged_commits = 0usize;
+
+    for req in reqs {
+        match stage_one_transfer_in_wave(st, req, &mut undo, &mut wal_buf) {
+            Ok(receipt) => {
+                if !receipt.idempotent_replay {
+                    staged_commits += 1;
+                }
+                outcomes.push(Ok(receipt));
+            }
+            Err(err) => {
+                if atomic {
+                    undo.rollback(st);
+                    return Err(err);
+                }
+                outcomes.push(Err(err));
+            }
+        }
+    }
+
+    let mut fsync_calls = 0usize;
+    let wal_bytes_written = wal_buf.len();
+    if staged_commits > 0
+        && !wal_buf.is_empty()
+        && let Some(ref mut file) = st.wal_file
+    {
+        if let Err(io_err) = file.write_all(&wal_buf).and_then(|()| file.sync_data()) {
+            undo.rollback(st);
+            return Err(LedgerError::Persistence(io_err.to_string()));
+        }
+        fsync_calls = 1;
+    }
+
+    Ok((outcomes, fsync_calls, wal_bytes_written))
+}
+
+fn stage_one_transfer_in_wave(
+    st: &mut LedgerState,
+    req: CreateTransferReq,
+    undo: &mut WaveUndoSnapshot,
+    wal_buf: &mut Vec<u8>,
+) -> Result<TransferReceipt, LedgerError> {
+    let idem = req.idempotency_key.trim().to_string();
+    if idem.is_empty() {
+        return Err(LedgerError::Syntax(
+            "idempotency_key is mandatory for financial transfers".into(),
+        ));
+    }
+
+    let legs = if !req.legs.is_empty() {
+        req.legs
+    } else {
+        let debit = req
+            .debit_account_id
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| LedgerError::Syntax("missing debit_account_id".into()))?;
+        let credit = req
+            .credit_account_id
+            .as_ref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| LedgerError::Syntax("missing credit_account_id".into()))?;
+        if debit == credit {
+            return Err(LedgerError::SameAccountTransfer(debit));
+        }
+        let amt = req
+            .amount_minor
+            .ok_or_else(|| LedgerError::InvalidAmount("missing amount_minor".into()))?;
+        vec![
+            LedgerLeg {
+                account_id: debit,
+                direction: LegDirection::Debit,
+                amount_minor: amt,
+            },
+            LedgerLeg {
+                account_id: credit,
+                direction: LegDirection::Credit,
+                amount_minor: amt,
+            },
+        ]
+    };
+
+    if legs.len() < 2 {
+        return Err(LedgerError::Syntax(
+            "transfer requires at least 2 legs (debit + credit)".into(),
+        ));
+    }
+    if req.hold && legs.len() != 2 {
+        return Err(LedgerError::Syntax(
+            "two-phase HOLD requires exactly 1 debit leg and 1 credit leg".into(),
+        ));
+    }
+
+    let kind = if req.hold {
+        TransferKind::Hold
+    } else if legs.len() == 2 {
+        TransferKind::Standard
+    } else {
+        TransferKind::MultiLeg
+    };
+
+    let payload_hash = compute_transfer_payload_hash(kind, &legs, None, None);
+
+    // 1. Native End-to-End Idempotency Check
+    if let Some(&existing_idx) = st.idempotency_index.get(&idem)
+        && let Some(existing) = st.transfers.get(existing_idx)
+    {
+        if existing.payload_hash == payload_hash {
+            return Ok(TransferReceipt {
+                record: existing.clone(),
+                idempotent_replay: true,
+            });
+        }
+        return Err(LedgerError::IdempotencyConflict {
+            idempotency_key: idem,
+        });
+    }
+
+    // 2. Conservation of Money + Account Validation
+    let mut sum_debits: i128 = 0;
+    let mut sum_credits: i128 = 0;
+    let mut expected_ledger: Option<u32> = None;
+    let mut expected_scale: Option<u8> = None;
+    let mut delta_debits: HashMap<String, i128> = HashMap::with_capacity(legs.len());
+    let mut delta_credits: HashMap<String, i128> = HashMap::with_capacity(legs.len());
+
+    for leg in &legs {
+        if leg.amount_minor <= 0 {
+            return Err(LedgerError::InvalidAmount(
+                "every leg amount must be strictly positive (> 0)".into(),
+            ));
+        }
+        let acct = st
+            .accounts
+            .get(&leg.account_id)
+            .ok_or_else(|| LedgerError::AccountNotFound(leg.account_id.clone()))?;
+        if acct.flags.frozen {
+            return Err(LedgerError::AccountFrozen(acct.account_id.clone()));
+        }
+        if let Some(exp_l) = expected_ledger {
+            if acct.ledger_id != exp_l {
+                return Err(LedgerError::LedgerCurrencyMismatch {
+                    expected: exp_l,
+                    found: acct.ledger_id,
+                    account: acct.account_id.clone(),
+                });
+            }
+        } else {
+            expected_ledger = Some(acct.ledger_id);
+        }
+        if let Some(exp_s) = expected_scale {
+            if acct.scale != exp_s {
+                return Err(LedgerError::ScaleMismatch {
+                    expected: exp_s,
+                    found: acct.scale,
+                    account: acct.account_id.clone(),
+                });
+            }
+        } else {
+            expected_scale = Some(acct.scale);
+        }
+
+        match leg.direction {
+            LegDirection::Debit => {
+                sum_debits = sum_debits.checked_add(leg.amount_minor).ok_or_else(|| {
+                    LedgerError::InvalidAmount("debit sum i128 overflow".into())
+                })?;
+                let entry = delta_debits.entry(leg.account_id.clone()).or_insert(0);
+                *entry = entry
+                    .checked_add(leg.amount_minor)
+                    .ok_or_else(|| LedgerError::InvalidAmount("account debit overflow".into()))?;
+            }
+            LegDirection::Credit => {
+                sum_credits = sum_credits.checked_add(leg.amount_minor).ok_or_else(|| {
+                    LedgerError::InvalidAmount("credit sum i128 overflow".into())
+                })?;
+                let entry = delta_credits.entry(leg.account_id.clone()).or_insert(0);
+                *entry = entry
+                    .checked_add(leg.amount_minor)
+                    .ok_or_else(|| LedgerError::InvalidAmount("account credit overflow".into()))?;
+            }
+        }
+    }
+
+    if sum_debits != sum_credits {
+        return Err(LedgerError::UnbalancedLegs {
+            debits: sum_debits,
+            credits: sum_credits,
+        });
+    }
+
+    if delta_debits.len() == 1
+        && delta_credits.len() == 1
+        && delta_debits.keys().next() == delta_credits.keys().next()
+    {
+        let same = delta_debits.keys().next().cloned().unwrap_or_default();
+        return Err(LedgerError::SameAccountTransfer(same));
+    }
+
+    // 3. Enforce Overdraft / Floor Invariants BEFORE mutating any account
+    for (acct_id, add_d) in &delta_debits {
+        if let Some(acct) = st.accounts.get(acct_id)
+            && acct.flags.debits_must_not_exceed_credits
+        {
+            let add_c = delta_credits.get(acct_id).copied().unwrap_or(0);
+            let effective_credits = if req.hold {
+                acct.posted_credits
+            } else {
+                acct.posted_credits.saturating_add(add_c)
+            };
+            let current_reserved = acct.posted_debits.saturating_add(acct.pending_debits);
+            let required_after = current_reserved.saturating_add(*add_d);
+            if required_after > effective_credits {
+                return Err(LedgerError::InsufficientCreditBalance {
+                    account: acct_id.clone(),
+                    available: effective_credits.saturating_sub(current_reserved),
+                    required: *add_d,
+                });
+            }
+        }
+    }
+    for (acct_id, add_c) in &delta_credits {
+        if let Some(acct) = st.accounts.get(acct_id)
+            && acct.flags.credits_must_not_exceed_debits
+        {
+            let add_d = delta_debits.get(acct_id).copied().unwrap_or(0);
+            let effective_debits = if req.hold {
+                acct.posted_debits
+            } else {
+                acct.posted_debits.saturating_add(add_d)
+            };
+            let current_reserved = acct.posted_credits.saturating_add(acct.pending_credits);
+            let required_after = current_reserved.saturating_add(*add_c);
+            if required_after > effective_debits {
+                return Err(LedgerError::InsufficientDebitBalance {
+                    account: acct_id.clone(),
+                    available: effective_debits.saturating_sub(current_reserved),
+                    required: *add_c,
+                });
+            }
+        }
+    }
+
+    let next_seq = st.seq + 1;
+    let transfer_id = req
+        .transfer_id
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| format!("tx_{next_seq:08}"));
+    if req.hold && st.holds_by_id.contains_key(&transfer_id) {
+        return Err(LedgerError::Syntax(format!(
+            "hold_id '{transfer_id}' already exists"
+        )));
+    }
+    let ts = now_ns();
+    let prev_hash = st.head_hash.clone();
+    let status = if req.hold {
+        TransferStatus::Pending
+    } else {
+        TransferStatus::Posted
+    };
+    let mut record = LedgerTransferRecord {
+        seq: next_seq,
+        transfer_id: transfer_id.clone(),
+        idempotency_key: idem.clone(),
+        kind,
+        status,
+        ledger_id: expected_ledger.unwrap_or(1),
+        scale: expected_scale.unwrap_or(2),
+        legs,
+        total_amount_minor: sum_debits,
+        captured_amount_minor: None,
+        parent_hold_id: None,
+        memo: req.memo,
+        payload_hash,
+        prev_hash,
+        entry_hash: String::new(),
+        timestamp_ns: ts,
+    };
+    record.entry_hash = compute_transfer_entry_hash(&record);
+
+    let ev = WalEvent::Transfer {
+        record: record.clone(),
+    };
+    if st.wal_file.is_some() {
+        encode_jwl1_frame(&ev, wal_buf)?;
+    }
+
+    for leg in &record.legs {
+        undo.save_account_before_mutate(st, &leg.account_id);
+    }
+    apply_transfer_to_accounts(st, &record)?;
+    let idx = st.transfers.len();
+    st.seq = next_seq;
+    st.head_hash = record.entry_hash.clone();
+    if req.hold {
+        st.holds_by_id.insert(transfer_id.clone(), idx);
+        undo.added_holds.push(transfer_id);
+    }
+    st.idempotency_index.insert(idem.clone(), idx);
+    undo.added_idempotency.push(idem);
+    st.transfers.push(record.clone());
+    st.wal_events.push(ev);
+
+    Ok(TransferReceipt {
+        record,
+        idempotent_replay: false,
+    })
+}
+
+// ============================================================================
+// Binary `JWL1` Frame Codec + IEEE CRC-32 + Hybrid JSONL Backward Reader
+// ============================================================================
+
+const fn build_crc32_table() -> [u32; 256] {
+    let mut table = [0u32; 256];
+    let mut i = 0usize;
+    while i < 256 {
+        let mut c = i as u32;
+        let mut bit = 0;
+        while bit < 8 {
+            if (c & 1) != 0 {
+                c = 0xEDB8_8320 ^ (c >> 1);
+            } else {
+                c >>= 1;
+            }
+            bit += 1;
+        }
+        table[i] = c;
+        i += 1;
+    }
+    table
+}
+
+const CRC32_TABLE: [u32; 256] = build_crc32_table();
+
+#[inline]
+fn crc32_ieee(bytes: &[u8]) -> u32 {
+    let mut crc = 0xFFFF_FFFFu32;
+    for &b in bytes {
+        let idx = ((crc ^ (b as u32)) & 0xFF) as usize;
+        crc = CRC32_TABLE[idx] ^ (crc >> 8);
+    }
+    !crc
+}
+
+fn write_len_str(out: &mut Vec<u8>, s: &str) -> Result<(), LedgerError> {
+    let bytes = s.as_bytes();
+    let len = u16::try_from(bytes.len()).map_err(|_| {
+        LedgerError::Persistence(format!("JWL1 string length {} exceeds u16::MAX", bytes.len()))
+    })?;
+    out.extend_from_slice(&len.to_le_bytes());
+    out.extend_from_slice(bytes);
+    Ok(())
+}
+
+fn read_len_str(buf: &[u8], pos: &mut usize) -> Result<String, LedgerError> {
+    let end_len = pos
+        .checked_add(2)
+        .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 str len overflow".into()))?;
+    let hdr = buf
+        .get(*pos..end_len)
+        .ok_or_else(|| LedgerError::Persistence("truncated JWL1 str length".into()))?;
+    let len = u16::from_le_bytes([hdr[0], hdr[1]]) as usize;
+    *pos = end_len;
+    let end_str = pos
+        .checked_add(len)
+        .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 str body overflow".into()))?;
+    let slice = buf
+        .get(*pos..end_str)
+        .ok_or_else(|| LedgerError::Persistence("truncated JWL1 str body".into()))?;
+    *pos = end_str;
+    std::str::from_utf8(slice)
+        .map(str::to_string)
+        .map_err(|e| LedgerError::Persistence(format!("invalid UTF-8 in JWL1 frame: {e}")))
+}
+
+fn write_hash_hex(out: &mut Vec<u8>, hex_str: &str) -> Result<(), LedgerError> {
+    if let Some(raw32) = hex_decode_32(hex_str) {
+        out.push(1);
+        out.extend_from_slice(&raw32);
+        Ok(())
+    } else {
+        out.push(0);
+        write_len_str(out, hex_str)
+    }
+}
+
+fn read_hash_hex(buf: &[u8], pos: &mut usize) -> Result<String, LedgerError> {
+    let mode = *buf
+        .get(*pos)
+        .ok_or_else(|| LedgerError::Persistence("truncated JWL1 hash tag".into()))?;
+    *pos += 1;
+    if mode == 1 {
+        let end = pos
+            .checked_add(32)
+            .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 hash32 overflow".into()))?;
+        let raw = buf
+            .get(*pos..end)
+            .ok_or_else(|| LedgerError::Persistence("truncated JWL1 hash32".into()))?;
+        *pos = end;
+        Ok(hex_encode(raw))
+    } else {
+        read_len_str(buf, pos)
+    }
+}
+
+fn read_exact_bytes<'a>(buf: &'a [u8], pos: &mut usize, n: usize) -> Result<&'a [u8], LedgerError> {
+    let end = pos
+        .checked_add(n)
+        .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 offset overflow".into()))?;
+    let s = buf
+        .get(*pos..end)
+        .ok_or_else(|| LedgerError::Persistence("truncated JWL1 payload".into()))?;
+    *pos = end;
+    Ok(s)
+}
+
+fn encode_jwl1_frame(ev: &WalEvent, out: &mut Vec<u8>) -> Result<(), LedgerError> {
+    out.extend_from_slice(&JWL1_MAGIC);
+    let len_offset = out.len();
+    out.extend_from_slice(&[0u8; 8]); // placeholder: u32 payload_len + u32 crc32
+    let payload_start = out.len();
+
+    match ev {
+        WalEvent::CreateAccount {
+            seq,
+            account,
+            prev_hash,
+            entry_hash,
+        } => {
+            out.push(1);
+            out.extend_from_slice(&seq.to_le_bytes());
+            write_len_str(out, &account.account_id)?;
+            out.extend_from_slice(&account.ledger_id.to_le_bytes());
+            out.extend_from_slice(&account.code.to_le_bytes());
+            out.push(account.scale);
+            let mut flags_byte = 0u8;
+            if account.flags.debits_must_not_exceed_credits {
+                flags_byte |= 0x01;
+            }
+            if account.flags.credits_must_not_exceed_debits {
+                flags_byte |= 0x02;
+            }
+            if account.flags.frozen {
+                flags_byte |= 0x04;
+            }
+            out.push(flags_byte);
+            out.extend_from_slice(&account.created_at_ns.to_le_bytes());
+            write_hash_hex(out, prev_hash)?;
+            write_hash_hex(out, entry_hash)?;
+        }
+        WalEvent::Transfer { record } => {
+            out.push(2);
+            out.extend_from_slice(&record.seq.to_le_bytes());
+            write_len_str(out, &record.transfer_id)?;
+            write_len_str(out, &record.idempotency_key)?;
+            out.push(match record.kind {
+                TransferKind::Standard => 0,
+                TransferKind::MultiLeg => 1,
+                TransferKind::Hold => 2,
+                TransferKind::PostHold => 3,
+                TransferKind::VoidHold => 4,
+            });
+            out.push(match record.status {
+                TransferStatus::Posted => 0,
+                TransferStatus::Pending => 1,
+                TransferStatus::Captured => 2,
+                TransferStatus::Voided => 3,
+            });
+            out.extend_from_slice(&record.ledger_id.to_le_bytes());
+            out.push(record.scale);
+            let legs_len = u16::try_from(record.legs.len()).map_err(|_| {
+                LedgerError::Persistence("too many legs for JWL1 u16".into())
+            })?;
+            out.extend_from_slice(&legs_len.to_le_bytes());
+            for leg in &record.legs {
+                write_len_str(out, &leg.account_id)?;
+                out.push(match leg.direction {
+                    LegDirection::Debit => 0,
+                    LegDirection::Credit => 1,
+                });
+                out.extend_from_slice(&leg.amount_minor.to_le_bytes());
+            }
+            out.extend_from_slice(&record.total_amount_minor.to_le_bytes());
+            if let Some(cap) = record.captured_amount_minor {
+                out.push(1);
+                out.extend_from_slice(&cap.to_le_bytes());
+            } else {
+                out.push(0);
+            }
+            if let Some(ref ph) = record.parent_hold_id {
+                out.push(1);
+                write_len_str(out, ph)?;
+            } else {
+                out.push(0);
+            }
+            if let Some(ref m) = record.memo {
+                out.push(1);
+                write_len_str(out, m)?;
+            } else {
+                out.push(0);
+            }
+            write_hash_hex(out, &record.payload_hash)?;
+            write_hash_hex(out, &record.prev_hash)?;
+            write_hash_hex(out, &record.entry_hash)?;
+            out.extend_from_slice(&record.timestamp_ns.to_le_bytes());
+        }
+    }
+
+    let payload_len = out.len() - payload_start;
+    let payload_len_u32 = u32::try_from(payload_len)
+        .map_err(|_| LedgerError::Persistence("JWL1 frame exceeds u32::MAX".into()))?;
+    let crc = crc32_ieee(&out[payload_start..]);
+    out[len_offset..len_offset + 4].copy_from_slice(&payload_len_u32.to_le_bytes());
+    out[len_offset + 4..len_offset + 8].copy_from_slice(&crc.to_le_bytes());
+    Ok(())
+}
+
+fn decode_jwl1_payload(payload: &[u8]) -> Result<WalEvent, LedgerError> {
+    let mut pos = 0usize;
+    let tag = *read_exact_bytes(payload, &mut pos, 1)?
+        .first()
+        .ok_or_else(|| LedgerError::Persistence("empty JWL1 payload".into()))?;
+    match tag {
+        1 => {
+            let s8 = read_exact_bytes(payload, &mut pos, 8)?;
+            let seq = u64::from_le_bytes([s8[0], s8[1], s8[2], s8[3], s8[4], s8[5], s8[6], s8[7]]);
+            let account_id = read_len_str(payload, &mut pos)?;
+            let meta = read_exact_bytes(payload, &mut pos, 16)?;
+            let ledger_id = u32::from_le_bytes([meta[0], meta[1], meta[2], meta[3]]);
+            let code = u16::from_le_bytes([meta[4], meta[5]]);
+            let scale = meta[6];
+            let fb = meta[7];
+            let created_at_ns = u64::from_le_bytes([
+                meta[8], meta[9], meta[10], meta[11], meta[12], meta[13], meta[14], meta[15],
+            ]);
+            let prev_hash = read_hash_hex(payload, &mut pos)?;
+            let entry_hash = read_hash_hex(payload, &mut pos)?;
+            Ok(WalEvent::CreateAccount {
+                seq,
+                account: LedgerAccount {
+                    account_id,
+                    ledger_id,
+                    code,
+                    scale,
+                    flags: AccountFlags {
+                        debits_must_not_exceed_credits: (fb & 0x01) != 0,
+                        credits_must_not_exceed_debits: (fb & 0x02) != 0,
+                        frozen: (fb & 0x04) != 0,
+                    },
+                    posted_debits: 0,
+                    posted_credits: 0,
+                    pending_debits: 0,
+                    pending_credits: 0,
+                    created_at_ns,
+                    version: 1,
+                },
+                prev_hash,
+                entry_hash,
+            })
+        }
+        2 => {
+            let s8 = read_exact_bytes(payload, &mut pos, 8)?;
+            let seq = u64::from_le_bytes([s8[0], s8[1], s8[2], s8[3], s8[4], s8[5], s8[6], s8[7]]);
+            let transfer_id = read_len_str(payload, &mut pos)?;
+            let idempotency_key = read_len_str(payload, &mut pos)?;
+            let hdr = read_exact_bytes(payload, &mut pos, 9)?;
+            let kind = match hdr[0] {
+                0 => TransferKind::Standard,
+                1 => TransferKind::MultiLeg,
+                2 => TransferKind::Hold,
+                3 => TransferKind::PostHold,
+                4 => TransferKind::VoidHold,
+                other => {
+                    return Err(LedgerError::Persistence(format!(
+                        "unknown JWL1 transfer kind {other}"
+                    )));
+                }
+            };
+            let status = match hdr[1] {
+                0 => TransferStatus::Posted,
+                1 => TransferStatus::Pending,
+                2 => TransferStatus::Captured,
+                3 => TransferStatus::Voided,
+                other => {
+                    return Err(LedgerError::Persistence(format!(
+                        "unknown JWL1 transfer status {other}"
+                    )));
+                }
+            };
+            let ledger_id = u32::from_le_bytes([hdr[2], hdr[3], hdr[4], hdr[5]]);
+            let scale = hdr[6];
+            let legs_count = u16::from_le_bytes([hdr[7], hdr[8]]) as usize;
+            let mut legs = Vec::with_capacity(legs_count.min(256));
+            for _ in 0..legs_count {
+                let account_id = read_len_str(payload, &mut pos)?;
+                let lb = read_exact_bytes(payload, &mut pos, 17)?;
+                let direction = match lb[0] {
+                    0 => LegDirection::Debit,
+                    1 => LegDirection::Credit,
+                    other => {
+                        return Err(LedgerError::Persistence(format!(
+                            "unknown JWL1 leg direction {other}"
+                        )));
+                    }
+                };
+                let mut amt_arr = [0u8; 16];
+                amt_arr.copy_from_slice(&lb[1..17]);
+                legs.push(LedgerLeg {
+                    account_id,
+                    direction,
+                    amount_minor: i128::from_le_bytes(amt_arr),
+                });
+            }
+            let tot_b = read_exact_bytes(payload, &mut pos, 16)?;
+            let mut tot_arr = [0u8; 16];
+            tot_arr.copy_from_slice(tot_b);
+            let total_amount_minor = i128::from_le_bytes(tot_arr);
+
+            let has_cap = read_exact_bytes(payload, &mut pos, 1)?[0];
+            let captured_amount_minor = if has_cap != 0 {
+                let cb = read_exact_bytes(payload, &mut pos, 16)?;
+                let mut carr = [0u8; 16];
+                carr.copy_from_slice(cb);
+                Some(i128::from_le_bytes(carr))
+            } else {
+                None
+            };
+            let has_ph = read_exact_bytes(payload, &mut pos, 1)?[0];
+            let parent_hold_id = if has_ph != 0 {
+                Some(read_len_str(payload, &mut pos)?)
+            } else {
+                None
+            };
+            let has_memo = read_exact_bytes(payload, &mut pos, 1)?[0];
+            let memo = if has_memo != 0 {
+                Some(read_len_str(payload, &mut pos)?)
+            } else {
+                None
+            };
+            let payload_hash = read_hash_hex(payload, &mut pos)?;
+            let prev_hash = read_hash_hex(payload, &mut pos)?;
+            let entry_hash = read_hash_hex(payload, &mut pos)?;
+            let tsb = read_exact_bytes(payload, &mut pos, 8)?;
+            let timestamp_ns = u64::from_le_bytes([
+                tsb[0], tsb[1], tsb[2], tsb[3], tsb[4], tsb[5], tsb[6], tsb[7],
+            ]);
+            Ok(WalEvent::Transfer {
+                record: LedgerTransferRecord {
+                    seq,
+                    transfer_id,
+                    idempotency_key,
+                    kind,
+                    status,
+                    ledger_id,
+                    scale,
+                    legs,
+                    total_amount_minor,
+                    captured_amount_minor,
+                    parent_hold_id,
+                    memo,
+                    payload_hash,
+                    prev_hash,
+                    entry_hash,
+                    timestamp_ns,
+                },
+            })
+        }
+        other => Err(LedgerError::Persistence(format!(
+            "unknown JWL1 event tag {other}"
+        ))),
+    }
+}
+
+/// Decodes a `.jwal` byte stream containing `JWL1` binary CRC-32 frames,
+/// legacy `{...}\n` JSONL lines, or any mix of both.
+fn decode_wal_stream(raw: &[u8]) -> Result<Vec<WalEvent>, LedgerError> {
+    let mut events = Vec::new();
+    let mut pos = 0usize;
+    while pos < raw.len() {
+        while pos < raw.len() && matches!(raw[pos], b' ' | b'\t' | b'\r' | b'\n') {
+            pos += 1;
+        }
+        if pos >= raw.len() {
+            break;
+        }
+        if raw[pos] == JWL1_MAGIC[0] {
+            let hdr_end = pos
+                .checked_add(13)
+                .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 header offset".into()))?;
+            let hdr = raw.get(pos..hdr_end).ok_or_else(|| {
+                LedgerError::Persistence("truncated JWL1 frame header".into())
+            })?;
+            if hdr[..5] != JWL1_MAGIC {
+                return Err(LedgerError::Persistence("invalid JWL1 frame magic".into()));
+            }
+            let payload_len = u32::from_le_bytes([hdr[5], hdr[6], hdr[7], hdr[8]]) as usize;
+            let expected_crc = u32::from_le_bytes([hdr[9], hdr[10], hdr[11], hdr[12]]);
+            let body_end = hdr_end
+                .checked_add(payload_len)
+                .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 frame length".into()))?;
+            let payload = raw.get(hdr_end..body_end).ok_or_else(|| {
+                LedgerError::Persistence("truncated JWL1 frame payload".into())
+            })?;
+            let actual_crc = crc32_ieee(payload);
+            if actual_crc != expected_crc {
+                return Err(LedgerError::Persistence(format!(
+                    "JWL1 CRC-32 mismatch at byte {pos}: expected {expected_crc:#010x}, got {actual_crc:#010x}"
+                )));
+            }
+            events.push(decode_jwl1_payload(payload)?);
+            pos = body_end;
+        } else {
+            let line_end = raw[pos..]
+                .iter()
+                .position(|&b| b == b'\n')
+                .map_or(raw.len(), |rel| pos + rel);
+            let line = &raw[pos..line_end];
+            let ev: WalEvent = serde_json::from_slice(line)
+                .map_err(|e| LedgerError::Persistence(format!("corrupt ledger WAL JSONL: {e}")))?;
+            events.push(ev);
+            pos = line_end.saturating_add(1).min(raw.len());
+        }
+    }
+    Ok(events)
 }
 
 fn replay_wal_event(st: &mut LedgerState, ev: WalEvent) -> Result<(), LedgerError> {
@@ -1841,13 +2801,41 @@ fn compute_transfer_entry_hash(r: &LedgerTransferRecord) -> String {
     hex_encode(&h.finalize())
 }
 
+const HEX_LUT: &[u8; 16] = b"0123456789abcdef";
+
+#[inline]
 fn hex_encode(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        use std::fmt::Write as _;
-        let _ = write!(&mut out, "{b:02x}");
+    let mut out = vec![0u8; bytes.len() * 2];
+    for (i, &b) in bytes.iter().enumerate() {
+        out[i * 2] = HEX_LUT[(b >> 4) as usize];
+        out[i * 2 + 1] = HEX_LUT[(b & 0x0F) as usize];
     }
-    out
+    String::from_utf8(out).unwrap_or_default()
+}
+
+#[inline]
+fn hex_nibble(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+#[inline]
+fn hex_decode_32(hex: &str) -> Option<[u8; 32]> {
+    let b = hex.as_bytes();
+    if b.len() != 64 {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for i in 0..32 {
+        let hi = hex_nibble(b[i * 2])?;
+        let lo = hex_nibble(b[i * 2 + 1])?;
+        out[i] = (hi << 4) | lo;
+    }
+    Some(out)
 }
 
 fn tokenize_ledger_cmd(input: &str) -> Vec<String> {
@@ -1906,6 +2894,10 @@ pub fn financial_ledger_routes(ledger: std::sync::Arc<FinancialLedger>) -> axum:
             "/api/v1/ledger/transfers",
             post(http_submit_transfer).get(http_list_transfers),
         )
+        .route(
+            "/api/v1/ledger/transfers/batch",
+            post(http_submit_transfer_batch),
+        )
         .route("/api/v1/ledger/holds/{id}/post", post(http_post_hold))
         .route("/api/v1/ledger/holds/{id}/void", post(http_void_hold))
         .route("/api/v1/ledger/verify", get(http_verify_chain))
@@ -1960,8 +2952,45 @@ async fn http_submit_transfer(
     axum::extract::State(ledger): axum::extract::State<std::sync::Arc<FinancialLedger>>,
     axum::Json(req): axum::Json<CreateTransferReq>,
 ) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
-    match ledger.submit_transfer(req) {
+    let res = if ledger.is_persistent() {
+        tokio::task::spawn_blocking(move || ledger.submit_transfer(req))
+            .await
+            .map_err(|e| {
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": e.to_string(), "sqlstate": "P0001" })),
+                )
+            })?
+    } else {
+        ledger.submit_transfer(req)
+    };
+    match res {
         Ok(receipt) => Ok(axum::Json(serde_json::json!(receipt))),
+        Err(e) => Err((
+            ledger_http_status(&e),
+            axum::Json(serde_json::json!({ "error": e.to_string(), "sqlstate": e.sqlstate() })),
+        )),
+    }
+}
+
+async fn http_submit_transfer_batch(
+    axum::extract::State(ledger): axum::extract::State<std::sync::Arc<FinancialLedger>>,
+    axum::Json(req): axum::Json<BatchTransferReq>,
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+    let res = if ledger.is_persistent() {
+        tokio::task::spawn_blocking(move || ledger.submit_transfer_batch(req.transfers, req.atomic))
+            .await
+            .map_err(|e| {
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    axum::Json(serde_json::json!({ "error": e.to_string(), "sqlstate": "P0001" })),
+                )
+            })?
+    } else {
+        ledger.submit_transfer_batch(req.transfers, req.atomic)
+    };
+    match res {
+        Ok(report) => Ok(axum::Json(serde_json::json!(report))),
         Err(e) => Err((
             ledger_http_status(&e),
             axum::Json(serde_json::json!({ "error": e.to_string(), "sqlstate": e.sqlstate() })),
@@ -2010,6 +3039,7 @@ async fn http_verify_chain(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::sync::Arc;
@@ -2253,5 +3283,197 @@ mod tests {
             .find(|a| a.account_id == "hot_wallet")
             .unwrap();
         assert_eq!(hot.net_credits_minor(), 0);
+    }
+
+    #[test]
+    fn jwl1_batch_atomic_rollback_non_atomic_clearing_and_disk_group_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let ledger = Arc::new(FinancialLedger::open(dir.path()).unwrap());
+        ledger
+            .create_account(CreateLedgerAccountReq {
+                account_id: "treasury".into(),
+                ledger_id: 1,
+                code: 1000,
+                scale: 2,
+                flags: AccountFlags::default(),
+            })
+            .unwrap();
+        ledger
+            .create_account(CreateLedgerAccountReq {
+                account_id: "wallet_a".into(),
+                ledger_id: 1,
+                code: 2000,
+                scale: 2,
+                flags: AccountFlags {
+                    debits_must_not_exceed_credits: true,
+                    credits_must_not_exceed_debits: false,
+                    frozen: false,
+                },
+            })
+            .unwrap();
+        ledger
+            .create_account(CreateLedgerAccountReq {
+                account_id: "wallet_b".into(),
+                ledger_id: 1,
+                code: 2000,
+                scale: 2,
+                flags: AccountFlags::default(),
+            })
+            .unwrap();
+
+        // 1. Atomic batch where item #2 overdrafts -> entire batch rolls back cleanly!
+        let bad_batch = ledger.submit_transfer_batch(
+            vec![
+                CreateTransferReq {
+                    idempotency_key: "b-seed".into(),
+                    transfer_id: None,
+                    debit_account_id: Some("treasury".into()),
+                    credit_account_id: Some("wallet_a".into()),
+                    amount_minor: Some(1_000),
+                    legs: vec![],
+                    hold: false,
+                    memo: None,
+                },
+                CreateTransferReq {
+                    idempotency_key: "b-ok".into(),
+                    transfer_id: None,
+                    debit_account_id: Some("wallet_a".into()),
+                    credit_account_id: Some("wallet_b".into()),
+                    amount_minor: Some(400),
+                    legs: vec![],
+                    hold: false,
+                    memo: None,
+                },
+                CreateTransferReq {
+                    idempotency_key: "b-overdraft".into(),
+                    transfer_id: None,
+                    debit_account_id: Some("wallet_a".into()),
+                    credit_account_id: Some("wallet_b".into()),
+                    amount_minor: Some(900),
+                    legs: vec![],
+                    hold: false,
+                    memo: None,
+                },
+            ],
+            true,
+        );
+        assert!(matches!(
+            bad_batch,
+            Err(LedgerError::InsufficientCreditBalance { .. })
+        ));
+        assert_eq!(ledger.list_transfers().len(), 0);
+
+        // 2. Non-atomic clearing batch: items #0 and #1 commit in 1 single fdatasync, item #2 rejects!
+        let rep = ledger
+            .submit_transfer_batch(
+                vec![
+                    CreateTransferReq {
+                        idempotency_key: "c-seed".into(),
+                        transfer_id: None,
+                        debit_account_id: Some("treasury".into()),
+                        credit_account_id: Some("wallet_a".into()),
+                        amount_minor: Some(1_000),
+                        legs: vec![],
+                        hold: false,
+                        memo: None,
+                    },
+                    CreateTransferReq {
+                        idempotency_key: "c-ok".into(),
+                        transfer_id: None,
+                        debit_account_id: Some("wallet_a".into()),
+                        credit_account_id: Some("wallet_b".into()),
+                        amount_minor: Some(400),
+                        legs: vec![],
+                        hold: false,
+                        memo: None,
+                    },
+                    CreateTransferReq {
+                        idempotency_key: "c-overdraft".into(),
+                        transfer_id: None,
+                        debit_account_id: Some("wallet_a".into()),
+                        credit_account_id: Some("wallet_b".into()),
+                        amount_minor: Some(900),
+                        legs: vec![],
+                        hold: false,
+                        memo: None,
+                    },
+                ],
+                false,
+            )
+            .unwrap();
+        assert_eq!(rep.submitted, 3);
+        assert_eq!(rep.committed, 2);
+        assert_eq!(rep.rejected, 1);
+        assert_eq!(rep.fsync_calls, 1);
+
+        // 3. 16-thread concurrent persistent `submit_transfer` exercising FIFO group-commit coalescer
+        // wallet_a currently has 600 remaining; 16 threads x 50 transfers of 10 = 8,000 attempted -> exact 60 succeed!
+        let mut handles = Vec::new();
+        for tid in 0..16 {
+            let l = ledger.clone();
+            handles.push(std::thread::spawn(move || {
+                let mut ok = 0usize;
+                for j in 0..50 {
+                    if l.submit_transfer(CreateTransferReq {
+                        idempotency_key: format!("gc-{tid}-{j}"),
+                        transfer_id: None,
+                        debit_account_id: Some("wallet_a".into()),
+                        credit_account_id: Some("wallet_b".into()),
+                        amount_minor: Some(10),
+                        legs: vec![],
+                        hold: false,
+                        memo: None,
+                    })
+                    .is_ok()
+                    {
+                        ok += 1;
+                    }
+                }
+                ok
+            }));
+        }
+        let gc_ok: usize = handles.into_iter().map(|h| h.join().unwrap()).sum();
+        assert_eq!(gc_ok, 60);
+
+        let verify1 = ledger.verify_chain();
+        assert!(verify1.valid, "{verify1:?}");
+        drop(ledger);
+
+        // 4. Reopen JWL1 binary WAL from disk and verify bit-for-bit identical chain & balances
+        let reopened = FinancialLedger::open(dir.path()).unwrap();
+        let verify2 = reopened.verify_chain();
+        assert!(verify2.valid, "{verify2:?}");
+        assert_eq!(verify2.head_hash, verify1.head_hash);
+        assert_eq!(
+            verify2.journal_entries_verified,
+            verify1.journal_entries_verified
+        );
+        let wa = reopened
+            .list_accounts()
+            .into_iter()
+            .find(|a| a.account_id == "wallet_a")
+            .unwrap();
+        let wb = reopened
+            .list_accounts()
+            .into_iter()
+            .find(|a| a.account_id == "wallet_b")
+            .unwrap();
+        assert_eq!(wa.net_credits_minor(), 0);
+        assert_eq!(wb.net_credits_minor(), 1_000);
+
+        // 5. Corrupt a single byte in financial_ledger.jwal and verify CRC-32 catches it on open!
+        drop(reopened);
+        let wal_file_path = dir.path().join(LEDGER_WAL_FILENAME);
+        let mut wal_bytes = std::fs::read(&wal_file_path).unwrap();
+        assert_eq!(&wal_bytes[..5], &JWL1_MAGIC);
+        let last = wal_bytes.len() - 1;
+        wal_bytes[last] ^= 0xFF;
+        std::fs::write(&wal_file_path, &wal_bytes).unwrap();
+        let err = FinancialLedger::open(dir.path());
+        assert!(
+            matches!(err, Err(LedgerError::Persistence(ref m)) if m.contains("CRC-32")),
+            "expected CRC-32 error, got {}",
+            err.err().map_or_else(|| "Ok".into(), |e| e.to_string())
+        );
     }
 }

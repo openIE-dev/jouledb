@@ -3240,6 +3240,16 @@ pub fn eval_scalar_function(
             Ok(Value::Array(elements))
         }
 
+        // PostgreSQL catalog reflection functions (SQLAlchemy 2 / psycopg / JDBC)
+        "PG_TABLE_IS_VISIBLE" | "PG_TYPE_IS_VISIBLE" | "PG_FUNCTION_IS_VISIBLE" => {
+            Ok(Value::Bool(!matches!(args.first(), None | Some(Value::Null))))
+        }
+        "CURRENT_SCHEMAS" => Ok(Value::Array(vec![
+            Value::String("pg_catalog".to_string()),
+            Value::String("public".to_string()),
+        ])),
+        "FORMAT_TYPE" => Ok(Value::String("text".to_string())),
+
         _ => Err(QueryError::UnknownFunction(name.to_string())),
     }
 }

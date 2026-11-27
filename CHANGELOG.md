@@ -9,6 +9,23 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-27
+
+### Added
+- **Binary `JWL1` CRC-32 Core Banking WAL, Single-`fdatasync` Settlement Batching & FIFO Leader-Follower Group Commit (`crates/joule-db-server/src/{financial_ledger.rs, mcp_bridge.rs, mcp_transport.rs}`, `bench/ledger_banking_head_to_head.py`)**:
+  - Upgraded `FinancialLedger` (`#![deny(clippy::unwrap_used)]`) to compact binary **`JWL1`** frames (`0x89 'J' 'W' 'L' 0x01` + `u32` length + IEEE `CRC-32` + raw 32-byte SHA-256 digests, seamlessly backward-compatible with JSONL `.jwal` logs), added `submit_transfer_batch(reqs, atomic)` (`POST /api/v1/ledger/transfers/batch`, SQL `LEDGER BATCH [NON_ATOMIC] TRANSFER ...`, and MCP `ledger.transfer_batch` — expanding the MCP server to **`59` tools**), and added zero-starvation FIFO single-wave Leader-Follower group-commit coalescing on concurrent persistent `submit_transfer` callers.
+  - Measured head-to-head against **`PostgreSQL 16.16`** (`fsync=on`, `synchronous_commit=on`, deadlock-free `FOR UPDATE` + `sha256()` + set-based `UNNEST` batch CTE) over `1,000` `NO_OVERDRAFT` customer wallets on physical NVMe (`--work-dir /var/tmp`, `bench/results/ledger_banking_nvme_rapl_v014.json`, Linux `rapl-package` **`reported_j`**, `183,610` SHA-256 chain entries verified `valid = true`):
+    - **`c = 1` Serial Durable Transfer:** JouleDB **`1,873.2 TPS`** (`p50 0.559 ms`, `37.41 mJ/tx`) vs PostgreSQL `16.16` `420.7 TPS` (`p50 2.379 ms`, `115.42 mJ/tx`) — **`4.45×` higher throughput & `3.09×` lower energy/tx**.
+    - **`c = 4` Concurrent Group Commit:** JouleDB **`1,485.9 TPS`** (`p50 1.068 ms`, `41.58 mJ/tx`) vs PostgreSQL `16.16` `914.1 TPS` (`p50 4.432 ms`, `56.57 mJ/tx`) — **`1.63×` higher throughput & `1.36×` lower energy/tx**.
+    - **`c = 16` High-Contention Concurrent Transfers:** JouleDB `1,706.6 TPS` (`p50 9.291 ms`, `41.25 mJ/tx`) vs PostgreSQL `16.16` **`3,504.0 TPS`** (`p50 4.624 ms`, `18.50 mJ/tx`) — PostgreSQL wins `2.05×` via tuple-level `FOR UPDATE` locking vs JouleDB's global rolling SHA-256 chain mutex.
+    - **`batch = 500` Clearing-House Batch (`1` `fdatasync` / `500` tx):** JouleDB **`31,463.2 transfers/sec`** (`p50 15.313 ms` per 500-tx batch, **`2.08 mJ/tx`**, `88.1×` faster than `v0.13.0`'s `357 TPS`) vs PostgreSQL `16.16` `UNNEST` CTE **`51,062.1 transfers/sec`** (`p50 8.745 ms`, `1.62 mJ/tx` without genesis-to-head rolling hash chain).
+- **Zero-`xfail` `SQLAlchemy 2` + `pandas.DataFrame.to_sql` + `Inspector` Parity (`crates/joule-db-query/src/{sql.rs, functions.rs}`, `crates/joule-db-server/src/query.rs`, `tests/clients/sqlalchemy_test.py`)**:
+  - Added PostgreSQL `Token::DoubleColon` (`expr::type` / `::VARCHAR[]` / `::regclass`), quantified array comparisons (`op ANY(expr)` / `op SOME(expr)` / `op ALL(expr)`), `pg_table_is_visible` / `pg_type_is_visible` / `pg_function_is_visible` / `current_schemas` / `format_type`, `pg_class.relpersistence`, and MVCC `session_id.is_none()` read-your-own-writes isolation on `try_columnar_select` — eliminating the final 2 `xfail`s in `tests/clients/sqlalchemy_test.py` (**`4 / 4` `ok`: `core_text`, `pandas_read_sql`, `pandas_to_sql`, `inspector_tables`**).
+
+### Fixed
+- **100% Green Workspace `Engine` Test Suite (`crates/joule-db-weights/src/waios_block64.rs`, `crates/joule-db-server/src/{columnar_exec.rs, columnar_join.rs, query.rs, trust_compliance.rs}`)**:
+  - Preserved exact integer SQL semantics on `INT +-*/ INT` and `CAST(int_col AS TEXT)` in `columnar_exec::build_vcol`, gated `columnar_join` to `.jcol` / `>= 256`-row analytical relations while rejecting CTE `set_op`/`distinct`, excluded nested subqueries from flat semi-join pushdown (`w359_nested_exists`), fixed debug `i8` wrapping in `waios_block64` test vectors, and aligned session-ID, Arrow PK ingest, `trust_compliance`, ANSI `NULL` join, and `59`-tool MCP assertions.
+
 ## [0.13.0] - 2026-11-27
 
 ### Added

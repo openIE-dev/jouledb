@@ -136,12 +136,12 @@ fn deep_join_on_null_keys() {
     exec(&e, "INSERT INTO deep_jn_b VALUES (NULL, 'b1')");
     exec(&e, "INSERT INTO deep_jn_b VALUES (1, 'b2')");
 
-    // JouleDB treats NULL = NULL as matching in JOINs (non-standard but consistent)
+    // Standard SQL: NULL = NULL is UNKNOWN and does not match in INNER JOIN
     let resp = exec(
         &e,
         "SELECT * FROM deep_jn_a INNER JOIN deep_jn_b ON deep_jn_a.id = deep_jn_b.id",
     );
-    assert_eq!(row_count(&resp), 2); // id=1 and NULL=NULL both match
+    assert_eq!(row_count(&resp), 1); // Only id = 1 matches
     exec(&e, "DROP TABLE deep_jn_a");
     exec(&e, "DROP TABLE deep_jn_b");
 }

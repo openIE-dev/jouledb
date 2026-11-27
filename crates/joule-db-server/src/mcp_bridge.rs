@@ -724,6 +724,7 @@ impl DatabaseToolHandler {
             "db.workflow_resume" => self.handle_workflow_resume(&request),
             "ledger.create_account" => self.handle_ledger_create_account(&request),
             "ledger.transfer" => self.handle_ledger_transfer(&request, false),
+            "ledger.transfer_batch" => self.handle_ledger_transfer_batch(&request),
             "ledger.hold" => self.handle_ledger_transfer(&request, true),
             "ledger.post_hold" => self.handle_ledger_resolve_hold(&request, true),
             "ledger.void_hold" => self.handle_ledger_resolve_hold(&request, false),
@@ -973,6 +974,31 @@ impl DatabaseToolHandler {
                 hid_clause
             ),
         )
+    }
+
+    fn handle_ledger_transfer_batch(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(transfers_val) = request.arguments.get("transfers") else {
+            return Self::missing(&request.id, "missing required parameter: transfers");
+        };
+        let transfers: Vec<crate::financial_ledger::CreateTransferReq> =
+            match serde_json::from_value(transfers_val.clone()) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Self::missing(&request.id, &format!("invalid transfers array: {e}"));
+                }
+            };
+        let atomic = request
+            .arguments
+            .get("atomic")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let Some(ledger) = self.query_executor.financial_ledger() else {
+            return Self::type_error(&request.id, "financial ledger not attached");
+        };
+        match ledger.submit_transfer_batch(transfers, atomic) {
+            Ok(report) => Self::json_ok(&request.id, report),
+            Err(err) => Self::type_error(&request.id, err),
+        }
     }
 
     fn handle_ledger_resolve_hold(

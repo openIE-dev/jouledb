@@ -1,4 +1,4 @@
-// Package jouledb provides the official zero-dependency Go SDK for JouleDB v0.13.0.
+// Package jouledb provides the official zero-dependency Go SDK for JouleDB v0.14.0.
 package jouledb
 
 import (
@@ -12,9 +12,9 @@ import (
 	"time"
 )
 
-const Version = "0.13.0"
+const Version = "0.14.0"
 
-// Client connects to a JouleDB v0.13.0 server over HTTP/JSON.
+// Client connects to a JouleDB v0.14.0 server over HTTP/JSON.
 type Client struct {
 	BaseURL    string
 	Token      string

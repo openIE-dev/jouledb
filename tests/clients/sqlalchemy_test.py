@@ -5,7 +5,7 @@ eng = sa.create_engine(f"postgresql+psycopg://postgres@127.0.0.1:{port}/postgres
 res = {}
 def check(n, f):
     try: f(); res[n] = "ok"
-    except Exception as e: res[n] = f"FAIL {type(e).__name__}: {str(e).splitlines()[0][:160]}"
+    except Exception as e: res[n] = f"FAIL {type(e).__name__}: {(str(e).splitlines() or [''])[0][:160]}"
 with eng.connect() as c:
     def core():
         c.execute(sa.text("DROP TABLE IF EXISTS sa_t")); c.execute(sa.text("CREATE TABLE sa_t (id INT, v FLOAT)"))
@@ -24,15 +24,7 @@ with eng.connect() as c:
     def inspect():
         assert "sa_t" in sa.inspect(c).get_table_names()
     check("inspector_tables", inspect)
-# Known gaps, tracked in the compat matrix: SQLAlchemy reflection (and so
-# DataFrame.to_sql, which reflects first) sends pg_catalog queries with
-# `::"char"[]` array casts and `= ANY(ARRAY[...])` that the SQL engine does not
-# parse yet. They are reported as xfail; an unexpected pass is also reported.
-KNOWN = {"pandas_to_sql", "inspector_tables"}
 bad = False
 for k, v in res.items():
-    if k in KNOWN:
-        print(f"sqlalchemy {k}: {'XPASS' if v == 'ok' else 'xfail (' + v + ')'}")
-    else:
-        print(f"sqlalchemy {k}: {v}"); bad |= v != "ok"
+    print(f"sqlalchemy {k}: {v}"); bad |= v != "ok"
 raise SystemExit(1 if bad else 0)

@@ -190,6 +190,7 @@ fn token_to_sql(token: &Token) -> String {
         Token::VectorIP => "<#>".to_string(),
         Token::VectorCosine => "<=>".to_string(),
         Token::Colon => ":".to_string(),
+        Token::DoubleColon => "::".to_string(),
         Token::Parameter(n) => format!("${}", n),
         Token::NamedParam(s) => format!(":{}", s),
         Token::Eof => String::new(),
@@ -951,8 +952,9 @@ pub enum Token {
     RBracket,  // ]
     Comma,     // ,
     Semicolon, // ;
-    Dot,       // .
-    Colon,     // :
+    Dot,         // .
+    Colon,       // :
+    DoubleColon, // ::
 
     // Special
     Parameter(usize),   // $1, $2, etc
@@ -1039,6 +1041,10 @@ impl<'a> SqlLexer<'a> {
             ';' => Ok(Token::Semicolon),
             '.' => Ok(Token::Dot),
             ':' => {
+                if self.peek() == Some(&':') {
+                    self.advance();
+                    return Ok(Token::DoubleColon);
+                }
                 if let Some(&c) = self.peek() {
                     if c.is_alphabetic() {
                         let name = self.read_identifier();
@@ -3011,7 +3017,16 @@ impl SqlParser {
     /// Handles types like `INTEGER`, `VARCHAR(255)`, `VECTOR(384)`, `DECIMAL(10,2)`.
     /// Returns the type as a string, e.g. `"VECTOR(384)"` or `"VARCHAR(255)"`.
     fn parse_type_with_params(&mut self) -> QueryResult<String> {
-        let mut base = self.parse_identifier()?;
+        let mut base = if *self.peek() == Token::Date {
+            self.advance();
+            "DATE".to_string()
+        } else {
+            self.parse_identifier()?
+        };
+        if *self.peek() == Token::Dot {
+            self.advance();
+            base = self.parse_identifier()?;
+        }
         if base.eq_ignore_ascii_case("DOUBLE")
             && matches!(self.peek(), Token::Identifier(s) if s.eq_ignore_ascii_case("PRECISION"))
         {
@@ -3023,7 +3038,7 @@ impl SqlParser {
             self.advance();
             base = "VARCHAR".to_string();
         }
-        if *self.peek() == Token::LParen {
+        let mut out = if *self.peek() == Token::LParen {
             self.advance(); // consume '('
             let mut params = String::new();
             params.push_str(&base.to_uppercase());
@@ -3056,10 +3071,18 @@ impl SqlParser {
             }
             self.expect(Token::RParen)?;
             params.push(')');
-            Ok(params)
+            params
         } else {
-            Ok(base)
+            base
+        };
+        while *self.peek() == Token::LBracket
+            && self.tokens.get(self.pos + 1) == Some(&Token::RBracket)
+        {
+            self.advance();
+            self.advance();
+            out.push_str("[]");
         }
+        Ok(out)
     }
 
     /// Parse optional ON DELETE/ON UPDATE referential action.
@@ -3489,6 +3512,44 @@ impl SqlParser {
 
         if let Some(op) = op {
             self.advance();
+            // PostgreSQL quantified array comparisons: `expr = ANY(arr)`, `expr != ALL(arr)`
+            let quant_is_all = match self.peek() {
+                Token::All if self.tokens.get(self.pos + 1) == Some(&Token::LParen) => Some(true),
+                Token::Identifier(s)
+                    if (s.eq_ignore_ascii_case("ANY") || s.eq_ignore_ascii_case("SOME"))
+                        && self.tokens.get(self.pos + 1) == Some(&Token::LParen) =>
+                {
+                    Some(false)
+                }
+                _ => None,
+            };
+            if let Some(is_all) = quant_is_all {
+                let op_code = match op {
+                    Operator::Eq => "=",
+                    Operator::Ne => "!=",
+                    Operator::Lt => "<",
+                    Operator::Le => "<=",
+                    Operator::Gt => ">",
+                    Operator::Ge => ">=",
+                    _ => "=",
+                };
+                self.advance(); // consume ANY / SOME / ALL
+                self.expect(Token::LParen)?;
+                let arr_expr = self.parse_expression()?;
+                self.expect(Token::RParen)?;
+                return Ok(Expression::Function {
+                    name: if is_all {
+                        "__PG_ALL_CMP__".to_string()
+                    } else {
+                        "__PG_ANY_CMP__".to_string()
+                    },
+                    args: vec![
+                        left,
+                        Expression::Literal(Value::String(op_code.to_string())),
+                        arr_expr,
+                    ],
+                });
+            }
             let right = self.parse_additive()?;
             Ok(Expression::binary(left, op, right))
         } else {
@@ -3569,8 +3630,21 @@ impl SqlParser {
             self.expect(Token::RParen)?;
             Ok(Expression::Exists(Box::new(subquery.to_query())))
         } else {
-            self.parse_primary()
+            self.parse_postfix()
         }
+    }
+
+    fn parse_postfix(&mut self) -> QueryResult<Expression> {
+        let mut expr = self.parse_primary()?;
+        while *self.peek() == Token::DoubleColon {
+            self.advance();
+            let target_type = self.parse_type_with_params()?.to_uppercase();
+            expr = Expression::Cast {
+                expr: Box::new(expr),
+                target_type,
+            };
+        }
+        Ok(expr)
     }
 
     fn parse_primary(&mut self) -> QueryResult<Expression> {

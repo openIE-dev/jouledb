@@ -1059,6 +1059,10 @@ pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
             "Execute an atomic double-entry transfer with mandatory idempotency_key",
         ),
         (
+            "ledger.transfer_batch",
+            "Execute a high-throughput single-fdatasync batch of double-entry transfers (atomic or per-item clearing)",
+        ),
+        (
             "ledger.hold",
             "Place a two-phase pending authorization hold reserving funds atomically",
         ),

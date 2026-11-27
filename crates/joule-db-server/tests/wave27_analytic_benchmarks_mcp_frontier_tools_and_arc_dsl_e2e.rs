@@ -84,7 +84,7 @@ async fn test_wave27_synthetic_analytic_smoke_and_mcp_utility_tools_e2e() {
     .await;
     assert_eq!(st_mcp_list, StatusCode::OK);
     let tools = mcp_list["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 49);
+    assert_eq!(tools.len(), 59);
 
     let (_st_sql, mcp_sql) = post_json(
         &router,

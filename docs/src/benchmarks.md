@@ -1,6 +1,6 @@
-# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.13.0`)
+# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.14.0`)
 
-> **Audit Remediation & Evidence Standard (`v0.13.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
+> **Audit Remediation & Evidence Standard (`v0.14.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
 >
 > Below we strictly separate **(1) reproducible external dataset, multi-table `TPC-H` (`SF=0.1..10.0`), physical-NVMe multi-client `pgwire` OLTP, & multi-host WAN consensus evaluations** (with every win, loss, memory profile, and architectural bottleneck reported openly) from **(2) fast in-process functional smoke checks**, and tag every energy figure as **`reported_j`** (hardware RAPL / SMC counters) or **`est_j`** (analytical cost model).
 
@@ -39,7 +39,7 @@
 ## 2. Official 22-Query `TPC-H` Relational Suite (`tpch_queries()`, 8 Tables, `SF = 0.1`, `1.0` & `10.0`) vs. DuckDB `2.0.1`
 
 - **Harness & Raw Artifacts:** [`bench/tpch_official.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/tpch_official.py), [`tpch_official_sf01.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf01.json), [`tpch_official_sf1.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf1.json), **[`tpch_official_sf10.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf10.json)**.
-- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)` on physical NVMe (`--work-dir /var/tmp`), loads them into JouleDB `0.13.0` over TCP `pgwire` (`COPY ... FROM` Parquet, spilling `.jcol` segments above `131,072` rows in disjoint `JCOL_ID_TAG` ID space), and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` with row-by-row verification against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
+- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)` on physical NVMe (`--work-dir /var/tmp`), loads them into JouleDB `0.14.0` over TCP `pgwire` (`COPY ... FROM` Parquet, spilling `.jcol` segments above `131,072` rows in disjoint `JCOL_ID_TAG` ID space), and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` with row-by-row verification against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
 
 | `TPC-H` Scale | Total Rows (8 Tables) | Parquet Load (`DuckDB` vs `JouleDB`) | Post-Load RSS (`VmHWM` Peak) | Verified Exact (`Faster`) | Total 22-Query Time (`DuckDB` vs `JouleDB`) | Geomean Latency (`JouleDB / DuckDB`) |
 |---|---:|---:|---:|---:|---:|---:|
@@ -73,8 +73,8 @@
 
 | Engine & Wire Mode (`invariant_verified = true`, `0` errors on all 5) | `c = 1` TPS (`p50`) | `c = 4` TPS (`p50`) | `c = 8` TPS (`p50`) | `c = 16` TPS (`p50`, `mJ/txn`) | Committed Writes |
 |---|---:|---:|---:|---:|---:|
-| **JouleDB `0.13.0` (`pgwire` Simple Query, 4-RTT + NVMe `fdatasync`)** | **`1,950.53`** (`0.148 ms`) | `1,005.03` (`0.666 ms`) | `2,617.89` (`0.640 ms`) | **`5,154.08`** (`0.718 ms`, `10.34 mJ`) | `25,677` (`0` conflicts) |
-| **JouleDB `0.13.0` (`pgwire` Extended Pipeline, 1-RTT + NVMe `fdatasync`)** | `620.92` (`0.169 ms`) | `1,149.02` (`0.616 ms`) | `2,730.90` (`0.633 ms`) | **`5,159.73`** (`0.773 ms`, `11.71 mJ`) | `23,158` (`0` conflicts) |
+| **JouleDB `0.14.0` (`pgwire` Simple Query, 4-RTT + NVMe `fdatasync`)** | **`1,950.53`** (`0.148 ms`) | `1,005.03` (`0.666 ms`) | `2,617.89` (`0.640 ms`) | **`5,154.08`** (`0.718 ms`, `10.34 mJ`) | `25,677` (`0` conflicts) |
+| **JouleDB `0.14.0` (`pgwire` Extended Pipeline, 1-RTT + NVMe `fdatasync`)** | `620.92` (`0.169 ms`) | `1,149.02` (`0.616 ms`) | `2,730.90` (`0.633 ms`) | **`5,159.73`** (`0.773 ms`, `11.71 mJ`) | `23,158` (`0` conflicts) |
 | **PostgreSQL `16.16` (`pgwire` Simple Query, 4-RTT + NVMe `fsync`)** | `1,199.69` (`0.100 ms`) | `2,813.01` (`0.142 ms`) | `5,571.65` (`0.111 ms`) | **`10,419.39`** (`0.273 ms`, `4.14 mJ`) | `47,846` (`0` conflicts) |
 | **PostgreSQL `16.16` (`pgwire` Extended Pipeline, 1-RTT + NVMe `fsync`)** | `1,171.69` (`0.071 ms`) | `2,555.25` (`0.100 ms`) | `5,046.95` (`0.167 ms`) | **`9,635.60`** (`0.231 ms`, `3.67 mJ`) | `44,020` (`0` conflicts) |
 | **SQLite `3.53.1` (Embedded in-proc C API, NVMe `WAL`, `NORMAL`)** | `42,194.70` (`0.005 ms`) | `86,523.31` (`0.006 ms`) | `97,425.32` (`0.007 ms`) | **`109,483.53`** (`0.007 ms`, `0.36 mJ`) | `830,955` (in-proc) |
@@ -82,6 +82,18 @@
 - **Candid Physical-NVMe OLTP Findings:**
   1. **JouleDB Beats `PostgreSQL 16.16` `1.63×` at `c=1` Simple (`1,950.5` vs `1,199.7 TPS`) & Scales to `5,159.7 TPS` at `c=16`:** On real NVMe `fdatasync` (`--work-dir /var/tmp`, vs `/tmp` `tmpfs` in `v0.11.0`), binary `JWU1` delta `UPDATE`s, deferred-hologram updates, and `GroupSync` narrow the `c=16` gap vs `PostgreSQL 16.16` from `2.91× / 2.61×` (`v0.11.0`) to **`2.02×` Simple / `1.87×` Pipelined**.
   2. **Remaining Bottlenecks (`c=4..16` & `c=1` Pipelined):** `PostgreSQL 16.16` wins `1.87×–2.80×` at `c=4..16` via shared-buffer page locks vs JouleDB's store-wide apply lock, and `GroupSync`'s batch coalescing window adds `~1.5 ms` wait when only 1 pipelined client is active (`620.9 TPS`).
+
+### 3.2 Head-to-Head Core Banking Double-Entry Ledger (`1,000` `NO_OVERDRAFT` Wallets, NVMe `fsync=on` + Linux RAPL `reported_j`) vs. `PostgreSQL 16.16`
+
+- **Harness & Raw Artifact:** [`bench/ledger_banking_head_to_head.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/ledger_banking_head_to_head.py), [`ledger_banking_nvme_rapl_v014.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/ledger_banking_nvme_rapl_v014.json).
+- **Invariants Enforced on Both Engines:** `1,000` customer wallets (`NO_OVERDRAFT` / `CHECK (posted_credits >= posted_debits)`), double-entry conservation ($\sum \text{debits} = \sum \text{credits}$), `5%` duplicate `idempotency_key` retries (`0` double-spends), SHA-256 digest per transfer (`JWL1` rolling genesis-to-head chain in JouleDB; built-in `sha256()` in `PostgreSQL 16.16`), and strict physical-NVMe `fsync=on, synchronous_commit=on` (`--work-dir /var/tmp`, `rapl-package` **`reported_j`**, shared host `idle_watts = 86.04 W`).
+
+| Core Banking Regime (`fsync=on`) | JouleDB `0.14.0` (`JWL1` + SHA-256 Chain) | PostgreSQL `16.16` (`FOR UPDATE` / `UNNEST` + `sha256`) | Speedup & RAPL Energy (`reported_j`) |
+|---|---:|---:|---|
+| **`c = 1` Serial Durable Transfer** | **`1,873.2 TPS`** (`p50 0.559 ms`, **`37.41 mJ/tx`**) | `420.7 TPS` (`p50 2.379 ms`, `115.42 mJ/tx`) | **JouleDB `4.45×` faster · `3.09×` less J/tx** |
+| **`c = 4` Concurrent Group Commit** | **`1,485.9 TPS`** (`p50 1.068 ms`, **`41.58 mJ/tx`**) | `914.1 TPS` (`p50 4.432 ms`, `56.57 mJ/tx`) | **JouleDB `1.63×` faster · `1.36×` less J/tx** |
+| **`c = 16` High-Contention Concurrent** | `1,706.6 TPS` (`p50 9.291 ms`, `41.25 mJ/tx`) | **`3,504.0 TPS`** (`p50 4.624 ms`, `18.50 mJ/tx`) | **PostgreSQL `2.05×` faster** (tuple locks vs global chain mutex) |
+| **`batch = 500` Clearing Batch (`1` `fdatasync` / `500` tx)** | **`31,463.2 TPS`** (`p50 15.313 ms`, **`2.08 mJ/tx`**) | **`51,062.1 TPS`** (`p50 8.745 ms`, `1.62 mJ/tx`) | **PostgreSQL `1.62×` faster** (`88.1×` JouleDB jump vs `v0.14.0`) |
 
 ---
 
@@ -95,7 +107,7 @@
 
 ## 5. `.jsyn` (`JSYN-v1`) Sub-1-Bit Weights: Measured Quality vs. Compression
 
-| Checkpoint / Layer | `BPW` | Shrink vs `FP16` | Measured Fidelity vs Upstream | Status in `v0.13.0` |
+| Checkpoint / Layer | `BPW` | Shrink vs `FP16` | Measured Fidelity vs Upstream | Status in `v0.14.0` |
 |---|---:|---:|---|---|
 | **[`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit)** (`6L` Encoder) | `0.4378` | `22.23×` (`1.95 MB`) | **`0.9441` sentence-embedding cosine** vs `FP32` | **Published & Verified on Hugging Face** (`Apache-2.0`) |
 | `Gemma-4-E2B` `q_proj` (`r = 8 -> 128` rank sweep) | `0.028–0.166` | `564× -> 96.6×` | `0.271 -> 0.455` output cosine (`KL 3.87 -> 2.72`, `65.6%` Top-5) | **Retracted from HF** (not drop-in LLM fidelity) |

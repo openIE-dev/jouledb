@@ -1,6 +1,6 @@
 {
   "name": "jouledb",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "JouleDB Studio MCP App & energy-metered SQL/CoW-branching database server (ui://jouledb/studio.html).",
   "icon": "assets/logo.svg",
   "suggestedPrompts": [

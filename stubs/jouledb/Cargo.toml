@@ -1,9 +1,9 @@
 [package]
 name = "jouledb"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2021"
 rust-version = "1.74"
-description = "Energy-metered multi-model Rust database (0.13.0 pre-1.0 preview) — exact 128-bit NUMERIC, SQL double-entry ledger, CoW SQL branching & agent guardrails, pure-.jcol analytics (100M ClickBench + 22/22 TPC-H SF=10), 64-shard pgwire OLTP, and Claude/MCP Apps. `cargo binstall jouledb` fetches the binary."
+description = "Energy-metered multi-model Rust database (0.14.0 pre-1.0 preview) — exact 128-bit NUMERIC, SQL double-entry ledger, CoW SQL branching & agent guardrails, pure-.jcol analytics (100M ClickBench + 22/22 TPC-H SF=10), 64-shard pgwire OLTP, and Claude/MCP Apps. `cargo binstall jouledb` fetches the binary."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/openIE-dev/jouledb"
 homepage = "https://jouledb.org"

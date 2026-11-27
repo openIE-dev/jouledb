@@ -40,7 +40,7 @@ async fn send_req(
 
 #[tokio::test]
 async fn test_wave30_universal_ecosystem_bridge_and_trust_compliance_e2e() {
-    assert_eq!(all_sota_tool_definitions().len(), 50);
+    assert_eq!(all_sota_tool_definitions().len(), 59);
 
     let tmp = tempfile::tempdir().expect("tempdir");
     let mut cfg = ServerConfig::default();

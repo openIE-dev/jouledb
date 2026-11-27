@@ -2085,7 +2085,12 @@ fn build_vcol<'a>(t: &'a TableColumns, e: &'a Expression) -> Option<VCol<'a>> {
                 tt.as_str(),
                 "DATE" | "TIMESTAMP" | "TEXT" | "VARCHAR" | "CHAR" | "STRING"
             ) {
-                build_vcol(t, expr)
+                let inner = build_vcol(t, expr)?;
+                if inner.is_text_like() {
+                    Some(inner)
+                } else {
+                    None
+                }
             } else if tt.starts_with("DECIMAL")
                 || tt.starts_with("NUMERIC")
                 || matches!(tt.as_str(), "FLOAT" | "DOUBLE" | "REAL")
@@ -2139,7 +2144,7 @@ fn build_vcol<'a>(t: &'a TableColumns, e: &'a Expression) -> Option<VCol<'a>> {
             };
             let lv = build_vcol(t, left)?;
             let rv = build_vcol(t, right)?;
-            if lv.is_numeric() && rv.is_numeric() {
+            if lv.is_numeric() && rv.is_numeric() && (!lv.is_int_like() || !rv.is_int_like()) {
                 Some(VCol::FloatArith {
                     lhs: Box::new(lv),
                     op: fop,

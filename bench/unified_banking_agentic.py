@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Banking, Agentic Sandbox & Human ORM Verification + Benchmark Harness (v0.13.0)
+Unified Banking, Agentic Sandbox & Human ORM Verification + Benchmark Harness (v0.14.0)
 
 Exercises all three ecosystem profiles against a single running `jouledb` binary:
   1. Core Banking Profile:
@@ -261,7 +261,7 @@ def main() -> None:
         sql_exec(base, "COMMIT", session_id=sid2)
 
         summary = {
-            "version": "0.13.0",
+            "version": "0.14.0",
             "exact_decimal128_verified": True,
             "double_entry_ledger": {
                 "hot_wallet_attempts": 500,

@@ -35,7 +35,7 @@ async fn test_wave31_subsystem_smoke_http_mcp_migration_pitr_and_aqe_e2e() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body_bytes = resp.into_body().collect().await.expect("body").to_bytes();
     let smoke: serde_json::Value = serde_json::from_slice(&body_bytes).expect("json");
-    assert_eq!(smoke["version"], "0.6.0");
+    assert_eq!(smoke["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(smoke["checks_executed"], 6);
     assert_eq!(smoke["all_6_smoke_checks_passed"], true);
     assert_eq!(smoke["energy_evidence"], "est_j");
@@ -104,7 +104,7 @@ async fn test_wave31_subsystem_smoke_http_mcp_migration_pitr_and_aqe_e2e() {
     )
     .expect("json");
     let tools = mcp_json["result"]["tools"].as_array().expect("tools array");
-    assert_eq!(tools.len(), 50);
+    assert_eq!(tools.len(), 59);
 
     for tool_name in [
         "migrate.shadow_cutover",

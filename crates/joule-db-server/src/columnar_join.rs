@@ -555,10 +555,13 @@ pub fn try_execute_columnar_join(
     {
         return None;
     }
+    if !query_benefits_from_columnar_join(query, amorphic) {
+        return None;
+    }
 
     let mut cte_rels: HashMap<String, ColRel> = HashMap::new();
     for cte in &query.ctes {
-        if cte.recursive {
+        if cte.recursive || cte.query.set_op.is_some() || cte.query.distinct {
             return None;
         }
         let tc = exec_query_to_table_columns(&cte.query, Some(&cte.columns), amorphic, &cte_rels)?;
@@ -598,6 +601,85 @@ pub fn try_execute_columnar_join(
         viz_hint: None,
         energy_receipt: None,
     })
+}
+
+fn table_is_columnar_scale(name: &str, amorphic: &AmorphicTableStorage) -> bool {
+    if amorphic.disk_column_table(name).is_some() {
+        return true;
+    }
+    amorphic
+        .table_columns(name)
+        .is_some_and(|tc| tc.len >= 256)
+}
+
+fn expr_has_columnar_scale_subquery(expr: &Expression, amorphic: &AmorphicTableStorage) -> bool {
+    match expr {
+        Expression::Exists(subquery) | Expression::Subquery(subquery) => {
+            ast_query_has_columnar_scale(subquery, amorphic)
+        }
+        Expression::In {
+            expr: inner, list, ..
+        } => {
+            expr_has_columnar_scale_subquery(inner, amorphic)
+                || list
+                    .iter()
+                    .any(|e| expr_has_columnar_scale_subquery(e, amorphic))
+        }
+        Expression::Binary { left, right, .. } => {
+            expr_has_columnar_scale_subquery(left, amorphic)
+                || expr_has_columnar_scale_subquery(right, amorphic)
+        }
+        Expression::Unary { expr: inner, .. }
+        | Expression::IsNull { expr: inner, .. }
+        | Expression::Like { expr: inner, .. }
+        | Expression::Cast { expr: inner, .. } => expr_has_columnar_scale_subquery(inner, amorphic),
+        Expression::Between { expr: e, low, high, .. } => {
+            expr_has_columnar_scale_subquery(e, amorphic)
+                || expr_has_columnar_scale_subquery(low, amorphic)
+                || expr_has_columnar_scale_subquery(high, amorphic)
+        }
+        _ => false,
+    }
+}
+
+fn ast_query_has_columnar_scale(q: &AstQuery, amorphic: &AmorphicTableStorage) -> bool {
+    if let Some(ref src) = q.source
+        && table_is_columnar_scale(src, amorphic)
+    {
+        return true;
+    }
+    if q.joins.iter().any(|j| table_is_columnar_scale(&j.table, amorphic)) {
+        return true;
+    }
+    q.filter
+        .as_ref()
+        .is_some_and(|w| expr_has_columnar_scale_subquery(w, amorphic))
+}
+
+fn query_benefits_from_columnar_join(query: &SqlQuery, amorphic: &AmorphicTableStorage) -> bool {
+    for cte in &query.ctes {
+        if query_benefits_from_columnar_join(&cte.query, amorphic) {
+            return true;
+        }
+    }
+    if let Some(ref f) = query.from {
+        match &f.source {
+            FromSource::Table(name) if table_is_columnar_scale(name, amorphic) => return true,
+            FromSource::Subquery(sub) if query_benefits_from_columnar_join(sub, amorphic) => {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    for j in &query.joins {
+        if table_is_columnar_scale(&j.table, amorphic) {
+            return true;
+        }
+    }
+    query
+        .where_clause
+        .as_ref()
+        .is_some_and(|w| expr_has_columnar_scale_subquery(w, amorphic))
 }
 
 fn load_rel(
@@ -1553,20 +1635,29 @@ fn compile_seg_expr(expr: &Expression, cols: &[(&str, &Col)]) -> Option<SegExpr>
                         let iso = if s.len() >= 10 { s[..10].to_string() } else { s };
                         Some(SegExpr::LitStr(iso))
                     }
-                    other => Some(other),
+                    _ => None,
                 }
             } else if tt.contains("INT") {
                 match sub {
+                    SegExpr::LitInt(i) => Some(SegExpr::LitInt(i)),
                     SegExpr::LitFloat(f) => Some(SegExpr::LitInt(f as i64)),
-                    other => Some(other),
+                    SegExpr::LitStr(s) => s.trim().parse::<i64>().ok().map(SegExpr::LitInt),
+                    _ => None,
                 }
-            } else if tt.contains("FLOAT") || tt.contains("DOUBLE") || tt.contains("DECIMAL") || tt.contains("NUMERIC") {
+            } else if tt.contains("FLOAT")
+                || tt.contains("DOUBLE")
+                || tt.contains("DECIMAL")
+                || tt.contains("NUMERIC")
+                || tt.contains("REAL")
+            {
                 match sub {
+                    SegExpr::LitFloat(f) => Some(SegExpr::LitFloat(f)),
                     SegExpr::LitInt(i) => Some(SegExpr::LitFloat(i as f64)),
-                    other => Some(other),
+                    SegExpr::LitStr(s) => s.trim().parse::<f64>().ok().map(SegExpr::LitFloat),
+                    _ => None,
                 }
             } else {
-                Some(sub)
+                None
             }
         }
         Expression::Unary { op, expr: inner } => {
@@ -3872,8 +3963,30 @@ fn compile_join_expr(
                         s
                     }));
                 }
+                return None;
             }
-            Some(sub)
+            if tt.contains("FLOAT")
+                || tt.contains("DOUBLE")
+                || tt.contains("DECIMAL")
+                || tt.contains("NUMERIC")
+                || tt.contains("REAL")
+            {
+                return match sub {
+                    JoinExpr::LitFloat(f) => Some(JoinExpr::LitFloat(f)),
+                    JoinExpr::LitInt(i) => Some(JoinExpr::LitFloat(i as f64)),
+                    JoinExpr::LitStr(s) => s.trim().parse::<f64>().ok().map(JoinExpr::LitFloat),
+                    _ => None,
+                };
+            }
+            if tt.contains("INT") {
+                return match sub {
+                    JoinExpr::LitInt(i) => Some(JoinExpr::LitInt(i)),
+                    JoinExpr::LitFloat(f) => Some(JoinExpr::LitInt(f as i64)),
+                    JoinExpr::LitStr(s) => s.trim().parse::<i64>().ok().map(JoinExpr::LitInt),
+                    _ => None,
+                };
+            }
+            None
         }
         Expression::Unary { op, expr: inner } => {
             let sub = compile_join_expr(inner, rels, slot_map)?;
