@@ -105,6 +105,8 @@ pub mod distributed_jepsen_consensus;
 pub mod ducklake;
 pub mod fabric_routes;
 pub mod gin_index;
+pub mod joule_route;
+pub mod kinetic_ontology;
 pub mod kube_control_plane;
 pub mod live_migration;
 pub mod living_embodied_routes;
@@ -557,6 +559,8 @@ pub struct Server {
     synapse_runtime: Arc<synapse_routes::SynapseServerRuntime>,
     ward_openai_runtime: Arc<ward_openai_routes::WardOpenAiRuntime>,
     pulse_mesh_runtime: Arc<pulse_mesh_routes::PulseMeshRuntime>,
+    joule_route_runtime: Arc<joule_route::JouleRouteRuntime>,
+    kinetic_ontology_runtime: Arc<kinetic_ontology::KineticOntologyRuntime>,
 }
 
 /// Database handler for TCP server - bridges TCP protocol to actual database
@@ -868,13 +872,20 @@ impl Server {
 
         let db_path = config.db_path.clone();
         let branch_manager = Arc::new(joule_db_branch::manager::BranchManager::new(0));
-        let ducklake_catalog = Arc::new(ducklake::DuckLakeCatalog::new(
-            format!("file://{}/ducklake", db_path),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-        ));
+        let init_ts_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        let ducklake_catalog = Arc::new(
+            ducklake::DuckLakeCatalog::open_persistent(
+                format!("file://{}/ducklake", db_path),
+                format!("{}/ducklake_catalog.json", db_path),
+                init_ts_ms,
+            )
+            .unwrap_or_else(|_| {
+                ducklake::DuckLakeCatalog::new(format!("file://{}/ducklake", db_path), init_ts_ms)
+            }),
+        );
         let reducer_runtime = Arc::new(wasm_reducers::ReducerRuntime::new(
             branch_manager.clone(),
             wasm_reducers::ReducerEnergyPolicy::default(),
@@ -903,6 +914,15 @@ impl Server {
         );
         let pulse_mesh_runtime =
             pulse_mesh_routes::PulseMeshRuntime::new(ward_openai_runtime.clone());
+        let joule_route_runtime = joule_route::JouleRouteRuntime::new(
+            ward_openai_runtime.clone(),
+            synapse_runtime.clone(),
+            &db_path,
+        );
+        let kinetic_ontology_runtime = kinetic_ontology::KineticOntologyRuntime::new(
+            query_executor.clone(),
+            financial_ledger_handle.clone(),
+        );
 
         Ok(Self {
             config,
@@ -955,6 +975,8 @@ impl Server {
             synapse_runtime,
             ward_openai_runtime,
             pulse_mesh_runtime,
+            joule_route_runtime,
+            kinetic_ontology_runtime,
         })
     }
 
@@ -1247,6 +1269,12 @@ impl Server {
             ))
             .merge(pulse_mesh_routes::pulse_mesh_router(
                 self.pulse_mesh_runtime.clone(),
+            ))
+            .merge(joule_route::joule_route_and_super_adapter_router(
+                self.joule_route_runtime.clone(),
+            ))
+            .merge(kinetic_ontology::kinetic_ontology_router(
+                self.kinetic_ontology_runtime.clone(),
             ))
             .merge(certification_routes::certification_router(
                 certification_routes::CertificationRuntime {

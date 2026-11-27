@@ -2878,6 +2878,157 @@ pub fn eval_scalar_function(
             Ok(Value::Null)
         }
 
+        // ==================== IN-SQL AI & MULTIMODAL FUNCTIONS (FlockMTL / Cortex / AlloyDB AI / Lance Blob v2) ====================
+        "AI_EMBED" => {
+            let Some(first) = args.first() else {
+                return Ok(Value::Null);
+            };
+            let text = match first {
+                Value::Null => return Ok(Value::Null),
+                Value::String(s) => s.clone(),
+                other => format!("{other:?}"),
+            };
+            let dim = match args.get(1) {
+                Some(Value::Int(d)) if *d >= 4 => (*d as usize).min(128),
+                _ => 32usize,
+            };
+            let full = crate::semantic_cascade::tier1_semantic_embed(&text);
+            let mut folded = vec![0.0f64; dim];
+            for (i, &val) in full.iter().enumerate() {
+                folded[i % dim] += val as f64;
+            }
+            let norm = crate::vector::vector_normalize(&folded);
+            Ok(Value::String(crate::vector::vector_to_string(&norm)))
+        }
+        "AI_SIMILARITY" | "SEM_SIMILAR" => {
+            if args.len() >= 2 {
+                if let (Value::String(a), Value::String(b)) = (&args[0], &args[1]) {
+                    if let (Some(va), Some(vb)) = (
+                        crate::vector::parse_vector(a),
+                        crate::vector::parse_vector(b),
+                    ) {
+                        if let Some(sim) = crate::vector::cosine_similarity(&va, &vb) {
+                            return Ok(Value::Float(sim));
+                        }
+                    }
+                    return Ok(Value::Float(crate::semantic_cascade::sem_similar(a, b)));
+                }
+            }
+            Ok(Value::Null)
+        }
+        "AI_FILTER" | "SEM_FILTER" => {
+            if args.len() >= 2 {
+                if let (Value::String(a), Value::String(b)) = (&args[0], &args[1]) {
+                    let threshold = match args.get(2) {
+                        Some(Value::Float(f)) => *f,
+                        Some(Value::Int(i)) => *i as f64,
+                        _ => 0.22,
+                    };
+                    // Support both (text, criterion) and FlockMTL-style (prompt_criterion, col_text)
+                    let matched = crate::semantic_cascade::sem_filter(a, b, threshold)
+                        || crate::semantic_cascade::sem_filter(b, a, threshold);
+                    return Ok(Value::Bool(matched));
+                }
+            }
+            Ok(Value::Bool(false))
+        }
+        "AI_RANK" => {
+            if args.len() >= 2 {
+                if let (Value::String(query), Value::String(doc)) = (&args[0], &args[1]) {
+                    let q_tokens: Vec<String> = query
+                        .to_lowercase()
+                        .split(|c: char| !c.is_alphanumeric())
+                        .filter(|t| t.len() >= 2)
+                        .map(String::from)
+                        .collect();
+                    let d_low = doc.to_lowercase();
+                    let lex_overlap = if q_tokens.is_empty() {
+                        0.0
+                    } else {
+                        let hits = q_tokens
+                            .iter()
+                            .filter(|qt| d_low.contains(qt.as_str()))
+                            .count();
+                        (hits as f64) / (q_tokens.len() as f64)
+                    };
+                    let sem = crate::semantic_cascade::sem_similar(query, doc);
+                    let score = (0.55 * lex_overlap + 0.45 * sem).clamp(0.0, 1.0);
+                    return Ok(Value::Float(score));
+                }
+            }
+            Ok(Value::Float(0.0))
+        }
+        "AI_EXTRACT" | "SEM_EXTRACT" => {
+            if args.len() >= 2 {
+                if let (Value::String(text), Value::String(slot)) = (&args[0], &args[1]) {
+                    return Ok(match crate::semantic_cascade::sem_extract(text, slot) {
+                        Some(v) => Value::String(v),
+                        None => Value::Null,
+                    });
+                }
+            }
+            Ok(Value::Null)
+        }
+        "AI_CLASSIFY" | "SEM_CLASSIFY" => {
+            if args.len() >= 2 {
+                if let (Value::String(text), Value::String(labels)) = (&args[0], &args[1]) {
+                    return Ok(match crate::semantic_cascade::sem_classify(text, labels) {
+                        Some(v) => Value::String(v),
+                        None => Value::Null,
+                    });
+                }
+            }
+            Ok(Value::Null)
+        }
+        "AI_COMPLETE" => {
+            let Some(Value::String(prompt)) = args.first() else {
+                return Ok(Value::Null);
+            };
+            let ctx = match args.get(1) {
+                Some(Value::String(s)) => Some(s.as_str()),
+                Some(Value::Int(i)) => return Ok(Value::String(format!("{prompt}: {i}"))),
+                Some(Value::Float(f)) => return Ok(Value::String(format!("{prompt}: {f}"))),
+                _ => None,
+            };
+            let summary = match ctx {
+                Some(c) => {
+                    let snippet: String = c.chars().take(160).collect();
+                    format!("[AI_COMPLETE] {}: {}", prompt.trim(), snippet.trim())
+                }
+                None => format!("[AI_COMPLETE] {}", prompt.trim()),
+            };
+            Ok(Value::String(summary))
+        }
+        "BLOB_REF" => {
+            if args.len() >= 3 {
+                let uri = match &args[0] {
+                    Value::String(s) => s.as_str(),
+                    _ => return Ok(Value::Null),
+                };
+                let offset = match &args[1] {
+                    Value::Int(i) if *i >= 0 => *i as u64,
+                    _ => return Ok(Value::Null),
+                };
+                let length = match &args[2] {
+                    Value::Int(i) if *i >= 0 => *i as u64,
+                    _ => return Ok(Value::Null),
+                };
+                let mime = match args.get(3) {
+                    Some(Value::String(m)) => m.as_str(),
+                    _ => "application/octet-stream",
+                };
+                let descriptor = serde_json::json!({
+                    "format": "lance_blob_v2",
+                    "uri": uri,
+                    "byte_offset": offset,
+                    "byte_length": length,
+                    "mime_type": mime,
+                });
+                return Ok(Value::String(descriptor.to_string()));
+            }
+            Ok(Value::Null)
+        }
+
         // ==================== GRAPH FUNCTIONS ====================
         "SHORTEST_PATH" => {
             if args.len() >= 5 {
@@ -3512,5 +3663,88 @@ mod tests {
         let json = ast_value_to_json(&original);
         let back = serde_json_to_value(json);
         assert_eq!(original, back);
+    }
+
+    #[test]
+    fn test_in_sql_ai_and_multimodal_blob_functions() {
+        let emb = eval_scalar_function(
+            "AI_EMBED",
+            &[
+                Value::String("double entry core banking ledger".into()),
+                Value::Int(16),
+            ],
+            None,
+        )
+        .unwrap();
+        let Value::String(emb_str) = emb else {
+            panic!("expected vector string from AI_EMBED");
+        };
+        let parsed = crate::vector::parse_vector(&emb_str).expect("valid vector");
+        assert_eq!(parsed.len(), 16);
+
+        let sim_hi = eval_scalar_function(
+            "AI_SIMILARITY",
+            &[
+                Value::String("double entry core banking ledger".into()),
+                Value::String("core banking double-entry ledger transfer".into()),
+            ],
+            None,
+        )
+        .unwrap();
+        let sim_lo = eval_scalar_function(
+            "AI_SIMILARITY",
+            &[
+                Value::String("double entry core banking ledger".into()),
+                Value::String("quantum chromodynamics gluon lattice".into()),
+            ],
+            None,
+        )
+        .unwrap();
+        let (Value::Float(hi), Value::Float(lo)) = (sim_hi, sim_lo) else {
+            panic!("expected floats");
+        };
+        assert!(hi > lo);
+
+        let filt_ok = eval_scalar_function(
+            "AI_FILTER",
+            &[
+                Value::String("overdraft fraud wire alert".into()),
+                Value::String("fraud alert".into()),
+            ],
+            None,
+        )
+        .unwrap();
+        assert_eq!(filt_ok, Value::Bool(true));
+
+        let rank_hi = eval_scalar_function(
+            "AI_RANK",
+            &[
+                Value::String("zero copy branch".into()),
+                Value::String("0.55 ms lazy zero copy branch fork for agents".into()),
+            ],
+            None,
+        )
+        .unwrap();
+        let Value::Float(r_score) = rank_hi else {
+            panic!("expected float");
+        };
+        assert!(r_score > 0.5);
+
+        let blob = eval_scalar_function(
+            "BLOB_REF",
+            &[
+                Value::String("file:///lake/clips.pack".into()),
+                Value::Int(4096),
+                Value::Int(16384),
+                Value::String("video/mp4".into()),
+            ],
+            None,
+        )
+        .unwrap();
+        let Value::String(bjson) = blob else {
+            panic!("expected blob json");
+        };
+        assert!(bjson.contains("\"lance_blob_v2\""));
+        assert!(bjson.contains("16384"));
     }
 }

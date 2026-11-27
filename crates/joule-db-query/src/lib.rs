@@ -67,6 +67,7 @@ pub mod planner;
 pub mod prepared;
 pub mod rel_rfm;
 pub mod secdb_napa;
+pub mod semantic_cascade;
 pub mod sql2023_powerhouse;
 pub mod sql_critic;
 pub mod timeout;

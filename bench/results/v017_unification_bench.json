@@ -1,0 +1,49 @@
+{
+  "suite": "jouledb_v017_unification_bench",
+  "version": "0.17.0",
+  "energy_measurement_class": "analytical_est",
+  "pillar1_joule_route": {
+    "rtk_raw_tokens": 1169,
+    "rtk_compressed_tokens": 82,
+    "rtk_reduction_pct": 93.01,
+    "rtk_latency_us": 1041.0,
+    "failover_cold_ms": 0.576,
+    "tier0_langcache_hit_ms": 0.42,
+    "selected_failover_provider": "local-joulesynapse-jsyn",
+    "tier0_hit_tier": "tier0_lsn_lang_cache"
+  },
+  "pillar2_super_adapter": {
+    "matrix_shape": "256x256",
+    "constituent_ranks": [
+      32,
+      32,
+      32
+    ],
+    "super_adapter_rank": 96,
+    "max_pairwise_frobenius_cosine": 0.005805,
+    "mean_pairwise_frobenius_cosine": 0.003343,
+    "all_pairs_orthogonal": true,
+    "audit_and_concat_ms": 1.941
+  },
+  "pillar3_and_5_ontology_kiro_opencode": {
+    "branch_dry_run_median_ms": 34.117,
+    "live_action_plus_ledger_ms": 8.638,
+    "ledger_transfer_id": "tx_00000003",
+    "scoped_power_prompt_tokens": 121,
+    "tokens_saved_vs_59_tool_mcp": 14679,
+    "prompt_bloat_reduction_pct": 99.18,
+    "opencode_sql_lsp_roundtrip_ms": 0.64,
+    "opencode_lsp_codes": [
+      "42501",
+      "ONT001"
+    ]
+  },
+  "pillar4_ducklake_lance_sql_ai": {
+    "container_size_bytes": 16781320,
+    "sliced_payload_bytes": 4104,
+    "io_amplification_avoided_x": 4089.0,
+    "lance_blob_v2_seek_verify_ms": 0.401,
+    "in_sql_ai_rank_filter_50_rows_ms": 0.781,
+    "in_sql_matched_rows": 5
+  }
+}

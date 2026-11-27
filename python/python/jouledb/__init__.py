@@ -26,7 +26,7 @@ from ._native import __version__ as _native_version
 from ._native import decode as _decode
 
 __all__ = ["connect", "Connection", "Result", "JouleDBError", "__version__"]
-__version__ = "0.16.0"
+__version__ = "0.17.0"
 
 
 class JouleDBError(RuntimeError):
@@ -579,6 +579,148 @@ class Connection:
     def v1_powerhouse_suite(self) -> Dict[str, Any]:
         """Execute the Master JouleDB v1.0.0 36-Pillar Global Database Powerhouse suite."""
         return self._json_request("POST", "/api/v1/bench/v1_powerhouse", {})
+
+    # ── v0.17.0: JouleRoute, Harness Super-Adapters, Kinetic Ontology, EARS & SQL LSP ──
+
+    def router_register_provider(
+        self,
+        provider_id: str,
+        vendor: str,
+        model_name: str,
+        tier: str,
+        api_key: Optional[str] = None,
+        base_url: str = "https://api.openai.com/v1",
+        rpm_limit: int = 60,
+        cost_micro_usd_per_1k_tokens: int = 0,
+        estimated_uj_per_token: int = 50,
+    ) -> Dict[str, Any]:
+        """Register an encrypted provider in the JouleRoute 4-tier quota waterfall."""
+        return self._json_request(
+            "POST",
+            "/api/v1/router/providers/register",
+            {
+                "provider_id": provider_id,
+                "vendor": vendor,
+                "model_name": model_name,
+                "base_url": base_url,
+                "tier": tier,
+                "api_key": api_key,
+                "rpm_limit": rpm_limit,
+                "cost_micro_usd_per_1k_tokens": cost_micro_usd_per_1k_tokens,
+                "estimated_uj_per_token": estimated_uj_per_token,
+            },
+        )
+
+    def router_complete(
+        self,
+        messages: List[Dict[str, str]],
+        model: str = "jouledb-cascade-v1",
+        apply_rtk_compression: bool = True,
+        max_cost_micro_usd: Optional[int] = None,
+        max_energy_uj: Optional[int] = None,
+        bypass_lang_cache: bool = False,
+    ) -> Dict[str, Any]:
+        """Dispatch chat completion through Tier 0 LangCache + RTK + 4-Tier Waterfall + ThermoCap."""
+        return self._json_request(
+            "POST",
+            "/v1/router/chat/completions",
+            {
+                "model": model,
+                "messages": messages,
+                "apply_rtk_compression": apply_rtk_compression,
+                "max_cost_micro_usd": max_cost_micro_usd,
+                "max_energy_uj": max_energy_uj,
+                "bypass_lang_cache": bypass_lang_cache,
+            },
+        )
+
+    def rtk_compress(self, text: str) -> Dict[str, Any]:
+        """Run deterministic RTK context token compression on noisy agent/CLI logs."""
+        return self._json_request("POST", "/api/v1/router/rtk/compress", {"text": text})
+
+    def register_super_adapter(
+        self,
+        adapter_id: str,
+        harness_name: str,
+        rows: int,
+        cols: int,
+        rank: int = 32,
+        lora_alpha: float = 64.0,
+        seed: int = 42,
+    ) -> Dict[str, Any]:
+        """Register a specialist Rank-r Harness LoRA adapter (e.g. pi, opencode, hermes, kiro)."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/super-adapters/register",
+            {
+                "adapter_id": adapter_id,
+                "harness_name": harness_name,
+                "rows": rows,
+                "cols": cols,
+                "rank": rank,
+                "lora_alpha": lora_alpha,
+                "seed": seed,
+            },
+        )
+
+    def compose_super_adapter(
+        self,
+        super_adapter_id: str,
+        adapter_ids: List[str],
+        mode: str = "rank_concat",
+        weights: Optional[List[float]] = None,
+        cosine_threshold: float = 0.12,
+        fuse_into_littlebit_tensor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Compose specialist harness adapters via orthogonal rank concatenation (harness-hub parity)."""
+        return self._json_request(
+            "POST",
+            "/api/v1/synapse/super-adapters/compose",
+            {
+                "super_adapter_id": super_adapter_id,
+                "adapter_ids": adapter_ids,
+                "mode": mode,
+                "weights": weights,
+                "cosine_threshold": cosine_threshold,
+                "fuse_into_littlebit_tensor": fuse_into_littlebit_tensor,
+            },
+        )
+
+    def ontology_register_object(self, obj: Dict[str, Any]) -> Dict[str, Any]:
+        """Register a governed OntologyObject mapped to a JouleDB backing SQL table."""
+        return self._json_request("POST", "/api/v1/ontology/objects", obj)
+
+    def ontology_register_action(self, action: Dict[str, Any]) -> Dict[str, Any]:
+        """Register a governed KineticAction with EARS preconditions & optional FinancialLedger hook."""
+        return self._json_request("POST", "/api/v1/ontology/actions", action)
+
+    def ontology_execute_action(
+        self,
+        action_id: str,
+        actor_id: str,
+        actor_roles: List[str],
+        arguments: Dict[str, Any],
+        dry_run_on_branch: bool = False,
+    ) -> Dict[str, Any]:
+        """Execute a KineticAction (optionally simulated inside an isolated 0.55ms CoW branch)."""
+        return self._json_request(
+            "POST",
+            f"/api/v1/ontology/actions/{action_id}/execute",
+            {
+                "actor_id": actor_id,
+                "actor_roles": actor_roles,
+                "arguments": arguments,
+                "dry_run_on_branch": dry_run_on_branch,
+            },
+        )
+
+    def ontology_domain_power(self, domain: str) -> Dict[str, Any]:
+        """Fetch a dynamically scoped Kiro Power MCP toolset + steering bundle for a domain."""
+        return self._json_request("GET", f"/api/v1/ontology/powers/{domain}")
+
+    def sql_diagnostics(self, sql: str) -> Dict[str, Any]:
+        """Run pre-execution OpenCode/LSP SQL syntax, catalog, blast-radius, and ontology diagnostics."""
+        return self._json_request("POST", "/api/v1/diagnostics/sql", {"sql": sql})
 
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass

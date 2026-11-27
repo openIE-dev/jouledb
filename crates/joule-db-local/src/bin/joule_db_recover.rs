@@ -713,7 +713,7 @@ fn write_recovery_meta(
         "meta.wdb.pre-recover-{}",
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs()
     );
     let backup_path = db_dir.join(&backup_name);

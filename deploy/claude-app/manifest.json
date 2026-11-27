@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "jouledb",
   "display_name": "JouleDB Studio & Energy-Metered SQL",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Local energy-metered SQL, Copy-on-Write database branching, Amorphic VSA search, and interactive MCP App Studio (ui://jouledb/studio.html) powered by JouleDB.",
   "long_description": "Connects Claude Desktop and Claude Cowork directly to a local JouleDB instance over stdio MCP, including the built-in interactive JouleDB Studio MCP App (sortable SQL workbench, inline SVG distributions, O(1) Copy-on-Write database branch sandboxes, and hardware/analytical joule telemetry).",
   "author": {

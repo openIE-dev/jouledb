@@ -121,7 +121,24 @@ pub struct DuckLakeDeleteFile {
     pub end_snapshot: Option<u64>,
 }
 
-#[derive(Default)]
+/// `LanceDB Blob v2`-compatible offset-addressable multimodal reference stored in catalog metadata
+/// so raw video frames, images, audio clips, and PDFs can be sliced in $O(\text{byte\_length})$ via
+/// `SeekFrom::Start(byte_offset)` without scanning or unpacking full container shards.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LanceBlobRef {
+    pub blob_id: u64,
+    pub table_id: u64,
+    pub column_name: String,
+    pub row_id: u64,
+    pub uri: String,
+    pub byte_offset: u64,
+    pub byte_length: u64,
+    pub mime_type: String,
+    pub sha256_hex: Option<String>,
+    pub begin_snapshot: u64,
+}
+
+#[derive(Default, Serialize, Deserialize)]
 struct CatalogState {
     snapshots: BTreeMap<u64, DuckLakeSnapshot>,
     schemas: Vec<DuckLakeSchema>,
@@ -129,11 +146,19 @@ struct CatalogState {
     columns: Vec<DuckLakeColumn>,
     data_files: Vec<DuckLakeDataFile>,
     delete_files: Vec<DuckLakeDeleteFile>,
+    #[serde(default)]
+    blobs: Vec<LanceBlobRef>,
     next_snapshot_id: u64,
     next_catalog_id: u64,
     next_file_id: u64,
+    #[serde(default = "default_next_blob_id")]
+    next_blob_id: u64,
     schema_version: u64,
     next_row_id: u64,
+}
+
+fn default_next_blob_id() -> u64 {
+    1
 }
 
 impl CatalogState {
@@ -171,17 +196,62 @@ impl CatalogState {
     }
 }
 
-/// Transactional SQL-backed `DuckLake` catalog engine.
+/// Transactional SQL-backed `DuckLake` + `Lance Namespace` catalog engine with atomic disk persistence.
 pub struct DuckLakeCatalog {
     storage_root: String,
+    persist_path: Option<std::path::PathBuf>,
     state: RwLock<CatalogState>,
 }
 
 impl DuckLakeCatalog {
-    /// Initialize a new `DuckLakeCatalog` rooted at `storage_root` (e.g. `s3://lake/prod`)
+    /// Initialize an in-memory `DuckLakeCatalog` rooted at `storage_root` (e.g. `s3://lake/prod`)
     /// with a `main` default schema at `snapshot_id = 0`.
     pub fn new(storage_root: impl Into<String>, init_timestamp_ms: u64) -> Self {
         let root = storage_root.into();
+        let st = Self::initial_state(&root, init_timestamp_ms);
+        Self {
+            storage_root: root,
+            persist_path: None,
+            state: RwLock::new(st),
+        }
+    }
+
+    /// Open or initialize an atomically persisted `DuckLakeCatalog` backed by `catalog_file_path`.
+    pub fn open_persistent(
+        storage_root: impl Into<String>,
+        catalog_file_path: impl AsRef<std::path::Path>,
+        init_timestamp_ms: u64,
+    ) -> Result<Self, DuckLakeError> {
+        let root = storage_root.into();
+        let path = catalog_file_path.as_ref().to_path_buf();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| DuckLakeError::Internal(format!("create_dir_all: {e}")))?;
+        }
+        let st = if path.exists() {
+            let bytes = std::fs::read(&path)
+                .map_err(|e| DuckLakeError::Internal(format!("read ducklake catalog: {e}")))?;
+            serde_json::from_slice::<CatalogState>(&bytes)
+                .map_err(|e| DuckLakeError::Internal(format!("parse ducklake catalog: {e}")))?
+        } else {
+            Self::initial_state(&root, init_timestamp_ms)
+        };
+        let cat = Self {
+            storage_root: root,
+            persist_path: Some(path),
+            state: RwLock::new(st),
+        };
+        {
+            let guard = cat
+                .state
+                .read()
+                .map_err(|e| DuckLakeError::Internal(e.to_string()))?;
+            cat.persist_locked(&guard)?;
+        }
+        Ok(cat)
+    }
+
+    fn initial_state(root: &str, init_timestamp_ms: u64) -> CatalogState {
         let mut st = CatalogState {
             snapshots: BTreeMap::new(),
             schemas: Vec::new(),
@@ -189,9 +259,11 @@ impl DuckLakeCatalog {
             columns: Vec::new(),
             data_files: Vec::new(),
             delete_files: Vec::new(),
+            blobs: Vec::new(),
             next_snapshot_id: 0,
             next_catalog_id: 2,
             next_file_id: 1,
+            next_blob_id: 1,
             schema_version: 1,
             next_row_id: 0,
         };
@@ -203,10 +275,29 @@ impl DuckLakeCatalog {
             begin_snapshot: s0,
             end_snapshot: None,
         });
-        Self {
-            storage_root: root,
-            state: RwLock::new(st),
+        st
+    }
+
+    fn persist_locked(&self, st: &CatalogState) -> Result<(), DuckLakeError> {
+        let Some(ref path) = self.persist_path else {
+            return Ok(());
+        };
+        let mut tmp_os = path.as_os_str().to_os_string();
+        tmp_os.push(".tmp");
+        let tmp_path = std::path::PathBuf::from(tmp_os);
+        let payload = serde_json::to_vec(st).map_err(|e| DuckLakeError::Internal(e.to_string()))?;
+        {
+            use std::io::Write;
+            let mut file = std::fs::File::create(&tmp_path)
+                .map_err(|e| DuckLakeError::Internal(format!("create tmp catalog: {e}")))?;
+            file.write_all(&payload)
+                .map_err(|e| DuckLakeError::Internal(format!("write tmp catalog: {e}")))?;
+            file.sync_all()
+                .map_err(|e| DuckLakeError::Internal(format!("fsync tmp catalog: {e}")))?;
         }
+        std::fs::rename(&tmp_path, path)
+            .map_err(|e| DuckLakeError::Internal(format!("rename tmp catalog: {e}")))?;
+        Ok(())
     }
 
     /// Return the current `HEAD` snapshot metadata.
@@ -258,6 +349,7 @@ impl DuckLakeCatalog {
             begin_snapshot: snap,
             end_snapshot: None,
         });
+        self.persist_locked(&st)?;
         Ok(snap)
     }
 
@@ -325,6 +417,7 @@ impl DuckLakeCatalog {
             });
         }
 
+        self.persist_locked(&st)?;
         Ok((snap, table_id))
     }
 
@@ -371,6 +464,7 @@ impl DuckLakeCatalog {
             end_snapshot: None,
             zone_maps,
         });
+        self.persist_locked(&st)?;
         Ok((snap, file_id))
     }
 
@@ -414,6 +508,7 @@ impl DuckLakeCatalog {
             begin_snapshot: snap,
             end_snapshot: None,
         });
+        self.persist_locked(&st)?;
         Ok((snap, del_id))
     }
 
@@ -448,7 +543,151 @@ impl DuckLakeCatalog {
             begin_snapshot: snap,
             end_snapshot: None,
         });
+        self.persist_locked(&st)?;
         Ok(snap)
+    }
+
+    /// Register a `LanceDB Blob v2`-style offset-addressable multimodal slice in the ACID catalog.
+    #[allow(clippy::too_many_arguments)]
+    pub fn register_lance_blob(
+        &self,
+        schema_name: &str,
+        table_name: &str,
+        column_name: &str,
+        row_id: u64,
+        uri: &str,
+        byte_offset: u64,
+        byte_length: u64,
+        mime_type: &str,
+        sha256_hex: Option<String>,
+        timestamp_ms: u64,
+    ) -> Result<(u64, LanceBlobRef), DuckLakeError> {
+        let mut st = self
+            .state
+            .write()
+            .map_err(|e| DuckLakeError::Internal(e.to_string()))?;
+        let table_id = Self::resolve_table_id_locked(&st, schema_name, table_name)?;
+        let blob_id = st.next_blob_id.max(1);
+        st.next_blob_id = blob_id + 1;
+        let snap = st.mint_snapshot(
+            timestamp_ms,
+            false,
+            format!("REGISTER BLOB_V2 {schema_name}.{table_name}.{column_name}[row={row_id}]"),
+            2,
+        );
+        let blob = LanceBlobRef {
+            blob_id,
+            table_id,
+            column_name: column_name.to_string(),
+            row_id,
+            uri: uri.to_string(),
+            byte_offset,
+            byte_length,
+            mime_type: mime_type.to_string(),
+            sha256_hex,
+            begin_snapshot: snap,
+        };
+        st.blobs.push(blob.clone());
+        self.persist_locked(&st)?;
+        Ok((snap, blob))
+    }
+
+    /// Read an exact `O(byte_length)` multimodal byte slice via `SeekFrom::Start(byte_offset)`
+    /// (`LanceDB Blob v2` random access) and verify its `SHA-256` digest if recorded.
+    pub fn read_lance_blob_slice(
+        &self,
+        blob_id: u64,
+    ) -> Result<(LanceBlobRef, Vec<u8>), DuckLakeError> {
+        use sha2::{Digest, Sha256};
+        use std::io::{Read, Seek, SeekFrom};
+
+        let blob = {
+            let st = self
+                .state
+                .read()
+                .map_err(|e| DuckLakeError::Internal(e.to_string()))?;
+            st.blobs
+                .iter()
+                .find(|b| b.blob_id == blob_id)
+                .cloned()
+                .ok_or(DuckLakeError::DataFileNotFound(blob_id))?
+        };
+
+        let local_path = blob.uri.strip_prefix("file://").unwrap_or(&blob.uri);
+        let mut file = std::fs::File::open(local_path)
+            .map_err(|e| DuckLakeError::Internal(format!("open blob '{}': {e}", blob.uri)))?;
+        file.seek(SeekFrom::Start(blob.byte_offset))
+            .map_err(|e| DuckLakeError::Internal(format!("seek blob '{}': {e}", blob.uri)))?;
+
+        let mut buf = Vec::with_capacity(blob.byte_length.min(16 * 1024 * 1024) as usize);
+        file.take(blob.byte_length)
+            .read_to_end(&mut buf)
+            .map_err(|e| DuckLakeError::Internal(format!("read blob slice: {e}")))?;
+
+        if buf.len() as u64 != blob.byte_length {
+            return Err(DuckLakeError::Internal(format!(
+                "short read on blob {blob_id}: got {} bytes, expected {}",
+                buf.len(),
+                blob.byte_length
+            )));
+        }
+
+        if let Some(ref expected_hex) = blob.sha256_hex {
+            let actual_hex = hex::encode(Sha256::digest(&buf));
+            if !actual_hex.eq_ignore_ascii_case(expected_hex) {
+                return Err(DuckLakeError::Internal(format!(
+                    "SHA-256 mismatch on blob {blob_id}: got {actual_hex}, expected {expected_hex}"
+                )));
+            }
+        }
+        Ok((blob, buf))
+    }
+
+    /// List visible tables inside `schema_name` at the current `HEAD` snapshot (`Lance Namespace` `ListTables`).
+    pub fn list_tables_in_schema(&self, schema_name: &str) -> Result<Vec<String>, DuckLakeError> {
+        let st = self
+            .state
+            .read()
+            .map_err(|e| DuckLakeError::Internal(e.to_string()))?;
+        let head = st.next_snapshot_id.saturating_sub(1);
+        let schema_id = st
+            .schemas
+            .iter()
+            .find(|s| {
+                s.schema_name.eq_ignore_ascii_case(schema_name)
+                    && CatalogState::is_visible(s.begin_snapshot, s.end_snapshot, head)
+            })
+            .map(|s| s.schema_id)
+            .ok_or_else(|| DuckLakeError::SchemaNotFound(schema_name.to_string()))?;
+
+        Ok(st
+            .tables
+            .iter()
+            .filter(|t| {
+                t.schema_id == schema_id
+                    && CatalogState::is_visible(t.begin_snapshot, t.end_snapshot, head)
+            })
+            .map(|t| t.table_name.clone())
+            .collect())
+    }
+
+    /// Count multimodal `LanceBlobRef` entries visible for `schema_name.table_name` at `snapshot_id`.
+    pub fn blob_count_as_of(
+        &self,
+        schema_name: &str,
+        table_name: &str,
+        snapshot_id: u64,
+    ) -> Result<usize, DuckLakeError> {
+        let st = self
+            .state
+            .read()
+            .map_err(|e| DuckLakeError::Internal(e.to_string()))?;
+        let table_id = Self::resolve_table_id_locked(&st, schema_name, table_name)?;
+        Ok(st
+            .blobs
+            .iter()
+            .filter(|b| b.table_id == table_id && b.begin_snapshot <= snapshot_id)
+            .count())
     }
 
     /// Resolve the latest snapshot committed at or before `timestamp_ms` (`FOR TIMESTAMP AS OF`).
@@ -630,6 +869,28 @@ fn default_parquet_fmt() -> String {
     "parquet".to_string()
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RegisterLanceBlobHttpReq {
+    #[serde(default = "default_ducklake_schema")]
+    pub schema: String,
+    pub table: String,
+    pub column_name: String,
+    pub row_id: u64,
+    pub uri: String,
+    pub byte_offset: u64,
+    pub byte_length: u64,
+    #[serde(default = "default_octet_mime")]
+    pub mime_type: String,
+    #[serde(default)]
+    pub sha256_hex: Option<String>,
+    #[serde(default)]
+    pub timestamp_ms: u64,
+}
+
+fn default_octet_mime() -> String {
+    "application/octet-stream".to_string()
+}
+
 /// Build the Axum sub-router exposing the transactional `DuckLake` SQL-metadata catalog API.
 pub fn ducklake_routes(catalog: std::sync::Arc<DuckLakeCatalog>) -> axum::Router {
     use axum::{
@@ -752,6 +1013,128 @@ pub fn ducklake_routes(catalog: std::sync::Arc<DuckLakeCatalog>) -> axum::Router
                 },
             ),
         )
+        // ── `Lance Namespace` & `Blob v2` Multimodal Compatibility Routes ──
+        .route(
+            "/api/v1/lance/v1/namespace/{ns}/table/list",
+            get(
+                |State(cat): State<std::sync::Arc<DuckLakeCatalog>>,
+                 Path(ns): Path<String>| async move {
+                    match cat.list_tables_in_schema(&ns) {
+                        Ok(tables) => (
+                            StatusCode::OK,
+                            Json(serde_json::json!({
+                                "namespace": ns,
+                                "tables": tables,
+                            })),
+                        )
+                            .into_response(),
+                        Err(e) => (
+                            StatusCode::NOT_FOUND,
+                            Json(serde_json::json!({ "error": e.to_string() })),
+                        )
+                            .into_response(),
+                    }
+                },
+            ),
+        )
+        .route(
+            "/api/v1/lance/v1/namespace/{ns}/table/{table}/describe",
+            get(
+                |State(cat): State<std::sync::Arc<DuckLakeCatalog>>,
+                 Path((ns, table)): Path<(String, String)>| async move {
+                    let head = match cat.current_snapshot() {
+                        Ok(s) => s.snapshot_id,
+                        Err(e) => {
+                            return (
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(serde_json::json!({ "error": e.to_string() })),
+                            )
+                                .into_response();
+                        }
+                    };
+                    match (
+                        cat.table_state_as_of(&ns, &table, head),
+                        cat.effective_row_count_as_of(&ns, &table, head),
+                        cat.blob_count_as_of(&ns, &table, head),
+                    ) {
+                        (Ok((cols, dfiles, _)), Ok(rows), Ok(blobs)) => (
+                            StatusCode::OK,
+                            Json(serde_json::json!({
+                                "namespace": ns,
+                                "table": table,
+                                "version": head,
+                                "effective_row_count": rows,
+                                "lance_blob_v2_count": blobs,
+                                "schema_fields": cols,
+                                "files": dfiles,
+                            })),
+                        )
+                            .into_response(),
+                        (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => (
+                            StatusCode::NOT_FOUND,
+                            Json(serde_json::json!({ "error": e.to_string() })),
+                        )
+                            .into_response(),
+                    }
+                },
+            ),
+        )
+        .route(
+            "/api/v1/lance/blobs/register",
+            post(
+                |State(cat): State<std::sync::Arc<DuckLakeCatalog>>,
+                 Json(req): Json<RegisterLanceBlobHttpReq>| async move {
+                    match cat.register_lance_blob(
+                        &req.schema,
+                        &req.table,
+                        &req.column_name,
+                        req.row_id,
+                        &req.uri,
+                        req.byte_offset,
+                        req.byte_length,
+                        &req.mime_type,
+                        req.sha256_hex,
+                        req.timestamp_ms,
+                    ) {
+                        Ok((snap_id, blob)) => (
+                            StatusCode::OK,
+                            Json(serde_json::json!({
+                                "ok": true,
+                                "snapshot_id": snap_id,
+                                "blob": blob,
+                            })),
+                        )
+                            .into_response(),
+                        Err(e) => (
+                            StatusCode::BAD_REQUEST,
+                            Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
+                        )
+                            .into_response(),
+                    }
+                },
+            ),
+        )
+        .route(
+            "/api/v1/lance/blobs/{blob_id}/slice",
+            get(
+                |State(cat): State<std::sync::Arc<DuckLakeCatalog>>,
+                 Path(blob_id): Path<u64>| async move {
+                    match cat.read_lance_blob_slice(blob_id) {
+                        Ok((meta, bytes)) => (
+                            StatusCode::OK,
+                            [(axum::http::header::CONTENT_TYPE, meta.mime_type)],
+                            bytes,
+                        )
+                            .into_response(),
+                        Err(e) => (
+                            StatusCode::NOT_FOUND,
+                            Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
+                        )
+                            .into_response(),
+                    }
+                },
+            ),
+        )
         .with_state(catalog)
 }
 
@@ -831,5 +1214,83 @@ mod tests {
         let snap_1250 = cat.snapshot_at_timestamp(1_250).unwrap();
         assert_eq!(snap_1250.snapshot_id, s_append1);
         assert!(cat.total_catalog_energy_uj().unwrap() >= 10);
+    }
+
+    #[test]
+    fn test_ducklake_persistent_restart_and_lance_blob_v2_zero_copy_slice() {
+        use sha2::{Digest, Sha256};
+
+        let tmp_dir = std::env::temp_dir().join(format!(
+            "jouledb_ducklake_v017_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+        let cat_path = tmp_dir.join("ducklake_catalog.json");
+        let media_path = tmp_dir.join("multimodal_pack.bin");
+
+        // Write a 3-segment synthetic multimodal container (header + PNG payload + trailer)
+        let prefix = b"HEADER_PADDING_0123456789";
+        let frame_payload = b"\x89PNG\r\n\x1a\nKEYFRAME_RGB_TENSOR_DATA_V017";
+        let trailer = b"TRAILER_END";
+        let mut container = Vec::new();
+        container.extend_from_slice(prefix);
+        container.extend_from_slice(frame_payload);
+        container.extend_from_slice(trailer);
+        std::fs::write(&media_path, &container).unwrap();
+
+        let expected_sha = hex::encode(Sha256::digest(frame_payload));
+        let blob_id = {
+            let cat = DuckLakeCatalog::open_persistent(
+                format!("file://{}", tmp_dir.display()),
+                &cat_path,
+                2_000,
+            )
+            .unwrap();
+            cat.create_table(
+                "main",
+                "video_frames",
+                &[
+                    ("frame_id", "BIGINT", false),
+                    ("clip_blob", "BLOB_REF", false),
+                ],
+                2_100,
+            )
+            .unwrap();
+            let (_snap, blob) = cat
+                .register_lance_blob(
+                    "main",
+                    "video_frames",
+                    "clip_blob",
+                    42,
+                    &format!("file://{}", media_path.display()),
+                    prefix.len() as u64,
+                    frame_payload.len() as u64,
+                    "image/png",
+                    Some(expected_sha),
+                    2_200,
+                )
+                .unwrap();
+            blob.blob_id
+        };
+
+        // Re-open from disk (`open_persistent`) and verify snapshot + zero-copy byte-range slice!
+        let reopened = DuckLakeCatalog::open_persistent(
+            format!("file://{}", tmp_dir.display()),
+            &cat_path,
+            9_999,
+        )
+        .unwrap();
+        assert_eq!(
+            reopened.list_tables_in_schema("main").unwrap(),
+            vec!["video_frames"]
+        );
+        let (meta, sliced) = reopened.read_lance_blob_slice(blob_id).unwrap();
+        assert_eq!(meta.mime_type, "image/png");
+        assert_eq!(sliced.as_slice(), frame_payload);
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }

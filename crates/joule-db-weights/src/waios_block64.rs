@@ -1398,7 +1398,9 @@ mod tests {
                             ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                     })
                     .collect(),
-                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                b_u_u64: (0..64usize)
+                    .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                    .collect(),
                 alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
             }],
         };
@@ -1422,16 +1424,25 @@ mod tests {
                             ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                     })
                     .collect(),
-                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                b_u_u64: (0..64usize)
+                    .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                    .collect(),
                 alpha_q12: vec![544, 390, 256, 198, 130, 93, 60, 33],
             }],
         };
 
-        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
-        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
+        let prefix_a: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8)
+            .collect();
+        let query_1: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8)
+            .collect();
 
         let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
-        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let k_q7: Vec<i8> = y0_p
+            .iter()
+            .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+            .collect();
         let v_q7: Vec<i8> = y0_p
             .iter()
             .zip(prefix_a.iter())
@@ -1441,7 +1452,10 @@ mod tests {
         let legal_mask = 0x0000_05A5_0000_03CFu64;
         let eval_step = |qx: &[i8]| -> (u32, u64) {
             let y0_q = l0.forward_simd_lut4_q24(qx).unwrap();
-            let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+            let q_q7: Vec<i8> = y0_q
+                .iter()
+                .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+                .collect();
             let mut x1 = vec![0i8; 64];
             for h in 0..4usize {
                 let base = h * 16;

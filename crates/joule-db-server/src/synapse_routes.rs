@@ -128,6 +128,33 @@ impl SynapseServerRuntime {
         rt
     }
 
+    /// Fetch a cloned `LittleBitSVFTensor` by name for Super-Adapter bitplane fusion.
+    pub fn get_littlebit_tensor(&self, name: &str) -> Option<LittleBitSVFTensor> {
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        guard.littlebit_tensors.get(name).cloned()
+    }
+
+    /// Upsert a `LittleBitSVFTensor` (e.g. after appending a Rank-Concatenated Super-Adapter),
+    /// refresh its packed GPU FastLanes cache, and persist snapshot state if configured.
+    pub fn upsert_littlebit_tensor(&self, name: String, tensor: LittleBitSVFTensor) {
+        self.cache_gpu_weights(&name, &tensor);
+        let guard = match self.inner.lock() {
+            Ok(mut g) => {
+                g.littlebit_tensors.insert(name, tensor);
+                g
+            }
+            Err(p) => {
+                let mut g = p.into_inner();
+                g.littlebit_tensors.insert(name, tensor);
+                g
+            }
+        };
+        self.persist_if_configured(&guard);
+    }
+
     fn persist_if_configured(&self, engine: &JouleHarnessEngine) {
         if let Some(ref path) = self.snapshot_path
             && let Err(e) = engine.save_snapshot_atomic(path)

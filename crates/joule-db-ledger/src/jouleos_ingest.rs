@@ -766,11 +766,9 @@ mod tests {
         assert_eq!(prev_a ^ prev_b, 0x31e0_5585_7e8b_d4aa);
 
         let (a_rec, a_tree, a_j) =
-            verify_and_ingest_sel4_multipd_chain(&a_steps, "h46-alpha", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&a_steps, "h46-alpha", "US-NE-ISO", 0.31).unwrap();
         let (b_rec, b_tree, b_j) =
-            verify_and_ingest_sel4_multipd_chain(&b_steps, "h46-beta", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&b_steps, "h46-beta", "US-NE-ISO", 0.31).unwrap();
         assert_eq!((a_rec.len(), b_rec.len()), (9, 3));
         assert!(a_tree.proof(8).unwrap().verify_self());
         assert!(b_tree.proof(2).unwrap().verify_self());

@@ -25,6 +25,7 @@ pub mod compress;
 pub mod continual_plasticity;
 pub mod federated_mesh;
 pub mod grammar_constrain;
+pub mod harness_super_adapter;
 pub mod ingest;
 pub mod multimodal_encoder;
 pub mod query;

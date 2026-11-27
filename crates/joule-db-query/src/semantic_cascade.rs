@@ -418,7 +418,8 @@ mod tests {
         assert!(sem_filter(doc, "indemnify change of control", 0.30));
         assert!(!sem_filter(doc, "quantum chromodynamics lattice", 0.45));
 
-        let label = sem_classify(doc, "astronomy | legal contract indemnification | recipe").unwrap();
+        let label =
+            sem_classify(doc, "astronomy | legal contract indemnification | recipe").unwrap();
         assert_eq!(label, "legal contract indemnification");
     }
 
