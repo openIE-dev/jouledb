@@ -38,12 +38,19 @@ pub struct DatabaseToolHandler {
     workflows: Arc<WorkflowManager>,
     edge: Arc<EdgePopManager>,
     activity: Arc<ActivityTracker>,
+    kinetic_ontology: Arc<crate::kinetic_ontology::KineticOntologyRuntime>,
+    joule_route: Option<Arc<crate::joule_route::JouleRouteRuntime>>,
+    default_power: Option<String>,
     /// Session energy budget in microjoules. Stored and reported; never a gate.
     reported_budget_uj: AtomicU64,
 }
 
 impl DatabaseToolHandler {
     pub fn new(query_executor: Arc<dyn QueryExecutor>) -> Self {
+        let kinetic_ontology = crate::kinetic_ontology::KineticOntologyRuntime::new(
+            query_executor.clone(),
+            Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory()),
+        );
         Self {
             query_executor,
             branches: Arc::new(BranchManager::new(0)),
@@ -52,8 +59,40 @@ impl DatabaseToolHandler {
             workflows: Arc::new(WorkflowManager::new()),
             edge: Arc::new(EdgePopManager::new()),
             activity: Arc::new(ActivityTracker::new()),
+            kinetic_ontology,
+            joule_route: None,
+            default_power: None,
             reported_budget_uj: AtomicU64::new(0),
         }
+    }
+
+    pub fn with_ontology(
+        mut self,
+        ont: Arc<crate::kinetic_ontology::KineticOntologyRuntime>,
+    ) -> Self {
+        self.kinetic_ontology = ont;
+        self
+    }
+
+    pub fn with_router(mut self, rt: Arc<crate::joule_route::JouleRouteRuntime>) -> Self {
+        self.joule_route = Some(rt);
+        self
+    }
+
+    pub fn with_default_power(mut self, power: Option<String>) -> Self {
+        self.default_power = power.filter(|s| !s.trim().is_empty());
+        self
+    }
+
+    pub fn default_power(&self) -> Option<&str> {
+        self.default_power.as_deref()
+    }
+
+    pub fn export_domain_power(
+        &self,
+        domain: &str,
+    ) -> crate::kinetic_ontology::ScopedOntologyPowerBundle {
+        self.kinetic_ontology.export_domain_power(domain)
     }
 
     fn handle_query(&self, request: &ToolCallRequest) -> ToolCallResponse {
@@ -740,6 +779,18 @@ impl DatabaseToolHandler {
             "db.edge_pop_list" => self.handle_edge_pop_list(&request),
             "db.energy_budget" => self.handle_energy_budget(&request),
             "db.status" => self.handle_status(&request),
+            "ontology.register_object" => self.handle_ontology_register_object(&request),
+            "ontology.register_action" => self.handle_ontology_register_action(&request),
+            "ontology.execute_action" => self.handle_ontology_execute_action(&request, None),
+            "ontology.domain_power" => self.handle_ontology_domain_power(&request),
+            "sql.diagnose" => self.handle_sql_diagnose(&request),
+            "router.rtk_compress" => self.handle_router_rtk_compress(&request),
+            "router.rerank" => self.handle_router_rerank(&request),
+            "synapse.compose_super_adapter" => self.handle_compose_super_adapter_mcp(&request),
+            other if other.starts_with("ontology_action__") => {
+                let act_id = other["ontology_action__".len()..].to_string();
+                self.handle_ontology_execute_action(&request, Some(act_id))
+            }
             _ => ToolCallResponse::error(request.id, McpError::tool_not_found(&request.tool)),
         }
     }
@@ -1347,6 +1398,11 @@ impl DatabaseToolHandler {
                 }
             }
         }
+        if let Some(domain) = path.strip_prefix("jouledb://ontology/powers/") {
+            let domain = sanitize_identifier(domain);
+            let bundle = self.kinetic_ontology.export_domain_power(&domain);
+            return Self::json_ok("resource", bundle);
+        }
         ToolCallResponse::error(
             "resource".into(),
             McpError {
@@ -1355,6 +1411,249 @@ impl DatabaseToolHandler {
                 data: None,
             },
         )
+    }
+
+    fn handle_ontology_register_object(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let val = serde_json::Value::Object(
+            request
+                .arguments
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        );
+        match serde_json::from_value::<crate::kinetic_ontology::OntologyObject>(val) {
+            Ok(obj) => {
+                let name = obj.object_type.clone();
+                self.kinetic_ontology.register_object(obj);
+                ToolCallResponse::success(
+                    request.id.clone(),
+                    serde_json::json!({ "ok": true, "object_type": name }),
+                )
+                .with_energy(0.000001)
+            }
+            Err(e) => Self::missing(&request.id, &format!("invalid OntologyObject: {e}")),
+        }
+    }
+
+    fn handle_ontology_register_action(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let val = serde_json::Value::Object(
+            request
+                .arguments
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        );
+        match serde_json::from_value::<crate::kinetic_ontology::KineticAction>(val) {
+            Ok(act) => {
+                let id = act.action_id.clone();
+                match self.kinetic_ontology.register_action(act) {
+                    Ok(specs) => ToolCallResponse::success(
+                        request.id.clone(),
+                        serde_json::json!({
+                            "ok": true,
+                            "action_id": id,
+                            "compiled_preconditions": specs,
+                        }),
+                    )
+                    .with_energy(0.000002),
+                    Err(e) => Self::type_error(&request.id, e),
+                }
+            }
+            Err(e) => Self::missing(&request.id, &format!("invalid KineticAction: {e}")),
+        }
+    }
+
+    fn handle_ontology_execute_action(
+        &self,
+        request: &ToolCallRequest,
+        override_action_id: Option<String>,
+    ) -> ToolCallResponse {
+        let action_id = match override_action_id.or_else(|| {
+            request
+                .arguments
+                .get("action_id")
+                .and_then(|v| v.as_str())
+                .map(String::from)
+        }) {
+            Some(id) => id,
+            None => return Self::missing(&request.id, "missing required parameter: action_id"),
+        };
+        let actor_id = request
+            .arguments
+            .get("actor_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("mcp-agent");
+        let actor_roles: Vec<String> = request
+            .arguments
+            .get("actor_roles")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["admin".to_string(), "treasurer".to_string()]);
+        let dry_run = request
+            .arguments
+            .get("dry_run_on_branch")
+            .or_else(|| request.arguments.get("dry_run"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let args_map: std::collections::BTreeMap<String, serde_json::Value> = if let Some(sub) =
+            request
+                .arguments
+                .get("arguments")
+                .and_then(|v| v.as_object())
+        {
+            sub.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        } else {
+            request
+                .arguments
+                .iter()
+                .filter(|(k, _)| {
+                    !matches!(
+                        k.as_str(),
+                        "action_id" | "actor_id" | "actor_roles" | "dry_run_on_branch" | "dry_run"
+                    )
+                })
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        };
+
+        match self.kinetic_ontology.execute_action_with(
+            self.query_executor.as_ref(),
+            &action_id,
+            actor_id,
+            &actor_roles,
+            &args_map,
+            dry_run,
+        ) {
+            Ok(rec) => {
+                let joules = (rec.estimated_energy_uj as f64) * 1e-6;
+                Self::json_ok(&request.id, rec).with_energy(joules)
+            }
+            Err((_st, sqlstate, msg)) => {
+                Self::type_error(&request.id, format!("[{sqlstate}] {msg}"))
+            }
+        }
+    }
+
+    fn handle_ontology_domain_power(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(domain) = request.arguments.get("domain").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: domain");
+        };
+        let bundle = self.kinetic_ontology.export_domain_power(domain);
+        Self::json_ok(&request.id, bundle).with_energy(0.000001)
+    }
+
+    fn handle_sql_diagnose(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(sql) = request.arguments.get("sql").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: sql");
+        };
+        let rep = self
+            .kinetic_ontology
+            .diagnose_sql_with(self.query_executor.as_ref(), sql);
+        Self::json_ok(&request.id, rep).with_energy(0.000001)
+    }
+
+    fn handle_router_rtk_compress(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(text) = request.arguments.get("text").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: text");
+        };
+        let rec = crate::joule_route::compress_context_rtk(text);
+        Self::json_ok(&request.id, rec).with_energy(0.000001)
+    }
+
+    fn handle_router_rerank(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(query) = request.arguments.get("query").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: query");
+        };
+        let Some(docs_val) = request.arguments.get("documents") else {
+            return Self::missing(&request.id, "missing required parameter: documents");
+        };
+        let docs: Vec<crate::joule_route::RerankDocInput> =
+            match serde_json::from_value(docs_val.clone()) {
+                Ok(d) => d,
+                Err(e) => return Self::missing(&request.id, &format!("invalid documents: {e}")),
+            };
+        let model = request
+            .arguments
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("jouledb-rerank-v1");
+        let top_n = request
+            .arguments
+            .get("top_n")
+            .or_else(|| request.arguments.get("top_k"))
+            .and_then(|v| v.as_u64())
+            .map(|n| n as usize);
+        let return_docs = request
+            .arguments
+            .get("return_documents")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let out = crate::joule_route::rerank_documents(model, query, &docs, top_n, return_docs);
+        ToolCallResponse::success(request.id.clone(), out).with_energy(0.000003)
+    }
+
+    fn handle_compose_super_adapter_mcp(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let rows = request
+            .arguments
+            .get("rows")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(64) as usize;
+        let cols = request
+            .arguments
+            .get("cols")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(64) as usize;
+        let rank = request
+            .arguments
+            .get("rank")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(16) as usize;
+        let harnesses: Vec<String> = request
+            .arguments
+            .get("harnesses")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_else(|| {
+                vec![
+                    "opencode".to_string(),
+                    "kiro".to_string(),
+                    "hermes".to_string(),
+                ]
+            });
+        let mut specialists = Vec::with_capacity(harnesses.len());
+        for (i, h) in harnesses.iter().enumerate() {
+            match joule_db_weights::harness_super_adapter::HarnessLoRAAdapter::initialized_for_harness(
+                format!("mcp_{h}"),
+                h.clone(),
+                "model.layers.0.self_attn.q_proj.weight",
+                rows,
+                cols,
+                rank,
+                64.0,
+                100 + i as u64,
+            ) {
+                Ok(a) => specialists.push(a),
+                Err(e) => return Self::type_error(&request.id, e),
+            }
+        }
+        match joule_db_weights::harness_super_adapter::compose_super_adapter(
+            "mcp_super_adapter",
+            &specialists,
+            None,
+            joule_db_weights::harness_super_adapter::SuperAdapterCombineMode::RankConcat,
+            0.12,
+        ) {
+            Ok((_composed, receipt)) => Self::json_ok(&request.id, receipt).with_energy(0.000005),
+            Err(e) => Self::type_error(&request.id, e),
+        }
     }
 
     fn query_sql(&self, id: &str, sql: String) -> ToolCallResponse {

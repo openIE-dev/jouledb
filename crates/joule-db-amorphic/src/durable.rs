@@ -231,6 +231,29 @@ impl DurableAmorphicStore {
         })
     }
 
+    /// Construct a pure-RAM `DurableAmorphicStore` backed by [`WalManager::new_in_memory`]
+    /// (`0` disk directories, `0` file descriptors, `0` syscalls — designed for sub-millisecond
+    /// ephemeral Copy-on-Write SQL branch executors).
+    pub fn new_in_memory() -> Self {
+        Self {
+            store: AmorphicStore::new(),
+            wal: std::sync::Arc::new(std::sync::Mutex::new(WalManager::new_in_memory())),
+            tx_counter: std::sync::Arc::new(AtomicU64::new(1)),
+            path: PathBuf::new(),
+            active_batch: None,
+            pending: Default::default(),
+            pending_off: 0,
+            pending_rows: 0,
+            col_gen: 0,
+            mat_gen: 0,
+        }
+    }
+
+    /// Returns `true` when constructed via [`Self::new_in_memory`].
+    pub fn is_in_memory(&self) -> bool {
+        self.lock_wal().is_in_memory()
+    }
+
     /// Apply recovery result to the store
     ///
     /// Handles both legacy WalRecordData format and new WalOperation format.

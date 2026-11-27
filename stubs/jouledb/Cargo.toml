@@ -1,9 +1,9 @@
 [package]
 name = "jouledb"
-version = "0.17.0"
+version = "0.18.0"
 edition = "2021"
 rust-version = "1.74"
-description = "Energy-metered multi-model Rust database (0.17.0 pre-1.0 preview) — durable NVMe double-entry ledger, <1ms lazy CoW SQL branching, Kinetic Ontology Actions, JouleRoute quota waterfall, Orthogonal Super-Adapters, DuckLake/Lance Blob v2, SQL AI_* functions, and pure-.jcol analytics. `cargo binstall jouledb` fetches the binary."
+description = "Energy-metered multi-model Rust database (0.18.0 pre-1.0 preview) — durable NVMe double-entry ledger, <1ms lazy CoW SQL branching, Kinetic Ontology Actions, JouleRoute quota waterfall, Orthogonal Super-Adapters, DuckLake/Lance Blob v2, SQL AI_* functions, and pure-.jcol analytics. `cargo binstall jouledb` fetches the binary."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/openIE-dev/jouledb"
 homepage = "https://jouledb.org"

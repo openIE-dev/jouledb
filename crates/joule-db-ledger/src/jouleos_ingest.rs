@@ -775,4 +775,67 @@ mod tests {
         // 104 uJ tenant acts + 12 uJ Parent Titans sleep consolidation = 116 uJ total debited!
         assert!(((a_j + b_j) - 0.000_104).abs() < 1e-15);
     }
+
+    #[test]
+    fn sel4_h47_15pd_kv_teleport_beta_seq4_and_vmm_full_128uj_exhaustion_verify() {
+        let raw_alpha: [(&str, u64, u64, u64); 9] = [
+            ("status.ping", 0x5049_4E47_5F4F_4B30, 0, 48),
+            ("recall.query", 0x7da1_44b9_7d05_4b25, 8, 40),
+            ("storage.archive", 0xd6d7_3f68_e7eb_f7a6, 12, 28),
+            ("recall.query", 0xa9f1_ecbb_e09e_ef08, 12, 16),
+            ("recall.query", 0xa9f1_ecbb_e09e_ef08, 8, 8),
+            ("recall.query", 0xc04b_5c79_86c1_7156, 8, 0),
+            ("recall.query", 0xa9f1_ecbb_e09e_ef08, 8, 0),
+            ("recall.query", 0xfef7_8cac_002e_30b3, 8, 12),
+            ("recall.query", 0x6cb9_6681_66f1_482b, 12, 0),
+        ];
+        let mut prev_a = 0xCBF2_9CE4_8422_2325u64;
+        let mut a_steps = Vec::with_capacity(9);
+        for (idx, &(verb, dig, deb, rem)) in raw_alpha.iter().enumerate() {
+            let seq = (idx + 1) as u64;
+            prev_a = advance_sel4_merkle_chain(prev_a, seq, dig, deb, rem);
+            a_steps.push(Sel4GovernorMerkleStep {
+                seq,
+                verb: verb.into(),
+                q24_fnv1a: dig,
+                debited_uj: deb,
+                remaining_uj: rem,
+                claimed_root_u64: prev_a,
+            });
+        }
+        assert_eq!(prev_a, 0x9030_0aa5_27b3_175f);
+
+        let raw_beta: [(&str, u64, u64, u64); 4] = [
+            ("recall.query", 0x7da1_44b9_7d05_4b25, 8, 24),
+            ("recall.query", 0xa9f1_ecbb_e09e_ef08, 12, 12),
+            ("recall.query", 0x0ceb_18f6_2d1b_8984, 8, 4),
+            ("recall.query", 0xfef7_8cac_002e_30b3, 8, 0),
+        ];
+        let mut prev_b = 0xCBF2_9CE4_8422_2325u64;
+        let mut b_steps = Vec::with_capacity(4);
+        for (idx, &(verb, dig, deb, rem)) in raw_beta.iter().enumerate() {
+            let seq = (idx + 1) as u64;
+            prev_b = advance_sel4_merkle_chain(prev_b, seq, dig, deb, rem);
+            b_steps.push(Sel4GovernorMerkleStep {
+                seq,
+                verb: verb.into(),
+                q24_fnv1a: dig,
+                debited_uj: deb,
+                remaining_uj: rem,
+                claimed_root_u64: prev_b,
+            });
+        }
+        assert_eq!(prev_b, 0x9d13_4c3d_81bf_86c5);
+        assert_eq!(prev_a ^ prev_b, 0x0d23_4698_a60c_919a);
+
+        let (a_rec, a_tree, a_j) =
+            verify_and_ingest_sel4_multipd_chain(&a_steps, "h47-alpha", "US-NE-ISO", 0.31).unwrap();
+        let (b_rec, b_tree, b_j) =
+            verify_and_ingest_sel4_multipd_chain(&b_steps, "h47-beta", "US-NE-ISO", 0.31).unwrap();
+        assert_eq!((a_rec.len(), b_rec.len()), (9, 4));
+        assert!(a_tree.proof(8).unwrap().verify_self());
+        assert!(b_tree.proof(3).unwrap().verify_self());
+        // 112 uJ tenant acts + 12 uJ Titans sleep + 4 uJ Stage-2 VMM hypercall = 128 uJ (100% of Minted I1)!
+        assert!(((a_j + b_j) - 0.000_112).abs() < 1e-15);
+    }
 }

@@ -1,6 +1,6 @@
-# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.17.0`)
+# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.18.0`)
 
-> **Audit Remediation & Evidence Standard (`v0.17.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
+> **Audit Remediation & Evidence Standard (`v0.18.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
 >
 > Below we strictly separate **(1) reproducible external dataset, multi-table `TPC-H` (`SF=0.1..10.0`), physical-NVMe core-banking & multi-client `pgwire` OLTP, sub-millisecond lazy CoW branching, `LTCB` (`enwik8`/`enwik9`) `Joules-per-Bit` compression, & multi-host WAN consensus evaluations** (with every win, loss, memory profile, and architectural bottleneck reported openly) from **(2) fast in-process functional smoke checks**, and tag every energy figure as **`reported_j`** (hardware RAPL / SMC counters) or **`est_j`** / **`analytical_est`** (modeled).
 
@@ -9,7 +9,7 @@
 ## 1. Full Official ClickBench (`hits.parquet`, `99,997,497` Rows, `105` Columns, `43` Queries) vs. DuckDB `2.0.1`
 
 - **Harness & Raw Artifacts:** [`bench/clickbench_official.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/clickbench_official.py), [`clickbench_official_100k.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_100k.json), [`clickbench_official_1m.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_1m.json), [`clickbench_official_10m.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_10m.json), **[`clickbench_official_100m.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/clickbench_official_100m.json)**.
-- **Methodology:** Streams the official `14.78 GB` (`99,997,497`-row, `105`-column) ClickBench `hits.parquet` file into DuckDB `2.0.1` (in-process) and JouleDB `0.17.0` (over TCP `pgwire` via `psycopg 3.3.9`, `--data-parent-dir /var/tmp` physical NVMe on `100M`, spilling immutable `262,144`-row `.jcol` segments), then runs all **43 official ClickBench SQL queries (`Q0..Q42`)** unchanged on `framework-128gb-0000` (`AMD Ryzen AI Max+ 395`, 32 logical cores, `128 GB` UMA RAM, Linux `rapl-package` **`reported_j`**).
+- **Methodology:** Streams the official `14.78 GB` (`99,997,497`-row, `105`-column) ClickBench `hits.parquet` file into DuckDB `2.0.1` (in-process) and JouleDB `0.18.0` (over TCP `pgwire` via `psycopg 3.3.9`, `--data-parent-dir /var/tmp` physical NVMe on `100M`, spilling immutable `262,144`-row `.jcol` segments), then runs all **43 official ClickBench SQL queries (`Q0..Q42`)** unchanged on `framework-128gb-0000` (`AMD Ryzen AI Max+ 395`, 32 logical cores, `128 GB` UMA RAM, Linux `rapl-package` **`reported_j`**).
 
 | Dataset Scale (`hits.parquet`) | Parquet Load (`DuckDB` vs `JouleDB`) | JouleDB Post-Load RSS (`VmHWM` Peak) | Queries Succeeded | SQL-Valid Match (`Exact`) | Faster (`JouleDB` / `DuckDB`) | Geomean Latency (`JouleDB / DuckDB`) | Geomean Energy (`reported_j`) |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -20,7 +20,7 @@
 
 ### Selected Per-Query Results on the Full `99,997,497`-Row (`100M`) Dataset (`reported_j`)
 
-| Query | SQL Summary | DuckDB `2.0.1` | JouleDB `0.17.0` (`.jcol` + `pgwire`) | Outcome |
+| Query | SQL Summary | DuckDB `2.0.1` | JouleDB `0.18.0` (`.jcol` + `pgwire`) | Outcome |
 |---|---|---:|---:|---|
 | `Q0` | `SELECT COUNT(*) FROM hits` | `2.58 ms` | **`1.40 ms`** | Exact match (**JouleDB `1.84×` faster** — segment metadata) |
 | `Q2` | `SELECT SUM(AdvEngineID), COUNT(*), AVG(ResolutionWidth) FROM hits` | `8.69 ms` | **`1.16 ms`** | Exact match (**JouleDB `7.48×` faster** — zero-I/O `global_int_sum`) |
@@ -41,7 +41,7 @@
 ## 2. Official 22-Query `TPC-H` Relational Suite (`tpch_queries()`, 8 Tables, `SF = 0.1`, `1.0` & `10.0`) vs. DuckDB `2.0.1`
 
 - **Harness & Raw Artifacts:** [`bench/tpch_official.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/tpch_official.py), [`tpch_official_sf01.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf01.json), [`tpch_official_sf1.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf1.json), **[`tpch_official_sf10.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf10.json)**.
-- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)` on physical NVMe (`--work-dir /var/tmp`), loads them into JouleDB `0.17.0` over TCP `pgwire`, and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` (`PK-FD` group-by compression + 3-hop semi-join pushdown + 64-shard `NeqExists`) against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
+- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)` on physical NVMe (`--work-dir /var/tmp`), loads them into JouleDB `0.18.0` over TCP `pgwire`, and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` (`PK-FD` group-by compression + 3-hop semi-join pushdown + 64-shard `NeqExists`) against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
 
 | `TPC-H` Scale | Total Rows (8 Tables) | Parquet Load (`DuckDB` vs `JouleDB`) | Post-Load RSS (`VmHWM` Peak) | Verified Exact (`Faster`) | Total 22-Query Time (`DuckDB` vs `JouleDB`) | Geomean Latency (`JouleDB / DuckDB`) |
 |---|---:|---:|---:|---:|---:|---:|
@@ -68,8 +68,8 @@
 
 | Engine & Wire Mode (`invariant_verified = true`) | `c = 1` TPS (`p50`) | `c = 4` TPS (`p50`, `p95`) | `c = 8` TPS (`p50`, `p95`) | `c = 16` TPS (`p50`, `mJ/txn`) | Committed Writes |
 |---|---:|---:|---:|---:|---:|
-| **JouleDB `0.17.0` (`pgwire` Simple, Decoupled `log_atomic_tx_fast`)** | **`3,697.98`** (`0.137 ms`) | **`5,069.30`** (`0.537 ms`, **`1.90 ms`**) | `4,094.67` (`0.676 ms`, `6.71 ms`) | **`5,474.86`** (`0.926 ms`, `11.94 mJ`) | `43,783` |
-| **JouleDB `0.17.0` (`pgwire` Pipeline, Decoupled `log_atomic_tx_fast`)** | `1,083.79` (`0.137 ms`) | **`2,486.05`** (`0.579 ms`, **`5.06 ms`**) | `4,342.65` (`0.633 ms`, `5.59 ms`) | **`6,364.75`** (`0.851 ms`, **`9.57 mJ`**) | `34,071` |
+| **JouleDB `0.18.0` (`pgwire` Simple, Decoupled `log_atomic_tx_fast`)** | **`3,697.98`** (`0.137 ms`) | **`5,069.30`** (`0.537 ms`, **`1.90 ms`**) | `4,094.67` (`0.676 ms`, `6.71 ms`) | **`5,474.86`** (`0.926 ms`, `11.94 mJ`) | `43,783` |
+| **JouleDB `0.18.0` (`pgwire` Pipeline, Decoupled `log_atomic_tx_fast`)** | `1,083.79` (`0.137 ms`) | **`2,486.05`** (`0.579 ms`, **`5.06 ms`**) | `4,342.65` (`0.633 ms`, `5.59 ms`) | **`6,364.75`** (`0.851 ms`, **`9.57 mJ`**) | `34,071` |
 | **PostgreSQL `16.16` (`pgwire` Simple, 4-RTT + NVMe `fsync`)** | `1,139.42` (`0.073 ms`) | `2,614.86` (`0.089 ms`, `5.11 ms`) | **`4,901.20`** (`0.148 ms`, `5.47 ms`) | **`10,081.67`** (`0.250 ms`, `3.98 mJ`) | `44,780` |
 | **PostgreSQL `16.16` (`pgwire` Pipeline, 1-RTT + NVMe `fsync`)** | **`1,161.69`** (`0.071 ms`) | `2,386.67` (`0.103 ms`, `5.74 ms`) | **`5,275.86`** (`0.126 ms`, `5.10 ms`) | **`10,205.75`** (`0.238 ms`, `3.68 mJ`) | `45,496` |
 | **SQLite `3.53.1` (Embedded in-proc C API, NVMe `WAL`, `NORMAL`)** | `44,204.91` (`0.005 ms`) | `87,633.29` (`0.006 ms`, `0.04 ms`) | `98,374.22` (`0.007 ms`, `0.06 ms`) | **`111,079.64`** (`0.007 ms`, `0.36 mJ`) | `845,139` (in-proc) |
@@ -78,7 +78,7 @@
 
 - **Harness & Raw Artifact:** [`bench/ledger_banking_head_to_head.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/ledger_banking_head_to_head.py), [`ledger_banking_nvme_rapl_v016.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/ledger_banking_nvme_rapl_v016.json), [`unified_banking_agentic_v016.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/unified_banking_agentic_v016.json) (`493,941` HTTP & `436,801` `pgwire` SHA-256 chain entries verified `valid = true`).
 
-| Core Banking Regime (`fsync=on`) | JouleDB `0.17.0` HTTP (`JWL1` + SHA-256) | JouleDB `0.17.0` `pgwire` (`psycopg3` SQL) | PostgreSQL `16.16` (`FOR UPDATE` / `UNNEST`) | Speedup & RAPL Energy (`reported_j`) |
+| Core Banking Regime (`fsync=on`) | JouleDB `0.18.0` HTTP (`JWL1` + SHA-256) | JouleDB `0.18.0` `pgwire` (`psycopg3` SQL) | PostgreSQL `16.16` (`FOR UPDATE` / `UNNEST`) | Speedup & RAPL Energy (`reported_j`) |
 |---|---:|---:|---:|---|
 | **`c = 1` Serial Durable Transfer** | **`3,424.5 TPS`** (`p50 0.242 ms`, **`26.96 mJ/tx`**) | **`400.6 TPS`** (`p50 2.601 ms`, `201.89 mJ/tx`) | `371.9 TPS` (`p50 2.781 ms`, `129.73 mJ/tx`) | **JouleDB `9.21×` HTTP (`1.08×` `pgwire`) · `4.81×` less J/tx** |
 | **`c = 4` Concurrent Group Commit** | **`1,250.0 TPS`** (`p50 2.993 ms`, `62.58 mJ/tx`) | **`1,412.7 TPS`** (`p50 2.761 ms`, **`56.08 mJ/tx`**) | `777.6 TPS` (`p50 5.271 ms`, `61.57 mJ/tx`) | **JouleDB `1.82×` `pgwire` (`1.61×` HTTP) · `1.10×` less J/tx** |
@@ -100,7 +100,7 @@
 - **`.jsyn` Encoder Fidelity (`0.4378 BPW`):** [`dcharlot65-openie/all-MiniLM-L6-v2-LittleBit`](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit) (`1.95 MB`, `22.23×` smaller than `FP16`) achieves **`0.9441` sentence-embedding cosine** vs `FP32` (81 low-BPW causal LLM exports remain retracted).
 - **`LTCB` `enwik8`/`enwik9` `Joules-per-Bit` & Seekable SQL Suite ([`bench/ltcb_energy_pareto.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/ltcb_energy_pareto.py), [`ltcb_energy_pareto_v016.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/ltcb_energy_pareto_v016.json)):**
   - **Published `enwik9` (`1 GB`) Neural Anchors (`analytical_est`):** `cmix-lex-transformer` `95.84 MB` (`0.7667 bpb`, `213,840 s` decode, `~668.3k nJ/bit`), `zmix 1.0` `96.10 MB` (`0.7688 bpb`, `131,184 s` decode, `~246.0k nJ/bit`), **`tufazip v2` (Tufa Labs)** `105.39 MB` (`0.8431 bpb`, **`630,136 s` [`7.29 days`] dual-B200 decode, `~157.5M nJ/bit`**, non-seekable).
-  - **Live `enwik8` (`100 MB` = `12,346` articles) Hardware RAPL (`reported_j`):** `zstd -3` decodes at `577.0 MB/s` (`27.97 nJ/bit`), `zstd -19` at `177.7 MB/s` (`90.54 nJ/bit`), Ontology+SimHash semantic locality ordering shrinks bounded-window `gzip -6` by `1.68%`, `zstd -3` by `1.53%`, and seekable `Parquet Zstd` (`2.870 bpb`) by `1.46%`, while **JouleDB `0.17.0` `.jcol` SQL** executes full-corpus `LIKE` scans in **`28.36 ms` (`3.374 GB/s`, `2.16 J` = `2.83 nJ/bit` `reported_j` — `55.7M×` lower energy/bit)** and single-article SQL lookups in **`5.41 ms` (`116.4M×` faster than `tufazip v2` sequential decode)**.
+  - **Live `enwik8` (`100 MB` = `12,346` articles) Hardware RAPL (`reported_j`):** `zstd -3` decodes at `577.0 MB/s` (`27.97 nJ/bit`), `zstd -19` at `177.7 MB/s` (`90.54 nJ/bit`), Ontology+SimHash semantic locality ordering shrinks bounded-window `gzip -6` by `1.68%`, `zstd -3` by `1.53%`, and seekable `Parquet Zstd` (`2.870 bpb`) by `1.46%`, while **JouleDB `0.18.0` `.jcol` SQL** executes full-corpus `LIKE` scans in **`28.36 ms` (`3.374 GB/s`, `2.16 J` = `2.83 nJ/bit` `reported_j` — `55.7M×` lower energy/bit)** and single-article SQL lookups in **`5.41 ms` (`116.4M×` faster than `tufazip v2` sequential decode)**.
 
 ---
 

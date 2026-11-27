@@ -911,6 +911,18 @@ fn exec_query_to_table_columns(
         }
     }
 
+    // Fast zero-JSON `LEFT OUTER JOIN` grouped count -> `TableColumns` (`Q13` derived subquery)
+    if query.ctes.is_empty()
+        && query.joins.len() == 1
+        && query.joins[0].join_type == JoinType::Left
+        && query.set_op.is_none()
+        && !query.distinct
+    {
+        if let Some(tc) = exec_left_outer_grouped_to_tc(query, rename_cols, amorphic, cte_rels) {
+            return Some(tc);
+        }
+    }
+
     let (cols, rows) = exec_core_query(query, amorphic, cte_rels)?;
     let final_cols = match rename_cols {
         Some(rc) if rc.len() == cols.len() => rc.to_vec(),
@@ -2408,7 +2420,7 @@ impl BuiltBranch {
             -1
         };
         if n > 0
-            && (0..=32_000_000).contains(&span)
+            && (0..=128_000_000).contains(&span)
             && (span as usize) <= n.saturating_mul(12).max(4096)
         {
             let mut slots = vec![u32::MAX; (span as usize) + 1];
@@ -2835,6 +2847,287 @@ fn exec_core_query_seeded(
         &mut local_filters,
         &residual_conjs,
     )
+}
+
+/// Zero-JSON parallel atomic `LEFT OUTER JOIN` grouped count directly producing `TableColumns`
+/// (`Q13`: `SELECT c_custkey, COUNT(o_orderkey) FROM customer LEFT OUTER JOIN orders ... GROUP BY c_custkey`).
+/// Eliminates `34` `FxHashMap` builds and `1,500,000` `Vec<serde_json::Value>` intermediate heap allocations!
+fn exec_left_outer_grouped_to_tc(
+    query: &SqlQuery,
+    rename_cols: Option<&[String]>,
+    amorphic: &AmorphicTableStorage,
+    cte_rels: &HashMap<String, ColRel>,
+) -> Option<TableColumns> {
+    if query.having.is_some() || !query.order_by.is_empty() || query.limit.is_some() {
+        return None;
+    }
+    let from = query.from.as_ref()?;
+    let left_tbl = from.table_name()?;
+    let join = &query.joins[0];
+    let left_entry = RelEntry {
+        alias: from.alias.clone().unwrap_or_else(|| left_tbl.to_string()),
+        table: left_tbl.to_string(),
+        rel: load_rel(left_tbl, amorphic, cte_rels)?,
+    };
+    let right_entry = RelEntry {
+        alias: join.alias.clone().unwrap_or_else(|| join.table.clone()),
+        table: join.table.clone(),
+        rel: load_rel(&join.table, amorphic, cte_rels)?,
+    };
+    let rels = [left_entry, right_entry];
+
+    let cond = join.condition.as_ref()?;
+    let mut on_conjs = Vec::new();
+    split_and_owned(cond, &mut on_conjs);
+    let mut join_pair: Option<(String, String)> = None;
+    let mut right_filters: Vec<LocalFilter> = Vec::new();
+
+    for c in on_conjs {
+        if let Expression::Binary {
+            ref left,
+            op: Operator::Eq,
+            ref right,
+        } = c
+            && let (Some((ra, ca)), Some((rb, cb))) =
+                (resolve_rel_col(&rels, left), resolve_rel_col(&rels, right))
+            && ra != rb
+        {
+            let (lc, rc) = if ra == 0 { (ca, cb) } else { (cb, ca) };
+            if rels[0].rel.col_is_int(&lc) && rels[1].rel.col_is_int(&rc) && join_pair.is_none() {
+                join_pair = Some((lc, rc));
+                continue;
+            }
+        }
+        let mut touched = HashSet::new();
+        if expr_referenced_rels(&c, &rels, &mut touched)
+            && touched.len() == 1
+            && touched.contains(&1)
+        {
+            right_filters.push(LocalFilter::Expr(c));
+        } else {
+            return None;
+        }
+    }
+    let (left_key, right_key) = join_pair?;
+
+    let mut left_filters: Vec<LocalFilter> = Vec::new();
+    if let Some(ref w) = query.where_clause {
+        let mut wconjs = Vec::new();
+        split_and_owned(w, &mut wconjs);
+        for wc in wconjs {
+            let mut touched = HashSet::new();
+            if expr_referenced_rels(&wc, &rels, &mut touched)
+                && touched.len() == 1
+                && touched.contains(&0)
+            {
+                left_filters.push(LocalFilter::Expr(wc));
+            } else {
+                return None;
+            }
+        }
+    }
+
+    if query.group_by.len() != 1 || query.columns.len() != 2 {
+        return None;
+    }
+    let (g_ri, g_col) = resolve_rel_col(&rels, &query.group_by[0])?;
+    if g_ri != 0 || !g_col.eq_ignore_ascii_case(&left_key) {
+        return None;
+    }
+    let (c0_ri, c0_col) = resolve_rel_col(&rels, &query.columns[0].expr)?;
+    if c0_ri != 0 || !c0_col.eq_ignore_ascii_case(&left_key) {
+        return None;
+    }
+    let Expression::Function {
+        name: fn_name,
+        args: fn_args,
+    } = &query.columns[1].expr
+    else {
+        return None;
+    };
+    if !fn_name.eq_ignore_ascii_case("COUNT") || fn_args.len() != 1 {
+        return None;
+    }
+    let (cnt_ri, cnt_col) = resolve_rel_col(&rels, &fn_args[0])?;
+    if cnt_ri != 1 {
+        return None;
+    }
+
+    // 1. Scan `left` (`customer`) segments in parallel to collect `(left_keys, min_k, max_k)`.
+    let mut l_needed = HashSet::new();
+    l_needed.insert(left_key.clone());
+    for lf in &left_filters {
+        lf.collect_cols(&rels[0].rel, &mut l_needed);
+    }
+    let l_col_vec: Vec<String> = l_needed.into_iter().collect();
+    let l_col_refs: Vec<&str> = l_col_vec.iter().map(String::as_str).collect();
+    let n_lsegs = rels[0].rel.num_segments();
+    let l_parts: Option<Vec<(Vec<i64>, i64, i64)>> = (0..n_lsegs)
+        .into_par_iter()
+        .map(|si| {
+            let seg = rels[0].rel.load_segment(si, &l_col_refs)?;
+            let tc = seg.tc();
+            let sel = filter_segment_rows(tc, &left_filters)?;
+            let lk_col = tc.cols.get(&left_key)?;
+            let mut keys = Vec::with_capacity(sel.len());
+            let mut lo = i64::MAX;
+            let mut hi = i64::MIN;
+            for &r_u32 in &sel {
+                if let BVal::Int(k) = read_col_bval(lk_col, r_u32 as usize) {
+                    lo = lo.min(k);
+                    hi = hi.max(k);
+                    keys.push(k);
+                }
+            }
+            Some((keys, lo, hi))
+        })
+        .collect();
+    let l_parts = l_parts?;
+    let total_left: usize = l_parts.iter().map(|(v, _, _)| v.len()).sum();
+
+    let mut out_col_names = vec![
+        query.columns[0]
+            .alias
+            .clone()
+            .unwrap_or_else(|| left_key.clone()),
+        query.columns[1]
+            .alias
+            .clone()
+            .unwrap_or_else(|| "count".to_string()),
+    ];
+    if let Some(rc) = rename_cols
+        && rc.len() == 2
+    {
+        out_col_names = rc.to_vec();
+    }
+
+    if total_left == 0 {
+        let mut tc = TableColumns::empty_with_len(0, out_col_names.clone());
+        tc.insert_decoded_columns(
+            0,
+            vec![
+                (
+                    out_col_names[0].clone(),
+                    Col::Int(crate::columnar_exec::Ints::I64(Vec::new()), Vec::new()),
+                ),
+                (
+                    out_col_names[1].clone(),
+                    Col::Int(crate::columnar_exec::Ints::I64(Vec::new()), Vec::new()),
+                ),
+            ],
+        );
+        return Some(tc);
+    }
+
+    let min_k = l_parts.iter().map(|(_, lo, _)| *lo).min().unwrap_or(0);
+    let max_k = l_parts.iter().map(|(_, _, hi)| *hi).max().unwrap_or(-1);
+    let span = (max_k as i128) - (min_k as i128);
+    if !(0..=32_000_000).contains(&span) || (span as usize) > total_left.saturating_mul(8).max(4096)
+    {
+        return None;
+    }
+    let span_len = (span as usize) + 1;
+
+    // Verify uniqueness & build flat `left_keys` vector (`1.5M` ints = 12 MB)
+    let mut left_multiplicity = vec![0u16; span_len];
+    let mut unique_keys = Vec::with_capacity(total_left);
+    for (part_keys, _, _) in l_parts {
+        for k in part_keys {
+            let idx = (k - min_k) as usize;
+            if left_multiplicity[idx] == 0 {
+                unique_keys.push(k);
+            }
+            left_multiplicity[idx] = left_multiplicity[idx].saturating_add(1);
+            if left_multiplicity[idx] == u16::MAX {
+                return None;
+            }
+        }
+    }
+
+    // 2. Stream `right` (`orders` `15M` rows) in parallel with lock-free `AtomicU32` increments!
+    let mut r_needed = HashSet::new();
+    r_needed.insert(right_key.clone());
+    r_needed.insert(cnt_col.clone());
+    for rf in &right_filters {
+        rf.collect_cols(&rels[1].rel, &mut r_needed);
+    }
+    let r_col_vec: Vec<String> = r_needed.into_iter().collect();
+    let r_col_refs: Vec<&str> = r_col_vec.iter().map(String::as_str).collect();
+    let same_cnt_col = cnt_col.eq_ignore_ascii_case(&right_key);
+
+    let atomic_counts: Vec<std::sync::atomic::AtomicU32> = (0..span_len)
+        .map(|_| std::sync::atomic::AtomicU32::new(0))
+        .collect();
+
+    let n_rsegs = rels[1].rel.num_segments();
+    let ok_scan: Vec<bool> = (0..n_rsegs)
+        .into_par_iter()
+        .map(|si| {
+            let Some(opt_seg) = rels[1]
+                .rel
+                .load_filtered_segment(si, &r_col_refs, &right_filters)
+            else {
+                return false;
+            };
+            let Some((seg, sel)) = opt_seg else {
+                return true;
+            };
+            let tc = seg.tc();
+            let Some(rk_col) = tc.cols.get(&right_key) else {
+                return false;
+            };
+            let rc_col = if same_cnt_col {
+                rk_col
+            } else {
+                let Some(c) = tc.cols.get(&cnt_col) else {
+                    return false;
+                };
+                c
+            };
+            for &row_u32 in &sel {
+                let row = row_u32 as usize;
+                if let BVal::Int(k) = read_col_bval(rk_col, row)
+                    && k >= min_k
+                    && k <= max_k
+                    && (same_cnt_col || !matches!(read_col_bval(rc_col, row), BVal::Null))
+                {
+                    atomic_counts[(k - min_k) as usize]
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+            true
+        })
+        .collect();
+    if ok_scan.iter().any(|&ok| !ok) {
+        return None;
+    }
+
+    let n_groups = unique_keys.len();
+    let counts_vec: Vec<i64> = unique_keys
+        .par_iter()
+        .map(|&k| {
+            let idx = (k - min_k) as usize;
+            let mult = left_multiplicity[idx] as i64;
+            let rc = atomic_counts[idx].load(std::sync::atomic::Ordering::Relaxed) as i64;
+            mult * rc
+        })
+        .collect();
+
+    let mut tc = TableColumns::empty_with_len(n_groups, out_col_names.clone());
+    tc.insert_decoded_columns(
+        n_groups,
+        vec![
+            (
+                out_col_names[0].clone(),
+                Col::Int(crate::columnar_exec::Ints::I64(unique_keys), Vec::new()),
+            ),
+            (
+                out_col_names[1].clone(),
+                Col::Int(crate::columnar_exec::Ints::I64(counts_vec), Vec::new()),
+            ),
+        ],
+    );
+    Some(tc)
 }
 
 fn exec_left_outer_grouped(
@@ -3976,7 +4269,27 @@ fn propagate_initial_key_sets(
         }
 
         for (ri, r) in rels.iter().enumerate() {
-            let max_rows = if round == 0 { 20_000_000 } else { 2_000_000 };
+            let has_selective_key_in = local_filters[ri].iter().any(|f| {
+                matches!(
+                    f,
+                    LocalFilter::KeyIn {
+                        set,
+                        negated: false,
+                        ..
+                    } if set.estimated_len().saturating_mul(4) <= r.rel.total_rows().max(1)
+                )
+            });
+            let max_rows = if round == 0 {
+                if local_filters[ri].len() >= 2 || has_selective_key_in {
+                    80_000_000
+                } else {
+                    20_000_000
+                }
+            } else if has_selective_key_in {
+                80_000_000
+            } else {
+                2_000_000
+            };
             if !local_filters[ri].is_empty() && r.rel.total_rows() <= max_rows {
                 let mut key_cols = HashSet::new();
                 for ((ra, ca), (rb, cb)) in equi_edges {
@@ -4008,6 +4321,9 @@ fn propagate_initial_key_sets(
         for (src_ri, src_col, set) in seeds {
             for ((ra, ca), (rb, cb)) in equi_edges {
                 if *ra == src_ri && ca.eq_ignore_ascii_case(&src_col) {
+                    if set.estimated_len().saturating_mul(2) > rels[*rb].rel.total_rows().max(1) {
+                        continue;
+                    }
                     let eid = (
                         src_ri,
                         ca.to_ascii_lowercase(),
@@ -4023,6 +4339,9 @@ fn propagate_initial_key_sets(
                         any_new = true;
                     }
                 } else if *rb == src_ri && cb.eq_ignore_ascii_case(&src_col) {
+                    if set.estimated_len().saturating_mul(2) > rels[*ra].rel.total_rows().max(1) {
+                        continue;
+                    }
                     let eid = (
                         src_ri,
                         cb.to_ascii_lowercase(),

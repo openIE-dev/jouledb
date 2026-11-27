@@ -142,6 +142,10 @@ enum Commands {
         /// Persistent database directory for MCP tools & JouleDB Studio UI
         #[arg(short, long, default_value = "./joule-db-mcp")]
         data: String,
+
+        /// Optional scoped Kiro Power domain (projects only governed domain KineticAction tools + steering)
+        #[arg(long)]
+        power: Option<String>,
     },
 }
 
@@ -384,7 +388,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             );
             Ok(())
         }
-        Some(Commands::Mcp { data }) => {
+        Some(Commands::Mcp { data, power }) => {
             std::fs::create_dir_all(&data)?;
             let amorphic_path = format!("{}/amorphic", data);
             let amorphic_store = joule_db_amorphic::DurableAmorphicStore::open(&amorphic_path)
@@ -396,11 +400,17 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let amorphic = std::sync::Arc::new(
                 joule_db_server::amorphic_adapter::AmorphicTableStorage::new(amorphic_store),
             );
-            let executor = joule_db_server::query::SimpleQueryExecutor::with_amorphic(amorphic);
-            let handler =
-                std::sync::Arc::new(joule_db_server::mcp_bridge::DatabaseToolHandler::new(
-                    std::sync::Arc::new(executor),
-                ));
+            let mut executor = joule_db_server::query::SimpleQueryExecutor::with_amorphic(amorphic);
+            executor.attach_durable_ledger_and_workflows(&data);
+            let ont = executor.kinetic_ontology_handle();
+            let exec_arc: std::sync::Arc<dyn joule_db_server::query::QueryExecutor> =
+                std::sync::Arc::new(executor);
+            ont.bind_executor(exec_arc.clone());
+            let handler = std::sync::Arc::new(
+                joule_db_server::mcp_bridge::DatabaseToolHandler::new(exec_arc)
+                    .with_ontology(ont)
+                    .with_default_power(power),
+            );
             joule_db_server::mcp_transport::run_stdio_transport(Some(handler)).await;
             Ok(())
         }

@@ -26,7 +26,7 @@ from ._native import __version__ as _native_version
 from ._native import decode as _decode
 
 __all__ = ["connect", "Connection", "Result", "JouleDBError", "__version__"]
-__version__ = "0.17.0"
+__version__ = "0.18.0"
 
 
 class JouleDBError(RuntimeError):
@@ -580,7 +580,7 @@ class Connection:
         """Execute the Master JouleDB v1.0.0 36-Pillar Global Database Powerhouse suite."""
         return self._json_request("POST", "/api/v1/bench/v1_powerhouse", {})
 
-    # ── v0.17.0: JouleRoute, Harness Super-Adapters, Kinetic Ontology, EARS & SQL LSP ──
+    # ── v0.18.0: JouleRoute, Harness Super-Adapters, Kinetic Ontology, EARS & SQL LSP ──
 
     def router_register_provider(
         self,
@@ -593,6 +593,7 @@ class Connection:
         rpm_limit: int = 60,
         cost_micro_usd_per_1k_tokens: int = 0,
         estimated_uj_per_token: int = 50,
+        live_http_dispatch: bool = False,
     ) -> Dict[str, Any]:
         """Register an encrypted provider in the JouleRoute 4-tier quota waterfall."""
         return self._json_request(
@@ -605,6 +606,7 @@ class Connection:
                 "base_url": base_url,
                 "tier": tier,
                 "api_key": api_key,
+                "live_http_dispatch": live_http_dispatch,
                 "rpm_limit": rpm_limit,
                 "cost_micro_usd_per_1k_tokens": cost_micro_usd_per_1k_tokens,
                 "estimated_uj_per_token": estimated_uj_per_token,
@@ -721,6 +723,27 @@ class Connection:
     def sql_diagnostics(self, sql: str) -> Dict[str, Any]:
         """Run pre-execution OpenCode/LSP SQL syntax, catalog, blast-radius, and ontology diagnostics."""
         return self._json_request("POST", "/api/v1/diagnostics/sql", {"sql": sql})
+
+    def rerank(
+        self,
+        query: str,
+        documents: List[Any],
+        model: str = "jouledb-rerank-v1",
+        top_n: Optional[int] = None,
+        return_documents: bool = True,
+    ) -> Dict[str, Any]:
+        """Rank candidate documents via Voyage AI / Cohere v2 compatible POST /v1/rerank."""
+        return self._json_request(
+            "POST",
+            "/v1/rerank",
+            {
+                "model": model,
+                "query": query,
+                "documents": documents,
+                "top_n": top_n,
+                "return_documents": return_documents,
+            },
+        )
 
     def close(self) -> None:  # stateless HTTP; kept for DB-API-style use
         pass

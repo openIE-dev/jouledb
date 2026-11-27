@@ -844,67 +844,54 @@ async fn handle_a2a_rpc(
 }
 
 async fn handle_rerank(Json(req): Json<JsonValue>) -> impl IntoResponse {
-    let query = req
-        .get("query")
+    let model = req
+        .get("model")
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_lowercase();
-    let q_tokens: Vec<&str> = query.split_whitespace().collect();
-    let q_hv = SemanticHologram10K::from_symbol(&query);
-    let docs = req
+        .unwrap_or("jouledb-rerank-v1");
+    let query = req.get("query").and_then(|v| v.as_str()).unwrap_or("");
+    let raw_docs = req
         .get("documents")
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
-    let top_n = req
-        .get("top_n")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(docs.len() as u64) as usize;
-
-    let mut results: Vec<JsonValue> = docs
+    let parsed_docs: Vec<crate::joule_route::RerankDocInput> = raw_docs
         .iter()
-        .enumerate()
-        .map(|(idx, d)| {
-            let txt = d
-                .as_str()
-                .map(str::to_string)
-                .or_else(|| d.get("text").and_then(|t| t.as_str()).map(str::to_string))
-                .unwrap_or_else(|| d.to_string());
-            let lower = txt.to_lowercase();
-            let lex_hits = q_tokens
-                .iter()
-                .filter(|t| !t.is_empty() && lower.contains(*t))
-                .count();
-            let lex_score = (lex_hits as f64) / (q_tokens.len().max(1) as f64);
-            let hv_score = q_hv.resonance(&SemanticHologram10K::from_symbol(&lower));
-            let score = 0.70 * lex_score + 0.30 * hv_score;
-            json!({
-                "index": idx,
-                "relevance_score": score,
-                "document": { "text": txt },
-            })
+        .map(|d| {
+            if let Some(s) = d.as_str() {
+                crate::joule_route::RerankDocInput::Plain(s.to_string())
+            } else if let Some(t) = d.get("text").and_then(|v| v.as_str()) {
+                crate::joule_route::RerankDocInput::Object {
+                    text: t.to_string(),
+                    extra: std::collections::BTreeMap::new(),
+                }
+            } else {
+                crate::joule_route::RerankDocInput::Plain(d.to_string())
+            }
         })
         .collect();
+    let top_limit = req
+        .get("top_n")
+        .or_else(|| req.get("top_k"))
+        .and_then(|v| v.as_u64())
+        .map(|n| n as usize);
+    let return_docs = req
+        .get("return_documents")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
 
-    results.sort_by(|a, b| {
-        let sa = a["relevance_score"].as_f64().unwrap_or(0.0);
-        let sb = b["relevance_score"].as_f64().unwrap_or(0.0);
-        sb.total_cmp(&sa)
-    });
-    results.truncate(top_n);
-
-    (
-        StatusCode::OK,
-        Json(json!({
-            "id": "rerank_jouledb_hdc",
-            "results": results,
-            "meta": {
-                "api_version": { "version": "1" },
-                "est_energy_nj": 190 + (docs.len() as u64) * 18,
+    let mut out =
+        crate::joule_route::rerank_documents(model, query, &parsed_docs, top_limit, return_docs);
+    if let Some(obj) = out.as_object_mut() {
+        obj.insert(
+            "meta".into(),
+            json!({
+                "api_version": { "version": "2" },
+                "est_energy_nj": 190 + (parsed_docs.len() as u64) * 18,
                 "energy_evidence": "est_j"
-            },
-        })),
-    )
+            }),
+        );
+    }
+    (StatusCode::OK, Json(out))
 }
 
 // ============================================================================

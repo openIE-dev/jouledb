@@ -319,8 +319,8 @@ impl WalEntry {
 pub struct WalManager {
     /// WAL file path
     path: PathBuf,
-    /// WAL file writer
-    writer: BufWriter<File>,
+    /// WAL file writer (`None` for pure in-memory ephemeral branch stores)
+    writer: Option<BufWriter<File>>,
     /// Current LSN
     current_lsn: AtomicU64,
     /// Last checkpoint LSN
@@ -497,7 +497,7 @@ impl WalManager {
 
         Ok(Self {
             path,
-            writer,
+            writer: Some(writer),
             current_lsn: AtomicU64::new(last_lsn + 1),
             last_checkpoint_lsn: AtomicU64::new(last_checkpoint),
             file_position: AtomicU64::new(valid_end_pos),
@@ -507,10 +507,34 @@ impl WalManager {
         })
     }
 
+    /// Construct a zero-FD, zero-syscall in-memory WAL stub for ephemeral Copy-on-Write SQL branches.
+    pub fn new_in_memory() -> Self {
+        Self {
+            path: PathBuf::new(),
+            writer: None,
+            current_lsn: AtomicU64::new(1),
+            last_checkpoint_lsn: AtomicU64::new(0),
+            file_position: AtomicU64::new(0),
+            allocated_len: AtomicU64::new(0),
+            active_transactions: std::sync::RwLock::new(HashMap::new()),
+            committed_lsn: std::sync::Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    /// Returns `true` when constructed via [`Self::new_in_memory`].
+    #[inline]
+    pub fn is_in_memory(&self) -> bool {
+        self.writer.is_none()
+    }
+
     /// A group-commit handle on this WAL's file (see `GroupSync`).
     pub fn group_sync(&self) -> Result<GroupSync, StorageError> {
-        let file = self
-            .writer
+        let Some(ref writer) = self.writer else {
+            return Err(StorageError::Backend(
+                "in-memory WAL has no file handle".into(),
+            ));
+        };
+        let file = writer
             .get_ref()
             .try_clone()
             .map_err(|e| StorageError::Backend(format!("WAL handle: {e}")))?;
@@ -570,6 +594,9 @@ impl WalManager {
     /// commits overwrite initialized blocks without growing `i_size` (eliminating
     /// Linux `ext4` `jbd2` metadata journal transactions on `fdatasync`).
     fn ensure_wal_capacity(&mut self, add_bytes: u64) -> Result<(), StorageError> {
+        let Some(ref mut writer) = self.writer else {
+            return Ok(());
+        };
         const ZERO_CHUNK: [u8; 65_536] = [0u8; 65_536];
         let pos = self.file_position.load(Ordering::SeqCst);
         let needed = pos.saturating_add(add_bytes);
@@ -583,10 +610,10 @@ impl WalManager {
             32 * 1024 * 1024
         };
         let target = needed.max(alloc.saturating_add(step));
-        self.writer
+        writer
             .flush()
             .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
-        let file = self.writer.get_mut();
+        let file = writer.get_mut();
         file.seek(SeekFrom::Start(alloc))
             .map_err(|e| StorageError::Backend(format!("WAL prealloc seek error: {}", e)))?;
         let mut cur = alloc;
@@ -622,6 +649,9 @@ impl WalManager {
         if writes.is_empty() {
             return Ok(());
         }
+        if self.writer.is_none() {
+            return Ok(());
+        }
         let first = self
             .current_lsn
             .fetch_add(writes.len() as u64, Ordering::SeqCst);
@@ -638,9 +668,11 @@ impl WalManager {
             buf.extend_from_slice(e);
         }
         self.ensure_wal_capacity(total as u64)?;
-        self.writer
-            .write_all(&buf)
-            .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+        if let Some(ref mut writer) = self.writer {
+            writer
+                .write_all(&buf)
+                .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+        }
         self.file_position.fetch_add(total as u64, Ordering::SeqCst);
         let mut active = self
             .active_transactions
@@ -659,7 +691,7 @@ impl WalManager {
         writes: Vec<(PageId, Vec<u8>)>,
     ) -> Result<(), StorageError> {
         use rayon::prelude::*;
-        if writes.is_empty() {
+        if writes.is_empty() || self.writer.is_none() {
             return Ok(());
         }
         let first = self
@@ -686,11 +718,13 @@ impl WalManager {
         let total_bytes: usize = chunks.iter().map(Vec::len).sum();
         self.ensure_wal_capacity(total_bytes as u64)?;
         let mut total = 0usize;
-        for c in &chunks {
-            self.writer
-                .write_all(c)
-                .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
-            total += c.len();
+        if let Some(ref mut writer) = self.writer {
+            for c in &chunks {
+                writer
+                    .write_all(c)
+                    .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+                total += c.len();
+            }
         }
         self.file_position.fetch_add(total as u64, Ordering::SeqCst);
         let mut active = self
@@ -808,9 +842,11 @@ impl WalManager {
         // Push buffered entries to the OS (no fsync) — see doc comment.
         // Callers that need power-loss durability per commit wait on
         // `GroupSync::wait_durable(lsn)` (group commit).
-        self.writer
-            .flush()
-            .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
+        if let Some(ref mut writer) = self.writer {
+            writer
+                .flush()
+                .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
+        }
         self.committed_lsn.fetch_max(lsn, Ordering::AcqRel);
 
         // Remove from active transactions
@@ -836,6 +872,10 @@ impl WalManager {
         let count = pages.len() as u64 + 1;
         let first_lsn = self.current_lsn.fetch_add(count, Ordering::SeqCst);
         let commit_lsn = first_lsn + pages.len() as u64;
+        if self.writer.is_none() {
+            self.committed_lsn.fetch_max(commit_lsn, Ordering::AcqRel);
+            return Ok(commit_lsn);
+        }
 
         let mut total_bytes = WAL_HEADER_SIZE + 8; // Commit frame
         for (_, data) in pages {
@@ -878,14 +918,24 @@ impl WalManager {
         buf[commit_start + 4..commit_start + 8].copy_from_slice(&commit_crc.to_le_bytes());
 
         self.ensure_wal_capacity(total_bytes as u64)?;
-        self.writer
-            .write_all(&buf)
-            .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+        if let Some(ref mut writer) = self.writer {
+            // Single-syscall direct write when BufWriter is empty (avoids double write() > 8 KB)
+            if writer.buffer().is_empty() {
+                writer
+                    .get_mut()
+                    .write_all(&buf)
+                    .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+            } else {
+                writer
+                    .write_all(&buf)
+                    .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+                writer
+                    .flush()
+                    .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
+            }
+        }
         self.file_position
             .fetch_add(total_bytes as u64, Ordering::SeqCst);
-        self.writer
-            .flush()
-            .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
         self.committed_lsn.fetch_max(commit_lsn, Ordering::AcqRel);
 
         Ok(commit_lsn)
@@ -923,12 +973,17 @@ impl WalManager {
 
     /// Append entry to WAL
     fn append_entry(&mut self, entry: &WalEntry) -> Result<(), StorageError> {
+        if self.writer.is_none() {
+            return Ok(());
+        }
         let encoded = entry.encode()?;
         self.ensure_wal_capacity(encoded.len() as u64)?;
 
-        self.writer
-            .write_all(&encoded)
-            .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+        if let Some(ref mut writer) = self.writer {
+            writer
+                .write_all(&encoded)
+                .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+        }
 
         self.file_position
             .fetch_add(encoded.len() as u64, Ordering::SeqCst);
@@ -938,11 +993,14 @@ impl WalManager {
 
     /// Sync WAL to disk
     pub fn sync(&mut self) -> Result<(), StorageError> {
-        self.writer
+        let Some(ref mut writer) = self.writer else {
+            return Ok(());
+        };
+        writer
             .flush()
             .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
 
-        sync_file(self.writer.get_ref())
+        sync_file(writer.get_ref())
             .map_err(|e| StorageError::Backend(format!("WAL sync error: {}", e)))?;
 
         Ok(())
@@ -965,6 +1023,11 @@ impl WalManager {
 
     /// Truncate WAL after checkpoint (remove old entries)
     pub fn truncate(&mut self) -> Result<(), StorageError> {
+        if self.writer.is_none() {
+            self.file_position.store(0, Ordering::SeqCst);
+            self.allocated_len.store(0, Ordering::SeqCst);
+            return Ok(());
+        }
         // Close current writer
         self.sync()?;
 
@@ -977,7 +1040,7 @@ impl WalManager {
             .open(&self.path)
             .map_err(|e| StorageError::Backend(format!("Failed to truncate WAL: {}", e)))?;
 
-        self.writer = BufWriter::new(file);
+        self.writer = Some(BufWriter::new(file));
         self.file_position.store(0, Ordering::SeqCst);
         self.allocated_len.store(0, Ordering::SeqCst);
 
@@ -986,6 +1049,9 @@ impl WalManager {
 
     /// Read all entries from WAL (for recovery)
     pub fn read_all_entries(&self) -> Result<Vec<WalEntry>, StorageError> {
+        if self.writer.is_none() {
+            return Ok(Vec::new());
+        }
         let file = File::open(&self.path)
             .map_err(|e| StorageError::Backend(format!("Failed to open WAL: {}", e)))?;
 

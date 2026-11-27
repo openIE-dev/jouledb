@@ -24,7 +24,7 @@
 
 use crate::{
     financial_ledger::{AccountFlags, CreateLedgerAccountReq, CreateTransferReq, FinancialLedger},
-    query::{QueryExecutor, QueryRequest},
+    query::{QueryErrorResponse, QueryExecutor, QueryRequest, QueryResponse},
 };
 use axum::{
     Json, Router,
@@ -38,7 +38,7 @@ use joule_db_query::sql::{FromSource, SqlFrom, SqlParser, SqlStatement};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 fn now_ms() -> u64 {
@@ -292,6 +292,22 @@ fn bind_typed_sql_literal(val: &serde_json::Value, param_type: &str) -> Result<S
             serde_json::Value::Bool(b) => Ok(if *b { "TRUE" } else { "FALSE" }.to_string()),
             _ => Err(format!("expected boolean parameter, got {val}")),
         },
+        "auto" => match val {
+            serde_json::Value::Number(n) if n.as_i64().is_some() || n.as_u64().is_some() => {
+                Ok(n.to_string())
+            }
+            serde_json::Value::Number(n) if n.as_f64().is_some_and(|f| f.is_finite()) => {
+                Ok(n.to_string())
+            }
+            serde_json::Value::Bool(b) => Ok(if *b { "TRUE" } else { "FALSE" }.to_string()),
+            serde_json::Value::String(s) => {
+                if s.contains('\0') {
+                    return Err("NUL byte forbidden in string parameter".into());
+                }
+                Ok(format!("'{}'", s.replace('\'', "''")))
+            }
+            _ => Err(format!("unsupported parameter value: {val}")),
+        },
         _ => match val {
             serde_json::Value::String(s) => {
                 if s.contains('\0') {
@@ -347,17 +363,42 @@ struct OntologyState {
 /// Shared runtime for Kinetic Ontology, Scoped MCP Powers, EARS Specs, and SQL LSP Diagnostics.
 pub struct KineticOntologyRuntime {
     state: RwLock<OntologyState>,
-    executor: Arc<dyn QueryExecutor>,
-    ledger: Arc<FinancialLedger>,
+    executor: OnceLock<Arc<dyn QueryExecutor>>,
+    ledger: RwLock<Arc<FinancialLedger>>,
 }
 
 impl KineticOntologyRuntime {
-    pub fn new(executor: Arc<dyn QueryExecutor>, ledger: Arc<FinancialLedger>) -> Arc<Self> {
+    pub fn new_unbound(ledger: Arc<FinancialLedger>) -> Arc<Self> {
         Arc::new(Self {
             state: RwLock::new(OntologyState::default()),
-            executor,
-            ledger,
+            executor: OnceLock::new(),
+            ledger: RwLock::new(ledger),
         })
+    }
+
+    pub fn new(executor: Arc<dyn QueryExecutor>, ledger: Arc<FinancialLedger>) -> Arc<Self> {
+        let rt = Self::new_unbound(ledger);
+        rt.bind_executor(executor);
+        rt
+    }
+
+    pub fn bind_executor(&self, executor: Arc<dyn QueryExecutor>) {
+        let _ = self.executor.set(executor);
+    }
+
+    pub fn set_ledger(&self, ledger: Arc<FinancialLedger>) {
+        let mut g = match self.ledger.write() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        *g = ledger;
+    }
+
+    fn ledger_arc(&self) -> Arc<FinancialLedger> {
+        match self.ledger.read() {
+            Ok(g) => g.clone(),
+            Err(p) => p.into_inner().clone(),
+        }
     }
 
     pub fn register_object(&self, obj: OntologyObject) {
@@ -421,8 +462,8 @@ impl KineticOntologyRuntime {
     }
 
     /// Evaluate a SQL boolean predicate (`SELECT CASE WHEN (<pred>) THEN 1 ELSE 0 END`) via `QueryExecutor`.
-    fn eval_sql_predicate(
-        &self,
+    fn eval_sql_predicate_with(
+        exec: &dyn QueryExecutor,
         branch_id: Option<String>,
         bound_pred: &str,
     ) -> Result<bool, String> {
@@ -433,8 +474,7 @@ impl KineticOntologyRuntime {
             return Ok(true);
         }
         let probe_sql = format!("SELECT CASE WHEN ({bound_pred}) THEN 1 ELSE 0 END AS triggered");
-        let resp = self
-            .executor
+        let resp = exec
             .execute(&QueryRequest {
                 sql: probe_sql,
                 branch_id,
@@ -450,11 +490,38 @@ impl KineticOntologyRuntime {
         Ok(triggered)
     }
 
-    /// Execute a governed `KineticAction` either on `main` OR inside an isolated `0.553 ms`
-    /// `CREATE BRANCH` CoW sandbox (`dry_run_on_branch = true`), enforcing RBAC, EARS preconditions,
-    /// optional `FinancialLedger` transfers, and SHA-256 receipt chaining.
+    /// Execute a governed `KineticAction` using the bound `QueryExecutor`.
     pub fn execute_action(
         &self,
+        action_id: &str,
+        actor_id: &str,
+        actor_roles: &[String],
+        args: &BTreeMap<String, serde_json::Value>,
+        dry_run_on_branch: bool,
+    ) -> Result<KineticActionReceipt, (StatusCode, String, String)> {
+        let Some(exec) = self.executor.get() else {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "XX000".into(),
+                "KineticOntologyRuntime has no bound QueryExecutor".into(),
+            ));
+        };
+        self.execute_action_with(
+            exec.as_ref(),
+            action_id,
+            actor_id,
+            actor_roles,
+            args,
+            dry_run_on_branch,
+        )
+    }
+
+    /// Execute a governed `KineticAction` either on `main` OR inside an isolated pure-RAM
+    /// `CREATE BRANCH` CoW sandbox (`dry_run_on_branch = true`), enforcing RBAC, EARS preconditions,
+    /// optional `FinancialLedger` transfers, and SHA-256 receipt chaining.
+    pub fn execute_action_with(
+        &self,
+        exec: &dyn QueryExecutor,
         action_id: &str,
         actor_id: &str,
         actor_roles: &[String],
@@ -502,15 +569,14 @@ impl KineticOntologyRuntime {
             ));
         }
 
-        // 2. Optional `0.553 ms` Isolated CoW Branch Setup (`dry_run_on_branch = true`)
+        // 2. Optional Isolated Pure-RAM CoW Branch Setup (`dry_run_on_branch = true`)
         let branch_name = if dry_run_on_branch {
             let bname = format!("ont_dryrun_{branch_seq}_{}", now_ms() % 100_000);
-            self.executor
-                .execute(&QueryRequest {
-                    sql: format!("CREATE BRANCH {bname}"),
-                    ..Default::default()
-                })
-                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, "XX000".into(), e.message))?;
+            exec.execute(&QueryRequest {
+                sql: format!("CREATE BRANCH {bname}"),
+                ..Default::default()
+            })
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, "XX000".into(), e.message))?;
             Some(bname)
         } else {
             None
@@ -519,7 +585,7 @@ impl KineticOntologyRuntime {
         // Helper closure to clean up ephemeral dry-run branch before returning
         let cleanup_branch = |bname: &Option<String>| {
             if let Some(b) = bname {
-                let _ = self.executor.execute(&QueryRequest {
+                let _ = exec.execute(&QueryRequest {
                     sql: format!("DROP BRANCH {b}"),
                     ..Default::default()
                 });
@@ -536,13 +602,14 @@ impl KineticOntologyRuntime {
                     return Err((StatusCode::BAD_REQUEST, "22023".into(), e));
                 }
             };
-            let triggered = match self.eval_sql_predicate(branch_name.clone(), &bound_when) {
-                Ok(b) => b,
-                Err(e) => {
-                    cleanup_branch(&branch_name);
-                    return Err((StatusCode::BAD_REQUEST, "42601".into(), e));
-                }
-            };
+            let triggered =
+                match Self::eval_sql_predicate_with(exec, branch_name.clone(), &bound_when) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        cleanup_branch(&branch_name);
+                        return Err((StatusCode::BAD_REQUEST, "42601".into(), e));
+                    }
+                };
             if triggered {
                 match &spec.enforcement {
                     EarsEnforcement::RejectWith { sqlstate, message } => {
@@ -573,8 +640,7 @@ impl KineticOntologyRuntime {
                         let bound_inv =
                             render_bound_sql(invariant_sql, &action.parameters, args)
                                 .map_err(|e| (StatusCode::BAD_REQUEST, "22023".into(), e))?;
-                        let resp = self
-                            .executor
+                        let resp = exec
                             .execute(&QueryRequest {
                                 sql: bound_inv,
                                 branch_id: branch_name.clone(),
@@ -608,7 +674,7 @@ impl KineticOntologyRuntime {
                     return Err((StatusCode::BAD_REQUEST, "22023".into(), e));
                 }
             };
-            match self.executor.execute(&QueryRequest {
+            match exec.execute(&QueryRequest {
                 sql,
                 branch_id: branch_name.clone(),
                 ..Default::default()
@@ -628,7 +694,7 @@ impl KineticOntologyRuntime {
         let mut ledger_tx_id: Option<String> = None;
 
         if let Some(ref bname) = branch_name {
-            if let Ok(diff_resp) = self.executor.execute(&QueryRequest {
+            if let Ok(diff_resp) = exec.execute(&QueryRequest {
                 sql: format!("DIFF BRANCH {bname}"),
                 ..Default::default()
             }) {
@@ -683,7 +749,7 @@ impl KineticOntologyRuntime {
                 })? as i128;
 
             let receipt = self
-                .ledger
+                .ledger_arc()
                 .submit_transfer(CreateTransferReq {
                     idempotency_key: format!(
                         "ont:{action_id}:{actor_id}:{}:{}",
@@ -841,8 +907,30 @@ impl KineticOntologyRuntime {
         }
     }
 
-    /// Run sub-millisecond `OpenCode` / IDE LSP-style static + catalog diagnostics on a SQL statement.
+    /// Run sub-millisecond `OpenCode` / IDE LSP-style static + catalog diagnostics using bound executor.
     pub fn diagnose_sql(&self, sql: &str) -> SqlDiagnosticsReport {
+        match self.executor.get() {
+            Some(exec) => self.diagnose_sql_with(exec.as_ref(), sql),
+            None => SqlDiagnosticsReport {
+                valid_syntax: false,
+                referenced_tables: Vec::new(),
+                governed_ontology_actions_available: Vec::new(),
+                estimated_scan_rows: 0,
+                estimated_energy_uj: 0,
+                elapsed_us: 0,
+                diagnostics: vec![SqlLspDiagnostic {
+                    line: 1,
+                    column: 1,
+                    severity: "error".into(),
+                    code: "XX000".into(),
+                    message: "KineticOntologyRuntime has no bound QueryExecutor".into(),
+                }],
+            },
+        }
+    }
+
+    /// Run sub-millisecond `OpenCode` / IDE LSP-style static + catalog diagnostics on a SQL statement.
+    pub fn diagnose_sql_with(&self, exec: &dyn QueryExecutor, sql: &str) -> SqlDiagnosticsReport {
         let start = Instant::now();
         let mut diagnostics = Vec::new();
         let mut referenced_tables = Vec::new();
@@ -872,8 +960,7 @@ impl KineticOntologyRuntime {
         };
 
         // Gather live catalog table names via `SHOW TABLES`
-        let existing_tables: HashSet<String> = self
-            .executor
+        let existing_tables: HashSet<String> = exec
             .execute(&QueryRequest {
                 sql: "SHOW TABLES".into(),
                 ..Default::default()
@@ -979,7 +1066,7 @@ impl KineticOntologyRuntime {
                     message: format!("relation '{tbl}' does not exist in active catalog"),
                 });
             } else {
-                if let Ok(sample) = self.executor.execute(&QueryRequest {
+                if let Ok(sample) = exec.execute(&QueryRequest {
                     sql: format!("SELECT * FROM {tbl} LIMIT 1"),
                     ..Default::default()
                 }) {
@@ -987,7 +1074,7 @@ impl KineticOntologyRuntime {
                         known_columns.insert(c.to_ascii_lowercase());
                     }
                 }
-                if let Ok(cnt) = self.executor.execute(&QueryRequest {
+                if let Ok(cnt) = exec.execute(&QueryRequest {
                     sql: format!("SELECT COUNT(*) FROM {tbl}"),
                     ..Default::default()
                 }) {
@@ -1067,6 +1154,624 @@ impl KineticOntologyRuntime {
 fn collect_from_refs(from: &SqlFrom, out: &mut Vec<String>) {
     if let FromSource::Table(ref name) = from.source {
         out.push(name.clone());
+    }
+}
+
+// ============================================================================
+// First-Class SQL Ontology DDL & Diagnostics (`pgwire` + `/api/v1/query`)
+// ============================================================================
+
+/// Detect native SQL Ontology & LSP Diagnostics commands:
+/// - `CREATE ONTOLOGY OBJECT ...`
+/// - `CREATE ONTOLOGY LINK ...`
+/// - `CREATE KINETIC ACTION ...`
+/// - `EXECUTE ACTION ...`
+/// - `SHOW ONTOLOGY`
+/// - `DIAGNOSE SQL ...`
+pub fn is_ontology_sql(sql: &str) -> bool {
+    let u = sql.trim().trim_end_matches(';').trim().to_ascii_uppercase();
+    u.starts_with("CREATE ONTOLOGY OBJECT ")
+        || u.starts_with("CREATE ONTOLOGY LINK ")
+        || u.starts_with("CREATE KINETIC ACTION ")
+        || u.starts_with("EXECUTE ACTION ")
+        || u == "SHOW ONTOLOGY"
+        || u.starts_with("DIAGNOSE SQL ")
+}
+
+fn extract_single_quoted_after(src: &str, keyword_upper: &str) -> Option<(String, usize, usize)> {
+    let upper = src.to_ascii_uppercase();
+    let kw_pos = upper.find(keyword_upper)?;
+    let after = &src[kw_pos + keyword_upper.len()..];
+    let q_rel = after.find('\'')?;
+    let body_start = kw_pos + keyword_upper.len() + q_rel + 1;
+    let bytes = src.as_bytes();
+    let mut i = body_start;
+    let mut out = String::new();
+    while i < bytes.len() {
+        if bytes[i] == b'\'' {
+            if i + 1 < bytes.len() && bytes[i + 1] == b'\'' {
+                out.push('\'');
+                i += 2;
+                continue;
+            }
+            return Some((out, kw_pos, i + 1));
+        }
+        if let Some(ch) = src[i..].chars().next() {
+            out.push(ch);
+            i += ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    None
+}
+
+fn collect_colon_params(sql: &str, params: &mut BTreeMap<String, String>) {
+    let bytes = sql.as_bytes();
+    let mut i = 0usize;
+    let mut in_quote = false;
+    while i < bytes.len() {
+        if bytes[i] == b'\'' {
+            in_quote = !in_quote;
+            i += 1;
+            continue;
+        }
+        if !in_quote && bytes[i] == b':' && (i == 0 || bytes[i - 1] != b':') {
+            let start = i + 1;
+            let mut end = start;
+            while end < bytes.len() && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_') {
+                end += 1;
+            }
+            if end > start {
+                let name = sql[start..end].to_string();
+                params.entry(name).or_insert_with(|| "auto".to_string());
+                i = end;
+                continue;
+            }
+        }
+        i += 1;
+    }
+}
+
+fn parse_sql_arg_map(paren_body: &str) -> Result<BTreeMap<String, serde_json::Value>, String> {
+    let mut out = BTreeMap::new();
+    let trimmed = paren_body.trim();
+    if trimmed.is_empty() {
+        return Ok(out);
+    }
+    let mut parts: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut in_quote = false;
+    let mut chars = trimmed.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\'' {
+            cur.push(c);
+            if in_quote && chars.peek() == Some(&'\'') {
+                if let Some(esc) = chars.next() {
+                    cur.push(esc);
+                }
+            } else {
+                in_quote = !in_quote;
+            }
+        } else if c == ',' && !in_quote {
+            parts.push(cur.trim().to_string());
+            cur.clear();
+        } else {
+            cur.push(c);
+        }
+    }
+    if !cur.trim().is_empty() {
+        parts.push(cur.trim().to_string());
+    }
+
+    for item in parts {
+        let Some((k_raw, v_raw)) = item.split_once('=') else {
+            return Err(format!(
+                "invalid action argument '{item}'; expected key = value"
+            ));
+        };
+        let key = k_raw
+            .trim()
+            .trim_start_matches(':')
+            .trim_matches('"')
+            .to_string();
+        let vr = v_raw.trim();
+        let val = if vr.starts_with('\'') && vr.ends_with('\'') && vr.len() >= 2 {
+            serde_json::Value::String(vr[1..vr.len() - 1].replace("''", "'"))
+        } else if vr.eq_ignore_ascii_case("true") {
+            serde_json::Value::Bool(true)
+        } else if vr.eq_ignore_ascii_case("false") {
+            serde_json::Value::Bool(false)
+        } else if let Ok(iv) = vr.parse::<i64>() {
+            serde_json::json!(iv)
+        } else if let Ok(fv) = vr.parse::<f64>() {
+            serde_json::json!(fv)
+        } else {
+            serde_json::Value::String(vr.to_string())
+        };
+        out.insert(key, val);
+    }
+    Ok(out)
+}
+
+fn make_sql_ok(
+    columns: Vec<&str>,
+    rows: Vec<Vec<serde_json::Value>>,
+    affected_rows: Option<usize>,
+    start: Instant,
+) -> QueryResponse {
+    QueryResponse {
+        columns: columns.into_iter().map(String::from).collect(),
+        rows,
+        affected_rows,
+        execution_time_ms: start.elapsed().as_millis() as u64,
+        truncated: false,
+        warnings: Vec::new(),
+        energy_joules: Some(0.000002),
+        power_watts: None,
+        device_target: Some("cpu".into()),
+        algorithm_type: Some("kinetic_ontology".into()),
+        session_id: None,
+        viz_hint: None,
+        energy_receipt: None,
+    }
+}
+
+/// Execute first-class SQL Ontology DDL, `EXECUTE ACTION`, `SHOW ONTOLOGY`, and `DIAGNOSE SQL`.
+pub fn execute_ontology_sql(
+    exec: &dyn QueryExecutor,
+    ont: &KineticOntologyRuntime,
+    raw_sql: &str,
+    start: Instant,
+) -> Result<QueryResponse, QueryErrorResponse> {
+    let trimmed = raw_sql.trim().trim_end_matches(';').trim();
+    let upper = trimmed.to_ascii_uppercase();
+
+    // 1. SHOW ONTOLOGY
+    if upper == "SHOW ONTOLOGY" {
+        let st = match ont.state.read() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut rows = Vec::new();
+        for obj in st.objects.values() {
+            rows.push(vec![
+                serde_json::json!("OBJECT"),
+                serde_json::json!(obj.object_type),
+                serde_json::json!(obj.backing_table),
+                serde_json::json!(obj.domain_power),
+                serde_json::json!(format!("pk={}", obj.primary_key)),
+            ]);
+        }
+        for link in st.links.values() {
+            rows.push(vec![
+                serde_json::json!("LINK"),
+                serde_json::json!(link.link_type),
+                serde_json::json!(format!("{} -> {}", link.source_object, link.target_object)),
+                serde_json::json!("*"),
+                serde_json::json!(format!("{:?}", link.cardinality)),
+            ]);
+        }
+        for act in st.actions.values() {
+            rows.push(vec![
+                serde_json::json!("ACTION"),
+                serde_json::json!(act.action_id),
+                serde_json::json!(act.target_object),
+                serde_json::json!(act.domain_power),
+                serde_json::json!(format!(
+                    "roles={:?}, specs={}",
+                    act.required_roles,
+                    act.ears_preconditions.len()
+                )),
+            ]);
+        }
+        return Ok(make_sql_ok(
+            vec!["kind", "name", "target", "domain_power", "details"],
+            rows,
+            None,
+            start,
+        ));
+    }
+
+    // 2. DIAGNOSE SQL '<sql>' | DIAGNOSE SQL <sql>
+    if upper.starts_with("DIAGNOSE SQL ") {
+        let rest = trimmed["DIAGNOSE SQL ".len()..].trim();
+        let target_sql = if rest.starts_with('\'') && rest.ends_with('\'') && rest.len() >= 2 {
+            rest[1..rest.len() - 1].replace("''", "'")
+        } else {
+            rest.to_string()
+        };
+        let rep = ont.diagnose_sql_with(exec, &target_sql);
+        let gov_str = rep.governed_ontology_actions_available.join(",");
+        let rows = if rep.diagnostics.is_empty() {
+            vec![vec![
+                serde_json::json!(rep.valid_syntax),
+                serde_json::json!("ok"),
+                serde_json::json!("00000"),
+                serde_json::json!("No diagnostics"),
+                serde_json::json!(gov_str),
+                serde_json::json!(rep.estimated_scan_rows),
+                serde_json::json!(rep.estimated_energy_uj),
+            ]]
+        } else {
+            rep.diagnostics
+                .iter()
+                .map(|d| {
+                    vec![
+                        serde_json::json!(rep.valid_syntax),
+                        serde_json::json!(d.severity),
+                        serde_json::json!(d.code),
+                        serde_json::json!(d.message),
+                        serde_json::json!(gov_str),
+                        serde_json::json!(rep.estimated_scan_rows),
+                        serde_json::json!(rep.estimated_energy_uj),
+                    ]
+                })
+                .collect()
+        };
+        return Ok(make_sql_ok(
+            vec![
+                "valid_syntax",
+                "severity",
+                "code",
+                "message",
+                "governed_actions",
+                "estimated_scan_rows",
+                "estimated_energy_uj",
+            ],
+            rows,
+            None,
+            start,
+        ));
+    }
+
+    // 3. CREATE ONTOLOGY OBJECT <ObjectType> ON <table> (PRIMARY KEY <pk>[, DOMAIN '<domain>'][, DESCRIPTION '<desc>'])
+    if upper.starts_with("CREATE ONTOLOGY OBJECT ") {
+        let rest = trimmed["CREATE ONTOLOGY OBJECT ".len()..].trim();
+        let rest_upper = rest.to_ascii_uppercase();
+        let Some(on_idx) = rest_upper.find(" ON ") else {
+            return Err(QueryErrorResponse::syntax_error(
+                "CREATE ONTOLOGY OBJECT requires 'ON <backing_table>'",
+                1,
+                1,
+            ));
+        };
+        let obj_type = rest[..on_idx].trim().trim_matches('"').to_string();
+        let after_on = rest[on_idx + 4..].trim();
+        let (table_name, meta_body) = match after_on.find('(') {
+            Some(p_idx) => {
+                let end_p = after_on.rfind(')').unwrap_or(after_on.len());
+                (
+                    after_on[..p_idx].trim().trim_matches('"').to_string(),
+                    &after_on[p_idx + 1..end_p],
+                )
+            }
+            None => (after_on.trim().trim_matches('"').to_string(), ""),
+        };
+        let mut pk = "id".to_string();
+        let meta_upper = meta_body.to_ascii_uppercase();
+        if let Some(pk_idx) = meta_upper.find("PRIMARY KEY ") {
+            let after_pk = meta_body[pk_idx + "PRIMARY KEY ".len()..].trim();
+            pk = after_pk
+                .split(|c: char| c == ',' || c.is_whitespace())
+                .next()
+                .unwrap_or("id")
+                .trim_matches('"')
+                .trim_matches('\'')
+                .to_string();
+        }
+        let domain = extract_single_quoted_after(meta_body, "DOMAIN ")
+            .map(|(s, _, _)| s)
+            .unwrap_or_else(|| "core".to_string());
+        let desc = extract_single_quoted_after(meta_body, "DESCRIPTION ")
+            .map(|(s, _, _)| s)
+            .unwrap_or_else(|| format!("Governed ontology object on {table_name}"));
+
+        let mut props = BTreeMap::new();
+        if let Ok(sample) = exec.execute(&QueryRequest {
+            sql: format!("SELECT * FROM {table_name} LIMIT 1"),
+            ..Default::default()
+        }) {
+            for col in sample.columns {
+                props.insert(col, "column".to_string());
+            }
+        }
+
+        ont.register_object(OntologyObject {
+            object_type: obj_type.clone(),
+            backing_table: table_name.clone(),
+            primary_key: pk,
+            domain_power: domain.clone(),
+            description: desc,
+            properties: props,
+            read_roles: Vec::new(),
+            write_roles: Vec::new(),
+        });
+
+        return Ok(make_sql_ok(
+            vec!["status", "object_type", "backing_table", "domain_power"],
+            vec![vec![
+                serde_json::json!("CREATED"),
+                serde_json::json!(obj_type),
+                serde_json::json!(table_name),
+                serde_json::json!(domain),
+            ]],
+            Some(1),
+            start,
+        ));
+    }
+
+    // 4. CREATE ONTOLOGY LINK <LinkType> FROM <Src>.<src_key> TO <Tgt>.<tgt_key> [CARDINALITY '<card>']
+    if upper.starts_with("CREATE ONTOLOGY LINK ") {
+        let rest = trimmed["CREATE ONTOLOGY LINK ".len()..].trim();
+        let ru = rest.to_ascii_uppercase();
+        let Some(from_idx) = ru.find(" FROM ") else {
+            return Err(QueryErrorResponse::syntax_error(
+                "CREATE ONTOLOGY LINK requires 'FROM <SourceObj>.<key> TO <TargetObj>.<key>'",
+                1,
+                1,
+            ));
+        };
+        let Some(to_idx) = ru.find(" TO ") else {
+            return Err(QueryErrorResponse::syntax_error(
+                "CREATE ONTOLOGY LINK requires 'TO <TargetObj>.<key>'",
+                1,
+                1,
+            ));
+        };
+        let link_type = rest[..from_idx].trim().to_string();
+        let src_spec = rest[from_idx + 6..to_idx].trim();
+        let after_to = rest[to_idx + 4..].trim();
+        let tgt_spec = after_to.split_whitespace().next().unwrap_or("");
+        let (src_obj, src_key) = src_spec.split_once('.').unwrap_or((src_spec, "id"));
+        let (tgt_obj, tgt_key) = tgt_spec.split_once('.').unwrap_or((tgt_spec, "id"));
+        let card = match extract_single_quoted_after(after_to, "CARDINALITY ")
+            .map(|(s, _, _)| s.to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("one_to_one") => LinkCardinality::OneToOne,
+            Some("many_to_one") => LinkCardinality::ManyToOne,
+            Some("many_to_many") => LinkCardinality::ManyToMany,
+            _ => LinkCardinality::OneToMany,
+        };
+        ont.register_link(OntologyLink {
+            link_type: link_type.clone(),
+            source_object: src_obj.to_string(),
+            target_object: tgt_obj.to_string(),
+            source_key: src_key.to_string(),
+            target_key: tgt_key.to_string(),
+            cardinality: card,
+        });
+        return Ok(make_sql_ok(
+            vec!["status", "link_type", "source_object", "target_object"],
+            vec![vec![
+                serde_json::json!("CREATED"),
+                serde_json::json!(link_type),
+                serde_json::json!(src_obj),
+                serde_json::json!(tgt_obj),
+            ]],
+            Some(1),
+            start,
+        ));
+    }
+
+    // 5. CREATE KINETIC ACTION <action_id> ON <ObjectType> [DOMAIN '<domain>'] [ROLE '<role>']
+    //    [WHEN '<ears_rule>'] [LEDGER (<debit_param>, <credit_param>, <amount_param>, '<currency>')] AS <sql>
+    if upper.starts_with("CREATE KINETIC ACTION ") {
+        let rest = trimmed["CREATE KINETIC ACTION ".len()..].trim();
+        let ru = rest.to_ascii_uppercase();
+        let Some(on_idx) = ru.find(" ON ") else {
+            return Err(QueryErrorResponse::syntax_error(
+                "CREATE KINETIC ACTION requires 'ON <ObjectType> ... AS <mutation_sql>'",
+                1,
+                1,
+            ));
+        };
+        let Some(as_idx) = ru.find(" AS ") else {
+            return Err(QueryErrorResponse::syntax_error(
+                "CREATE KINETIC ACTION requires 'AS <mutation_sql>'",
+                1,
+                1,
+            ));
+        };
+        let action_id = rest[..on_idx].trim().trim_matches('"').to_string();
+        let header = rest[on_idx + 4..as_idx].trim();
+        let mutation_sql = rest[as_idx + 4..].trim().to_string();
+        let target_obj = header
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .trim_matches('"')
+            .to_string();
+
+        let domain = extract_single_quoted_after(header, "DOMAIN ")
+            .map(|(s, _, _)| s)
+            .unwrap_or_else(|| {
+                let st = match ont.state.read() {
+                    Ok(g) => g,
+                    Err(p) => p.into_inner(),
+                };
+                st.objects
+                    .get(&target_obj)
+                    .map(|o| o.domain_power.clone())
+                    .unwrap_or_else(|| "core".to_string())
+            });
+        let required_roles: Vec<String> = extract_single_quoted_after(header, "ROLE ")
+            .map(|(s, _, _)| {
+                s.split(',')
+                    .map(|r| r.trim().to_string())
+                    .filter(|r| !r.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut ears_preconditions = Vec::new();
+        if let Some((ears_str, _, _)) = extract_single_quoted_after(header, "WHEN ") {
+            if ears_str.to_ascii_uppercase().starts_with("WHEN ") {
+                ears_preconditions.push(ears_str);
+            } else {
+                ears_preconditions.push(format!(
+                    "WHEN {ears_str} THE SYSTEM SHALL REJECT WITH 23514: precondition triggered"
+                ));
+            }
+        }
+
+        let mut ledger_hook: Option<ActionLedgerHook> = None;
+        let hu = header.to_ascii_uppercase();
+        if let Some(l_idx) = hu.find("LEDGER")
+            && let Some(lp_open) = header[l_idx..].find('(')
+            && let Some(lp_close) = header[l_idx + lp_open..].find(')')
+        {
+            let inner = &header[l_idx + lp_open + 1..l_idx + lp_open + lp_close];
+            let toks: Vec<&str> = inner
+                .split(',')
+                .map(|s| s.trim().trim_start_matches(':').trim_matches('\''))
+                .collect();
+            if toks.len() >= 3 {
+                ledger_hook = Some(ActionLedgerHook {
+                    debit_account_param: toks[0].to_string(),
+                    credit_account_param: toks[1].to_string(),
+                    amount_minor_param: toks[2].to_string(),
+                    currency: toks.get(3).copied().unwrap_or("USD").to_string(),
+                    code: 10,
+                });
+            }
+        }
+
+        let mut params = BTreeMap::new();
+        for e in &ears_preconditions {
+            collect_colon_params(e, &mut params);
+        }
+        collect_colon_params(&mutation_sql, &mut params);
+        if let Some(ref lh) = ledger_hook {
+            params
+                .entry(lh.debit_account_param.clone())
+                .or_insert_with(|| "auto".into());
+            params
+                .entry(lh.credit_account_param.clone())
+                .or_insert_with(|| "auto".into());
+            params
+                .entry(lh.amount_minor_param.clone())
+                .or_insert_with(|| "int".into());
+        }
+
+        let compiled = ont
+            .register_action(KineticAction {
+                action_id: action_id.clone(),
+                domain_power: domain.clone(),
+                target_object: target_obj.clone(),
+                description: format!("SQL-defined KineticAction on {target_obj}"),
+                parameters: params,
+                required_roles,
+                ears_preconditions,
+                sql_mutations: vec![mutation_sql],
+                ledger_hook,
+            })
+            .map_err(|e| QueryErrorResponse {
+                code: "42601".into(),
+                message: e,
+                line: Some(1),
+                column: Some(1),
+            })?;
+
+        return Ok(make_sql_ok(
+            vec![
+                "status",
+                "action_id",
+                "target_object",
+                "domain_power",
+                "compiled_ears_specs",
+            ],
+            vec![vec![
+                serde_json::json!("CREATED"),
+                serde_json::json!(action_id),
+                serde_json::json!(target_obj),
+                serde_json::json!(domain),
+                serde_json::json!(compiled.len()),
+            ]],
+            Some(1),
+            start,
+        ));
+    }
+
+    // 6. EXECUTE ACTION <action_id> (<k> = <v>, ...) [AS '<actor>'] [ROLE '<roles>'] [DRY RUN]
+    if upper.starts_with("EXECUTE ACTION ") {
+        let rest = trimmed["EXECUTE ACTION ".len()..].trim();
+        let (action_id, args, tail) = if let Some(p_open) = rest.find('(') {
+            let Some(p_close) = rest.rfind(')') else {
+                return Err(QueryErrorResponse::syntax_error(
+                    "EXECUTE ACTION missing closing ')'",
+                    1,
+                    1,
+                ));
+            };
+            let id = rest[..p_open].trim().trim_matches('"').to_string();
+            let parsed_args =
+                parse_sql_arg_map(&rest[p_open + 1..p_close]).map_err(|e| QueryErrorResponse {
+                    code: "22023".into(),
+                    message: e,
+                    line: Some(1),
+                    column: Some(1),
+                })?;
+            (id, parsed_args, rest[p_close + 1..].trim())
+        } else {
+            let id = rest.split_whitespace().next().unwrap_or("").to_string();
+            let tail = rest[id.len()..].trim();
+            (id, BTreeMap::new(), tail)
+        };
+
+        let actor_id = extract_single_quoted_after(tail, "AS ")
+            .map(|(s, _, _)| s)
+            .unwrap_or_else(|| "sql_session".to_string());
+        let roles: Vec<String> = extract_single_quoted_after(tail, "ROLE ")
+            .map(|(s, _, _)| {
+                s.split(',')
+                    .map(|r| r.trim().to_string())
+                    .filter(|r| !r.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let dry_run = tail.to_ascii_uppercase().contains("DRY RUN");
+
+        match ont.execute_action_with(exec, &action_id, &actor_id, &roles, &args, dry_run) {
+            Ok(rec) => Ok(make_sql_ok(
+                vec![
+                    "seq",
+                    "action_id",
+                    "dry_run",
+                    "rows_affected",
+                    "ledger_transfer_id",
+                    "elapsed_us",
+                    "energy_uj",
+                    "receipt_hash",
+                    "branch_diff",
+                ],
+                vec![vec![
+                    serde_json::json!(rec.seq),
+                    serde_json::json!(rec.action_id),
+                    serde_json::json!(rec.dry_run_on_branch),
+                    serde_json::json!(rec.rows_affected),
+                    serde_json::json!(rec.ledger_transfer_id),
+                    serde_json::json!(rec.elapsed_us),
+                    serde_json::json!(rec.estimated_energy_uj),
+                    serde_json::json!(rec.receipt_hash),
+                    serde_json::json!(rec.branch_diff_preview),
+                ]],
+                Some(rec.rows_affected),
+                start,
+            )),
+            Err((_status, sqlstate, msg)) => Err(QueryErrorResponse {
+                code: sqlstate,
+                message: msg,
+                line: None,
+                column: None,
+            }),
+        }
+    } else {
+        Err(QueryErrorResponse::syntax_error(
+            "Unsupported ontology SQL command",
+            1,
+            1,
+        ))
     }
 }
 

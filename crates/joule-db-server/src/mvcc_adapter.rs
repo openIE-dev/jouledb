@@ -918,34 +918,40 @@ impl MvccTableStorage {
             }
         }
 
+        // Pre-encode WAL frames (`JWB1`/`JWU1`/`Delete`) AND MVCC record bytes completely OUTSIDE
+        // the global `MvccStore::commit_lock` critical section!
+        let mut prepared = self.amorphic.prepare_atomic_batch_unlocked(batch_ops)?;
+        let assigned_ids = std::mem::take(&mut prepared.assigned_ids);
+        let mut pre_rewritten: Vec<(Vec<u8>, Vec<u8>)> = Vec::with_capacity(assigned_ids.len());
+        let mut pre_shard_inserts: Vec<(String, u64, u64)> = Vec::with_capacity(assigned_ids.len());
+        if !assigned_ids.is_empty() {
+            let mut id_lookup: HashMap<usize, u64> = HashMap::with_capacity(assigned_ids.len());
+            for (k_idx, real_id) in assigned_ids {
+                id_lookup.insert(k_idx, real_id);
+            }
+            for (k_idx, tbl, mvcc_id, mut rec) in parsed_inserts {
+                if let Some(&real_id) = id_lookup.get(&k_idx) {
+                    rec.amorphic_id = Some(real_id);
+                    pre_rewritten.push((ordered_keys[k_idx].clone(), rec.to_bytes()));
+                    pre_shard_inserts.push((tbl, real_id, mvcc_id));
+                }
+            }
+        }
+
         let mut pending_sync: Option<DeferredBatchSync> = None;
 
         tx.commit_with_hook(|_write_set| {
-            let (assigned_ids, sync_handle) = self
+            let sync_handle = self
                 .amorphic
-                .apply_atomic_batch_deferred(batch_ops)
+                .commit_prepared_batch(prepared)
                 .map_err(|e| format!("WAL batch error: {e}"))?;
             pending_sync = Some(sync_handle);
 
-            // Rewrite newly inserted MVCC records so `amorphic_id` is populated before publish!
-            let mut rewritten: Vec<(Vec<u8>, Vec<u8>)> = Vec::with_capacity(assigned_ids.len());
-            if !assigned_ids.is_empty() {
-                let mut id_lookup: HashMap<usize, u64> = HashMap::with_capacity(assigned_ids.len());
-                for (k_idx, real_id) in assigned_ids {
-                    id_lookup.insert(k_idx, real_id);
-                }
-                for (k_idx, tbl, mvcc_id, mut rec) in parsed_inserts {
-                    if let Some(&real_id) = id_lookup.get(&k_idx) {
-                        rec.amorphic_id = Some(real_id);
-                        {
-                            let mut map = crate::lock_util::mutex_lock(
-                                &self.table_id_shards[record_id_shard_idx(real_id)],
-                            );
-                            map.entry(tbl).or_default().insert(real_id, mvcc_id);
-                        }
-                        rewritten.push((ordered_keys[k_idx].clone(), rec.to_bytes()));
-                    }
-                }
+            for (tbl, real_id, mvcc_id) in pre_shard_inserts {
+                let mut map = crate::lock_util::mutex_lock(
+                    &self.table_id_shards[record_id_shard_idx(real_id)],
+                );
+                map.entry(tbl).or_default().insert(real_id, mvcc_id);
             }
 
             if !deleted_tracking.is_empty() {
@@ -970,7 +976,7 @@ impl MvccTableStorage {
                 }
             }
 
-            Ok(rewritten)
+            Ok(pre_rewritten)
         })
         .map_err(|e| QueryError::ExecutionError(format!("MVCC commit failed: {}", e)))?;
 

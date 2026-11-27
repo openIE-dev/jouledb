@@ -193,8 +193,20 @@ pub async fn mcp_sse_handler(
 
 pub async fn mcp_message_handler(
     State(state): State<McpSseState>,
-    Json(request): Json<McpRequest>,
+    axum::extract::Query(query_params): axum::extract::Query<HashMap<String, String>>,
+    Json(mut request): Json<McpRequest>,
 ) -> Json<McpResponse> {
+    if let Some(power) = query_params.get("power").filter(|p| !p.trim().is_empty())
+        && request.method == "tools/list"
+    {
+        if !request.params.is_object() {
+            request.params = serde_json::json!({});
+        }
+        if let Some(obj) = request.params.as_object_mut() {
+            obj.entry("power".to_string())
+                .or_insert_with(|| serde_json::Value::String(power.clone()));
+        }
+    }
     let response = handle_mcp_request(&request, state.tool_handler.as_deref());
 
     // Also broadcast the response over SSE
@@ -218,7 +230,7 @@ fn handle_mcp_request(
     }
     match request.method.as_str() {
         "initialize" => handle_initialize(request),
-        "tools/list" => handle_tools_list(request),
+        "tools/list" => handle_tools_list(request, tool_handler),
         "resources/list" => handle_resources_list(request),
         "resources/read" => handle_resources_read(request, tool_handler),
         "tools/call" => handle_tools_call(request, tool_handler),
@@ -257,7 +269,90 @@ fn handle_initialize(request: &McpRequest) -> McpResponse {
     )
 }
 
-fn handle_tools_list(request: &McpRequest) -> McpResponse {
+fn handle_tools_list(
+    request: &McpRequest,
+    tool_handler: Option<&DatabaseToolHandler>,
+) -> McpResponse {
+    let requested_power = request
+        .params
+        .get("power")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| tool_handler.and_then(|h| h.default_power()));
+
+    if let (Some(domain), Some(handler)) = (requested_power, tool_handler) {
+        let bundle = handler.export_domain_power(domain);
+        let mut scoped_tools: Vec<serde_json::Value> = bundle.mcp_tools.clone();
+        // Include 4 ultra-compact read/diagnostic/rerank tools alongside the governed domain actions
+        for core_def in [
+            plain_tool(
+                "db.query",
+                "Execute governed read SQL query against JouleDB",
+                serde_json::json!({
+                    "type": "object",
+                    "properties": { "sql": { "type": "string" } },
+                    "required": ["sql"]
+                }),
+            ),
+            plain_tool(
+                "sql.diagnose",
+                "Sub-millisecond OpenCode/LSP SQL & Ontology governance diagnostics",
+                serde_json::json!({
+                    "type": "object",
+                    "properties": { "sql": { "type": "string" } },
+                    "required": ["sql"]
+                }),
+            ),
+            plain_tool(
+                "router.rerank",
+                "Voyage AI / Cohere v2 compatible neural+lexical document reranker",
+                serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "query": { "type": "string" },
+                        "documents": { "type": "array", "items": { "type": "string" } },
+                        "top_n": { "type": "integer" }
+                    },
+                    "required": ["query", "documents"]
+                }),
+            ),
+            plain_tool(
+                "router.rtk_compress",
+                "Deterministic RTK noisy terminal/log token compressor",
+                serde_json::json!({
+                    "type": "object",
+                    "properties": { "text": { "type": "string" } },
+                    "required": ["text"]
+                }),
+            ),
+        ] {
+            if let Ok(v) = serde_json::to_value(core_def) {
+                scoped_tools.push(v);
+            }
+        }
+        let scoped_json_len = serde_json::to_string(&scoped_tools)
+            .map(|s| s.len())
+            .unwrap_or(0);
+        let est_tokens = (scoped_json_len + bundle.steering_markdown.len()).div_ceil(4);
+        let full_baseline_tokens = 14_800usize;
+        let saved = full_baseline_tokens.saturating_sub(est_tokens);
+        return McpResponse::success(
+            request.id.clone(),
+            serde_json::json!({
+                "tools": scoped_tools,
+                "_meta": {
+                    "jouledb_power": {
+                        "domain_power": bundle.domain_power,
+                        "steering_markdown": bundle.steering_markdown,
+                        "estimated_prompt_tokens": est_tokens,
+                        "tokens_saved_vs_full_mcp": saved,
+                        "savings_pct": ((saved as f64 / full_baseline_tokens as f64) * 100.0),
+                    }
+                }
+            }),
+        );
+    }
+
     let include_sota = request
         .params
         .get("includeAgenticExtensions")
@@ -1173,6 +1268,38 @@ pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
         (
             "bench.subsystem_smoke",
             "Run the 6 fast in-process deterministic subsystem smoke checks (v0.6.0)",
+        ),
+        (
+            "ontology.register_object",
+            "Register a governed OntologyObject mapped to a JouleDB backing SQL table",
+        ),
+        (
+            "ontology.register_action",
+            "Register a governed KineticAction with EARS preconditions & optional FinancialLedger hook",
+        ),
+        (
+            "ontology.execute_action",
+            "Execute a KineticAction on main or inside a pure-RAM CoW branch dry-run",
+        ),
+        (
+            "ontology.domain_power",
+            "Export dynamically scoped Kiro Power MCP toolset + steering bundle for a domain",
+        ),
+        (
+            "sql.diagnose",
+            "Run sub-millisecond OpenCode/LSP SQL syntax, catalog, blast-radius, and ontology diagnostics",
+        ),
+        (
+            "router.rtk_compress",
+            "Run deterministic RTK context token compression on noisy CLI/agent logs",
+        ),
+        (
+            "router.rerank",
+            "Rank candidate documents via Voyage AI / Cohere v2 compatible neural+lexical reranker",
+        ),
+        (
+            "synapse.compose_super_adapter",
+            "Compose orthogonal specialist Harness LoRA adapters via rank concatenation",
         ),
     ] {
         tools.push(plain_tool(

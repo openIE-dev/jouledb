@@ -69,7 +69,7 @@ impl SqlBranchEntry {
     #[inline]
     pub fn executor(&self) -> &Arc<SimpleQueryExecutor> {
         self.executor
-            .get_or_init(|| Arc::new(SimpleQueryExecutor::new()))
+            .get_or_init(|| Arc::new(SimpleQueryExecutor::new_ephemeral_branch()))
     }
 }
 

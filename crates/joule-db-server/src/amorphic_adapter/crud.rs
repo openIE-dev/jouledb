@@ -19,6 +19,21 @@ pub enum AtomicBatchOp {
     },
 }
 
+pub(crate) enum PreparedRamOp {
+    Insert(RecordId, HashMap<String, AmorphicValue>),
+    Update(RecordId, HashMap<String, AmorphicValue>),
+    Delete(RecordId),
+}
+
+/// Pre-encoded WAL frames + RAM index mutations prepared outside `MvccStore::commit_lock`.
+pub struct PreparedAtomicBatch {
+    pub(crate) tx_id: u64,
+    pub(crate) wal_pages: Vec<(u64, Vec<u8>)>,
+    pub(crate) ram_ops: Vec<PreparedRamOp>,
+    pub(crate) any_holo_change: bool,
+    pub assigned_ids: Vec<(usize, RecordId)>,
+}
+
 /// Group-commit durability waiter returned after releasing the store write lock.
 pub struct DeferredBatchSync {
     pub(crate) sync: Option<std::sync::Arc<joule_db_local::storage::wal::GroupSync>>,
@@ -294,28 +309,19 @@ impl AmorphicTableStorage {
         Ok(())
     }
 
-    /// Execute an entire batch of inserts, updates, and deletes atomically while keeping
-    /// all WAL serialization and OS page-cache flushes OUTSIDE the exclusive `AmorphicStore`
-    /// `RwLockWriteGuard` (so concurrent SQL readers run without starvation) and returning
-    /// a [`DeferredBatchSync`] handle so concurrent committers coalesce into one `fdatasync`.
-    pub fn apply_atomic_batch_deferred(
+    /// Pre-serialized WAL frames + RAM index mutations prepared completely outside `MvccStore::commit_lock`.
+    pub fn prepare_atomic_batch_unlocked(
         &self,
         ops: Vec<AtomicBatchOp>,
-    ) -> QueryResult<(Vec<(usize, RecordId)>, DeferredBatchSync)> {
-        enum RamOp {
-            Insert(RecordId, HashMap<String, AmorphicValue>),
-            Update(RecordId, HashMap<String, AmorphicValue>),
-            Delete(RecordId),
-        }
-
+    ) -> QueryResult<PreparedAtomicBatch> {
         if ops.is_empty() {
-            return Ok((
-                Vec::new(),
-                DeferredBatchSync {
-                    sync: None,
-                    lsn: None,
-                },
-            ));
+            return Ok(PreparedAtomicBatch {
+                tx_id: 0,
+                wal_pages: Vec::new(),
+                ram_ops: Vec::new(),
+                any_holo_change: false,
+                assigned_ids: Vec::new(),
+            });
         }
 
         // 1. Ensure any pending bulk-COPY columnar batches are materialized before IDs/mutations.
@@ -343,7 +349,7 @@ impl AmorphicTableStorage {
 
         let mut assigned_ids = Vec::with_capacity(n_inserts);
         let mut wal_pages: Vec<(u64, Vec<u8>)> = Vec::with_capacity(ops.len());
-        let mut ram_ops: Vec<RamOp> = Vec::with_capacity(ops.len());
+        let mut ram_ops: Vec<PreparedRamOp> = Vec::with_capacity(ops.len());
         let mut any_holo_change = false;
 
         for (op_idx, op) in ops.into_iter().enumerate() {
@@ -363,14 +369,14 @@ impl AmorphicTableStorage {
                     let wal_bytes = joule_db_amorphic::wal_codec::encode_single_row(id, &fields);
                     wal_pages.push((id, wal_bytes));
                     assigned_ids.push((key_idx, id));
-                    ram_ops.push(RamOp::Insert(id, fields));
+                    ram_ops.push(PreparedRamOp::Insert(id, fields));
                     any_holo_change = true;
                 }
                 AtomicBatchOp::Update { id, updates } => {
                     let vpid = u64::MAX - tx_id.wrapping_mul(65_536) - (op_idx as u64) - 1;
                     let wal_bytes = joule_db_amorphic::wal_codec::encode_update(id, &updates);
                     wal_pages.push((vpid, wal_bytes));
-                    ram_ops.push(RamOp::Update(id, updates));
+                    ram_ops.push(PreparedRamOp::Update(id, updates));
                     any_holo_change = true;
                 }
                 AtomicBatchOp::Delete { id } => {
@@ -378,46 +384,78 @@ impl AmorphicTableStorage {
                     let wal_bytes =
                         DurableAmorphicStore::encode_delete_wal(id).map_err(amorphic_error)?;
                     wal_pages.push((vpid, wal_bytes));
-                    ram_ops.push(RamOp::Delete(id));
+                    ram_ops.push(PreparedRamOp::Delete(id));
                 }
             }
         }
 
-        // 3. Write + flush single-buffer atomic WAL transaction under `wal` mutex ONLY
-        //    (concurrent `SELECT` / `UPDATE` SQL readers on `AmorphicStore` are NOT blocked!).
+        Ok(PreparedAtomicBatch {
+            tx_id,
+            wal_pages,
+            ram_ops,
+            any_holo_change,
+            assigned_ids,
+        })
+    }
+
+    /// Commit an already-encoded [`PreparedAtomicBatch`] (`log_wal_tx_unlocked` + ~1µs RAM index apply).
+    pub fn commit_prepared_batch(
+        &self,
+        prepared: PreparedAtomicBatch,
+    ) -> QueryResult<DeferredBatchSync> {
+        if prepared.wal_pages.is_empty() && prepared.ram_ops.is_empty() {
+            return Ok(DeferredBatchSync {
+                sync: None,
+                lsn: None,
+            });
+        }
+
+        // Write + flush single-buffer atomic WAL transaction under `wal` mutex ONLY
+        // (concurrent `SELECT` / `UPDATE` SQL readers on `AmorphicStore` are NOT blocked!).
         let (commit_lsn, sync_arc) = self
             .store
-            .log_wal_tx_unlocked(tx_id, &wal_pages)
+            .log_wal_tx_unlocked(prepared.tx_id, &prepared.wal_pages)
             .map_err(QueryError::ExecutionError)?;
 
-        // 4. Acquire `AmorphicStore` write lock ONLY for ~1µs pure in-memory index mutation!
+        // Acquire `AmorphicStore` write lock ONLY for ~1µs pure in-memory index mutation!
         let mut guard = self.store.write_ram_only().map_err(lock_error)?;
-        for rop in ram_ops {
+        for rop in prepared.ram_ops {
             match rop {
-                RamOp::Insert(id, fields) => {
+                PreparedRamOp::Insert(id, fields) => {
                     let _ = guard.apply_oltp_ram_insert(id, fields);
                 }
-                RamOp::Update(id, updates) => {
+                PreparedRamOp::Update(id, updates) => {
                     let _ = guard.apply_oltp_ram_update(id, updates);
                 }
-                RamOp::Delete(id) => {
+                PreparedRamOp::Delete(id) => {
                     let _ = guard.apply_oltp_ram_delete(id);
                 }
             }
         }
-        let has_pending_holo = any_holo_change && guard.pending_holograms() > 0;
+        let has_pending_holo = prepared.any_holo_change && guard.pending_holograms() > 0;
         drop(guard);
 
         if has_pending_holo {
             self.store.mark_pending();
         }
-        Ok((
-            assigned_ids,
-            DeferredBatchSync {
-                sync: sync_arc,
-                lsn: Some(commit_lsn),
-            },
-        ))
+        Ok(DeferredBatchSync {
+            sync: sync_arc,
+            lsn: Some(commit_lsn),
+        })
+    }
+
+    /// Execute an entire batch of inserts, updates, and deletes atomically while keeping
+    /// all WAL serialization and OS page-cache flushes OUTSIDE the exclusive `AmorphicStore`
+    /// `RwLockWriteGuard` (so concurrent SQL readers run without starvation) and returning
+    /// a [`DeferredBatchSync`] handle so concurrent committers coalesce into one `fdatasync`.
+    pub fn apply_atomic_batch_deferred(
+        &self,
+        ops: Vec<AtomicBatchOp>,
+    ) -> QueryResult<(Vec<(usize, RecordId)>, DeferredBatchSync)> {
+        let mut prepared = self.prepare_atomic_batch_unlocked(ops)?;
+        let assigned_ids = std::mem::take(&mut prepared.assigned_ids);
+        let sync = self.commit_prepared_batch(prepared)?;
+        Ok((assigned_ids, sync))
     }
 
     /// Look up rows in `table` matching `col == val` using `AmorphicStore`'s secondary

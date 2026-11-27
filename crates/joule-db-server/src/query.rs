@@ -472,6 +472,8 @@ pub struct SimpleQueryExecutor {
     gpu_dispatcher: Option<Arc<joule_db_hdc::gpu_dispatch::GpuDispatcher>>,
     /// SQL-native double-entry financial ledger engine (`i128` minor units, SHA-256 chain)
     financial_ledger: Arc<crate::financial_ledger::FinancialLedger>,
+    /// SQL-native & HTTP Kinetic Enterprise Ontology + EARS Spec Compiler + SQL LSP Diagnostics
+    kinetic_ontology: Arc<crate::kinetic_ontology::KineticOntologyRuntime>,
     /// Session-isolated Copy-on-Write SQL branches & agent blast-radius guardrails
     branch_sandboxes: Arc<crate::sql_branch_sandbox::SqlBranchSandboxManager>,
     /// DBOS-style durable agentic workflow step checkpoint store
@@ -488,6 +490,9 @@ impl SimpleQueryExecutor {
             .expect("Failed to create temp amorphic store");
         let amorphic = Arc::new(AmorphicTableStorage::new(store));
         let mvcc = Arc::new(MvccTableStorage::new(amorphic.clone()));
+        let financial_ledger = Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory());
+        let kinetic_ontology =
+            crate::kinetic_ontology::KineticOntologyRuntime::new_unbound(financial_ledger.clone());
         Self {
             amorphic,
             holographic: Arc::new(HolographicTableStorage::new()),
@@ -507,7 +512,45 @@ impl SimpleQueryExecutor {
             max_result_rows: 0,
             feature_stores: Arc::new(crate::features_bridge::FeatureStores::new()),
             gpu_dispatcher: None,
-            financial_ledger: Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory()),
+            financial_ledger,
+            kinetic_ontology,
+            branch_sandboxes: Arc::new(crate::sql_branch_sandbox::SqlBranchSandboxManager::new()),
+            workflow_checkpoints: Arc::new(
+                crate::sql_branch_sandbox::DurableWorkflowCheckpointStore::new_in_memory(),
+            ),
+            row_lock_manager: Arc::new(crate::sql_branch_sandbox::RowLockManager::new()),
+        }
+    }
+
+    /// Construct a sub-millisecond pure-RAM `SimpleQueryExecutor` (`0` disk directories, `0` FDs,
+    /// `0` background OS threads) for isolated Copy-on-Write SQL branches (`CREATE BRANCH`).
+    pub fn new_ephemeral_branch() -> Self {
+        let amorphic = Arc::new(AmorphicTableStorage::new_ephemeral_branch());
+        let mvcc = Arc::new(MvccTableStorage::new(amorphic.clone()));
+        let financial_ledger = Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory());
+        let kinetic_ontology =
+            crate::kinetic_ontology::KineticOntologyRuntime::new_unbound(financial_ledger.clone());
+        Self {
+            amorphic,
+            holographic: Arc::new(HolographicTableStorage::new()),
+            mvcc,
+            vector_index_manager: Arc::new(crate::vector_index::VectorIndexManager::new()),
+            spatial_index_manager: Arc::new(crate::spatial_index::SpatialIndexManager::new()),
+            gin_index_manager: Arc::new(crate::gin_index::GinIndexManager::new()),
+            rbac_manager: None,
+            replication_server: None,
+            replication_role: None,
+            default_timeout_ms: 0,
+            slow_query_threshold_ms: 0,
+            raft_enabled: false,
+            raft_is_leader: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            raft_node: Arc::new(std::sync::OnceLock::new()),
+            tokio_handle: None,
+            max_result_rows: 0,
+            feature_stores: Arc::new(crate::features_bridge::FeatureStores::new()),
+            gpu_dispatcher: None,
+            financial_ledger,
+            kinetic_ontology,
             branch_sandboxes: Arc::new(crate::sql_branch_sandbox::SqlBranchSandboxManager::new()),
             workflow_checkpoints: Arc::new(
                 crate::sql_branch_sandbox::DurableWorkflowCheckpointStore::new_in_memory(),
@@ -544,7 +587,11 @@ impl SimpleQueryExecutor {
     pub fn attach_durable_ledger_and_workflows(&mut self, dir: impl AsRef<std::path::Path>) {
         let p = dir.as_ref();
         match crate::financial_ledger::FinancialLedger::open(p) {
-            Ok(ledger) => self.financial_ledger = Arc::new(ledger),
+            Ok(ledger) => {
+                let arc_ledger = Arc::new(ledger);
+                self.financial_ledger = arc_ledger.clone();
+                self.kinetic_ontology.set_ledger(arc_ledger);
+            }
             Err(e) => tracing::warn!("financial ledger stays in memory only: {e}"),
         }
         match crate::sql_branch_sandbox::DurableWorkflowCheckpointStore::open(p) {
@@ -556,6 +603,11 @@ impl SimpleQueryExecutor {
     /// Shared handle to the SQL-native double-entry financial ledger.
     pub fn financial_ledger_handle(&self) -> Arc<crate::financial_ledger::FinancialLedger> {
         self.financial_ledger.clone()
+    }
+
+    /// Shared handle to the SQL-native & HTTP Kinetic Ontology runtime.
+    pub fn kinetic_ontology_handle(&self) -> Arc<crate::kinetic_ontology::KineticOntologyRuntime> {
+        self.kinetic_ontology.clone()
     }
 
     /// Shared handle to the CoW SQL branch & guardrail manager.
@@ -628,6 +680,10 @@ impl SimpleQueryExecutor {
         // Rebuild GIN indexes from metadata
         gim.rebuild_from_metadata(&amorphic);
 
+        let financial_ledger = Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory());
+        let kinetic_ontology =
+            crate::kinetic_ontology::KineticOntologyRuntime::new_unbound(financial_ledger.clone());
+
         Self {
             amorphic,
             holographic: Arc::new(HolographicTableStorage::new()),
@@ -647,7 +703,8 @@ impl SimpleQueryExecutor {
             max_result_rows: 0,
             feature_stores: Arc::new(crate::features_bridge::FeatureStores::new()),
             gpu_dispatcher: None,
-            financial_ledger: Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory()),
+            financial_ledger,
+            kinetic_ontology,
             branch_sandboxes: Arc::new(crate::sql_branch_sandbox::SqlBranchSandboxManager::new()),
             workflow_checkpoints: Arc::new(
                 crate::sql_branch_sandbox::DurableWorkflowCheckpointStore::new_in_memory(),
@@ -1966,6 +2023,21 @@ impl SimpleQueryExecutor {
             };
             return crate::financial_ledger::execute_ledger_sql(
                 &self.financial_ledger,
+                &effective_sql,
+                start,
+            );
+        }
+
+        // Native Kinetic Enterprise Ontology DDL, Action Execution & LSP Diagnostics (`CREATE ONTOLOGY OBJECT | CREATE KINETIC ACTION | EXECUTE ACTION | SHOW ONTOLOGY | DIAGNOSE SQL`)
+        if crate::kinetic_ontology::is_ontology_sql(&sql) {
+            let effective_sql = if request.args.is_empty() {
+                sql
+            } else {
+                substitute_sql_args_fallback(&sql, &request.args)
+            };
+            return crate::kinetic_ontology::execute_ontology_sql(
+                self,
+                &self.kinetic_ontology,
                 &effective_sql,
                 start,
             );

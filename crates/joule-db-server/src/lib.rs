@@ -784,6 +784,7 @@ impl Server {
             .map_err(|e| format!("Failed to open time-series store: {e}"))?;
         base_executor.attach_durable_ledger_and_workflows(&config.db_path);
         let financial_ledger_handle = base_executor.financial_ledger_handle();
+        let kinetic_ontology_handle = base_executor.kinetic_ontology_handle();
         base_executor.set_timeout_config(config.query_timeout_ms, config.slow_query_threshold_ms);
         base_executor.set_max_result_rows(config.max_result_rows);
         if let Some(ref rbac) = rbac_manager {
@@ -919,10 +920,8 @@ impl Server {
             synapse_runtime.clone(),
             &db_path,
         );
-        let kinetic_ontology_runtime = kinetic_ontology::KineticOntologyRuntime::new(
-            query_executor.clone(),
-            financial_ledger_handle.clone(),
-        );
+        kinetic_ontology_handle.bind_executor(query_executor.clone());
+        let kinetic_ontology_runtime = kinetic_ontology_handle;
 
         Ok(Self {
             config,
@@ -1226,9 +1225,11 @@ impl Server {
             .with_state(cluster_state);
 
         // MCP transport (SSE + JSON-RPC) — dispatches tools/call via DatabaseToolHandler
-        let mcp_handler = Arc::new(mcp_bridge::DatabaseToolHandler::new(
-            self.query_executor.clone(),
-        ));
+        let mcp_handler = Arc::new(
+            mcp_bridge::DatabaseToolHandler::new(self.query_executor.clone())
+                .with_ontology(self.kinetic_ontology_runtime.clone())
+                .with_router(self.joule_route_runtime.clone()),
+        );
         let mcp_state = mcp_transport::McpSseState::with_handler(mcp_handler);
         let mcp_rt = mcp_transport::mcp_routes(mcp_state);
 

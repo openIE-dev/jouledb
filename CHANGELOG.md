@@ -9,6 +9,31 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-27
+
+### Added
+- **First-Class SQL Ontology DDL, `EXECUTE ACTION ... [DRY RUN]`, & `DIAGNOSE SQL` (`crates/joule-db-server/src/{kinetic_ontology.rs, query.rs, lib.rs}`, `crates/joule-db-server/tests/v018_sota_e2e.rs`)**:
+  - Exposed Palantir AIP-class semantic & kinetic governance directly inside SQL (`pgwire` `psql`/`psycopg3`/`SQLAlchemy 2` and `POST /api/v1/query`):
+    - `CREATE ONTOLOGY OBJECT <ObjectType> ON <backing_table> (PRIMARY KEY <pk>[, DOMAIN '<domain>'][, DESCRIPTION '<desc>'])`
+    - `CREATE ONTOLOGY LINK <LinkType> FROM <SourceObj>.<key> TO <TargetObj>.<key> [CARDINALITY '<card>']`
+    - `CREATE KINETIC ACTION <action_id> ON <ObjectType> [DOMAIN '<domain>'] [ROLE '<roles>'] [WHEN '<ears_rule>'] [LEDGER (<debit>, <credit>, <amount>, '<currency>')] AS <mutation_sql>`
+    - `EXECUTE ACTION <action_id> (<k> = <v>, ...) [AS '<actor>'] [ROLE '<roles>'] [DRY RUN]` (**`1.925 ms`** live action + atomic 128-bit `FinancialLedger` settlement; **`26.14 ms`** isolated CoW branch dry-run with `0` disk files/FDs/threads)
+    - `SHOW ONTOLOGY` and `DIAGNOSE SQL '<sql>'` (**`0.734 ms`** round-trip returning SQLSTATE `42601` / `42P01` / `42703` / `42501` + `ONT001` governance lints).
+- **Live Async `HTTP 429`/`5xx` Network Failover & Voyage AI / Cohere v2 `POST /v1/rerank` (`crates/joule-db-server/src/{joule_route.rs, universal_bridge.rs}`, `bench/v018_agentic_ai_inside_bench.py`)**:
+  - Added `live_http_dispatch: bool` on `RouteProviderEntry`: dispatches OpenAI-compatible upstream requests over `reqwest` (`Authorization: Bearer <unsealed_key>`), automatically catching live `HTTP 429` / `5xx` / connect errors -> tripping exponential circuit breakers (`report_rate_limit_429`) -> seamlessly failing over to the next healthy waterfall provider in **`3.125 ms`** (populating `LangCache` on `200 OK`).
+  - Upgraded `POST /v1/rerank`, `POST /v1/router/rerank`, and `POST /api/v1/router/rerank` (plus Python SDK `Connection.rerank(...)`) with a hybrid 64-dim signed word/3-gram feature cosine + BM25 IDF lexical coverage + phrase-bonus reranker compatible with both **Voyage AI `rerank-2.5`** (`data`, `top_k`) and **Cohere Rerank v2** (`results`, `top_n`, `return_documents`, `joule_receipt`), sustaining **`106,154 docs/sec`** (`0.603 ms` HTTP round-trip / `314 µs` engine over `64` candidate docs).
+- **Dynamic Scoped `Kiro` MCP Powers (`jouledb mcp --power <domain>` & `POST /mcp?power=<domain>`, `crates/joule-db-server/src/{main.rs, mcp_bridge.rs, mcp_transport.rs}`)**:
+  - Added `--power <domain>` CLI flag on `jouledb mcp` (`stdio`), `?power=<domain>` query parameter on `POST /mcp`, MCP resource `jouledb://ontology/powers/{domain}`, and dynamic `ontology_action__*` + `ontology.*` / `sql.diagnose` / `router.rerank` / `router.rtk_compress` / `synapse.compose_super_adapter` MCP tool dispatch — shrinking active `tools/list` schemas from `59` tools (`~14,800` tokens) to `5` domain-scoped tools (**`97.73%` prompt token reduction**).
+
+### Fixed
+- **`4.08×` Faster `Q12`, `2.68×` Faster `Q13`, & `1.52×` Faster `Q09` on Out-of-Core `TPC-H` `SF = 10.0` (`86.6M` Rows -> `5.69×` Geomean) (`crates/joule-db-server/src/columnar_join.rs`)**:
+  - Raised `DenseUnique1` 1-key integer lookup span ceiling from `32M` to `128M` (eliminating `FxHashMap` fallback on `15M`-row sparse `orders.o_orderkey` spanning `1..60M`), extended `propagate_initial_key_sets` to `80M`-row fact tables when selective (`set.estimated_len() * 2 <= target_total_rows`, shrinking `orders` build `50×` on `Q12` [`15M -> 305k`] and `5.5×` on `Q09` [`15M -> 2.7M`]), and added zero-JSON parallel atomic `exec_left_outer_grouped_to_tc` for `Q13`:
+    - **`TPC-H` `SF = 10.0` (`86,586,082` rows, NVMe + Linux RAPL `reported_j`, [`tpch_sf10_v018.json`](./bench/results/tpch_sf10_v018.json)):** **`22 / 22` exact in `7,298.2 ms` (`766.5 MB` post-load RSS)**, improving 22-query geomean vs `DuckDB` from **`6.41×` (`6.87×` NVMe baseline) -> `5.69×`**, slashing **`Q12` `4.08×` (`959.9 -> 235.04 ms`, narrowing `33.0× -> 7.20×` vs DuckDB)**, **`Q13` `2.68×` (`842.6 -> 314.78 ms`, `2.43×` vs DuckDB)**, and **`Q09` `1.52×` (`1,251.3 -> 825.35 ms`, `6.79×` vs DuckDB)**.
+    - **`TPC-H` `SF = 1.0` (`8,661,245` rows, [`tpch_sf1_v018.json`](./bench/results/tpch_sf1_v018.json)):** **`22 / 22` exact in `1,064.4 ms` (`3.68×` geomean, `216.4 MB` post-load RSS, `Q12: 24.24 ms`, `Q13: 47.15 ms` [`2.08×`], `Q04: 10.91 ms` [`1.43×`])**.
+- **Pure-RAM Ephemeral Branch Executor & Pre-Encoded `MvccStore::commit_lock` Critical-Section Shrink (`crates/joule-db-local/src/storage/wal.rs`, `crates/joule-db-amorphic/src/durable.rs`, `crates/joule-db-server/src/{amorphic_adapter/*, mvcc_adapter.rs, sql_branch_sandbox.rs}`)**:
+  - Added `WalManager::new_in_memory()`, `DurableAmorphicStore::new_in_memory()`, `HoloLock::new_ephemeral()`, and `SimpleQueryExecutor::new_ephemeral_branch()` (`0` temp directories, `0` file descriptors, `0` background `jouledb-holo-catchup` OS threads spawned during `CREATE BRANCH` dry-runs).
+  - Split `apply_atomic_batch_deferred` into `prepare_atomic_batch_unlocked` + `commit_prepared_batch` (moving all `JWB1`/`JWU1`/`Delete` WAL frame encoding and `MvccRecord::to_bytes()` serialization outside `MvccStore::commit_lock`) plus direct single-syscall `write_all` when `BufWriter` is empty, lifting `c = 16` Extended Pipeline `pgwire` OLTP on `100` warehouses to **`6,646.5 TPS`** (`0` errors, `11.09 mJ/txn` `reported_j`, conservation invariant verified; [`oltp_pgwire_v018.json`](./bench/results/oltp_pgwire_v018.json)).
+
 ## [0.17.0] - 2026-11-27
 
 ### Added

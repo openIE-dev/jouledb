@@ -35,7 +35,7 @@ use joule_db_query::sql::SqlColumnDef;
 // Re-export public items that external code references
 pub(crate) use conversions::extract_conjunct_eq_predicate;
 pub use conversions::{ast_to_amorphic_value, ast_to_json, expression_to_sql};
-pub use crud::{AtomicBatchOp, DeferredBatchSync};
+pub use crud::{AtomicBatchOp, DeferredBatchSync, PreparedAtomicBatch};
 pub(crate) use expressions::evaluate_mvcc_predicate;
 
 /// Reserved field name that identifies which SQL table a record belongs to
@@ -519,6 +519,26 @@ impl HoloLock {
         }
     }
 
+    /// Construct a lightweight pure-RAM `HoloLock` without `GroupSync` or background OS thread
+    /// spawning — used by ephemeral Copy-on-Write SQL branch sandboxes (`CREATE BRANCH` dry-runs).
+    fn new_ephemeral(store: DurableAmorphicStore) -> Self {
+        let wal = store.wal_handle();
+        let tx_counter = store.tx_counter_handle();
+        let next_id = store.next_id_handle();
+        Self {
+            inner: std::sync::Arc::new(RwLock::new(store)),
+            wal,
+            tx_counter,
+            next_id,
+            pending: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            last_bulk_ms: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            epoch: std::time::Instant::now(),
+            sync: None,
+            writers_waiting: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            cols_pending: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
+    }
+
     pub(crate) fn settle_if_cols_pending(&self) {
         self.settle_columns();
     }
@@ -786,6 +806,18 @@ impl AmorphicTableStorage {
             schema_cache: std::sync::RwLock::new(HashMap::new()),
             col_cache: std::sync::Mutex::new(HashMap::new()),
             disk_cols: std::sync::RwLock::new(recovered_disk),
+        }
+    }
+
+    /// Construct a zero-FD, zero-thread pure-RAM `AmorphicTableStorage` for ephemeral CoW SQL branches.
+    pub fn new_ephemeral_branch() -> Self {
+        let store = DurableAmorphicStore::new_in_memory();
+        Self {
+            store: HoloLock::new_ephemeral(store),
+            db_path: std::path::PathBuf::new(),
+            schema_cache: std::sync::RwLock::new(HashMap::new()),
+            col_cache: std::sync::Mutex::new(HashMap::new()),
+            disk_cols: std::sync::RwLock::new(HashMap::new()),
         }
     }
 
