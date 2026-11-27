@@ -1183,4 +1183,136 @@ mod tests {
         );
         assert_eq!(eval_svf(&[256; 8]), 0xa9f1_ecbb_e09e_ef08);
     }
+
+    #[test]
+    fn weightdb_grammar_dfa_gate_and_titans_slot_d_sleep_match_sel4_h45_exact() {
+        let l0 = WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 2560,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![WaiOsBlock64Tile {
+                local_rank: 8,
+                b_v_u64: (0..8usize)
+                    .map(|k| {
+                        (0xA5A5_5A5A_F00F_0FF0u64 ^ 0x5555_AAAA_5555_AAAA)
+                            ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                    })
+                    .collect(),
+                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
+            }],
+        };
+
+        let make_l1_alphas = |alphas: Vec<i16>| WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 1536,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![WaiOsBlock64Tile {
+                local_rank: 8,
+                b_v_u64: (0..8usize)
+                    .map(|k| {
+                        (0xA5A5_5A5A_F00F_0FF0u64 ^ 0x0F0F_F0F0_0F0F_F0F0)
+                            ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                    })
+                    .collect(),
+                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                alpha_q12: alphas,
+            }],
+        };
+
+        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
+        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
+
+        let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
+        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let v_q7: Vec<i8> = y0_p
+            .iter()
+            .zip(prefix_a.iter())
+            .map(|(&y, &px)| ((y >> 17) + i64::from(px)).clamp(-127, 127) as i8)
+            .collect();
+        let y0_q = l0.forward_simd_lut4_q24(&query_1).unwrap();
+        let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+
+        let mut x1 = vec![0i8; 64];
+        for h in 0..4usize {
+            let base = h * 16;
+            let mut score = 0i32;
+            for d in 0..16usize {
+                score += i32::from(q_q7[base + d]) * i32::from(k_q7[base + d]);
+            }
+            let gate_q8 = ((score >> 10) + 128).clamp(16, 240);
+            for d in 0..16usize {
+                let idx = base + d;
+                x1[idx] = (i32::from(query_1[idx]) + ((gate_q8 * i32::from(v_q7[idx])) >> 8))
+                    .clamp(-127, 127) as i8;
+            }
+        }
+
+        // 1. Verify Grammar DFA masks raw=58 -> legal=42 (`0xef97_00ae_7b24_91dd`):
+        let y1_base = make_l1_alphas(vec![512, 384, 256, 192, 128, 96, 64, 32])
+            .forward_simd_lut4_q24(&x1)
+            .unwrap();
+        let y_base: Vec<i64> = y1_base
+            .iter()
+            .zip(y0_q.iter())
+            .map(|(&a, &b)| a.wrapping_add(b))
+            .collect();
+        let legal_mask = 0x0000_05A5_0000_03CFu64;
+        let mut raw_tok = 0u32;
+        let mut raw_best = i64::MIN;
+        let mut masked_tok = 0u32;
+        let mut masked_best = i64::MIN;
+        for (i, &v) in y_base.iter().enumerate() {
+            let tid = i as u32;
+            if v > raw_best {
+                raw_best = v;
+                raw_tok = tid;
+            }
+            if ((legal_mask >> tid) & 1) == 1 && v > masked_best {
+                masked_best = v;
+                masked_tok = tid;
+            }
+        }
+        assert_eq!((raw_tok, masked_tok), (58, 42));
+        let mut ast = [0u8; 32];
+        ast[0..8].copy_from_slice(b"WAIOSAST");
+        ast[8..12].copy_from_slice(&3u32.to_le_bytes());
+        ast[12..16].copy_from_slice(&masked_tok.to_le_bytes());
+        ast[16..20].copy_from_slice(&42u32.to_le_bytes());
+        ast[20..28].copy_from_slice(&masked_best.to_le_bytes());
+        ast[28..32].copy_from_slice(&raw_tok.to_le_bytes());
+        let mut ast_fnv = 0xCBF2_9CE4_8422_2325u64;
+        for &b in &ast {
+            ast_fnv ^= u64::from(b);
+            ast_fnv = ast_fnv.wrapping_mul(0x0100_0000_01B3);
+        }
+        assert_eq!(ast_fnv, 0xef97_00ae_7b24_91dd);
+
+        // 2. Verify Titans Sleep-Phase Consolidated Slot D (`[512, 384, 256, 198, 132, 93, 60, 34]`):
+        let y1_d = make_l1_alphas(vec![512, 384, 256, 198, 132, 93, 60, 34])
+            .forward_simd_lut4_q24(&x1)
+            .unwrap();
+        let mut d_fnv = 0xCBF2_9CE4_8422_2325u64;
+        for (&a, &b) in y1_d.iter().zip(y0_q.iter()) {
+            for &byte in &a.wrapping_add(b).to_le_bytes() {
+                d_fnv ^= u64::from(byte);
+                d_fnv = d_fnv.wrapping_mul(0x0100_0000_01B3);
+            }
+        }
+        assert_eq!(d_fnv, 0xe27c_b32c_817e_82ca);
+    }
 }
