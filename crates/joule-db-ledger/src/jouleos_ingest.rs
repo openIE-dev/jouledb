@@ -448,4 +448,90 @@ mod tests {
             assert!(tree.proof(i).unwrap().verify_self());
         }
     }
+
+    #[test]
+    fn sel4_h42_8pd_multitenant_alpha_and_beta_isolated_merkle_chains_verify() {
+        let alpha_steps = vec![
+            Sel4GovernorMerkleStep {
+                seq: 1,
+                verb: "status.ping".into(),
+                q24_fnv1a: 0x5049_4E47_5F4F_4B30,
+                debited_uj: 0,
+                remaining_uj: 24,
+                claimed_root_u64: advance_sel4_merkle_chain(
+                    0xCBF2_9CE4_8422_2325,
+                    1,
+                    0x5049_4E47_5F4F_4B30,
+                    0,
+                    24,
+                ),
+            },
+            Sel4GovernorMerkleStep {
+                seq: 2,
+                verb: "recall.query".into(),
+                q24_fnv1a: 0x7da1_44b9_7d05_4b25,
+                debited_uj: 8,
+                remaining_uj: 16,
+                claimed_root_u64: advance_sel4_merkle_chain(
+                    advance_sel4_merkle_chain(
+                        0xCBF2_9CE4_8422_2325,
+                        1,
+                        0x5049_4E47_5F4F_4B30,
+                        0,
+                        24,
+                    ),
+                    2,
+                    0x7da1_44b9_7d05_4b25,
+                    8,
+                    16,
+                ),
+            },
+            Sel4GovernorMerkleStep {
+                seq: 3,
+                verb: "storage.archive".into(),
+                q24_fnv1a: 0xd6d7_3f68_e7eb_f7a6,
+                debited_uj: 12,
+                remaining_uj: 4,
+                claimed_root_u64: 0x2b40_af95_6b2b_f47c,
+            },
+        ];
+        let beta_r1 = advance_sel4_merkle_chain(0xCBF2_9CE4_8422_2325, 1, 0x7da1_44b9_7d05_4b25, 8, 8);
+        let beta_r2 = advance_sel4_merkle_chain(beta_r1, 2, 0x7da1_44b9_7d05_4b25, 8, 0);
+        let beta_steps = vec![
+            Sel4GovernorMerkleStep {
+                seq: 1,
+                verb: "recall.query".into(),
+                q24_fnv1a: 0x7da1_44b9_7d05_4b25,
+                debited_uj: 8,
+                remaining_uj: 8,
+                claimed_root_u64: beta_r1,
+            },
+            Sel4GovernorMerkleStep {
+                seq: 2,
+                verb: "messaging.send".into(),
+                q24_fnv1a: 0x7da1_44b9_7d05_4b25,
+                debited_uj: 8,
+                remaining_uj: 0,
+                claimed_root_u64: beta_r2,
+            },
+            Sel4GovernorMerkleStep {
+                seq: 3,
+                verb: "recall.query".into(),
+                q24_fnv1a: 0x3a73_db51_3921_afe7,
+                debited_uj: 8,
+                remaining_uj: 0,
+                claimed_root_u64: 0x7e8b_fa26_5d9f_ef09,
+            },
+        ];
+
+        let (a_rec, a_tree, a_j) =
+            verify_and_ingest_sel4_multipd_chain(&alpha_steps, "tenant-alpha", "US-NE-ISO", 0.31)
+                .unwrap();
+        let (b_rec, b_tree, b_j) =
+            verify_and_ingest_sel4_multipd_chain(&beta_steps, "tenant-beta", "US-NE-ISO", 0.31)
+                .unwrap();
+        assert_eq!((a_rec.len(), b_rec.len()), (3, 3));
+        assert_ne!(a_tree.root_hex(), b_tree.root_hex());
+        assert!(((a_j + b_j) - 0.000_044).abs() < 1e-15);
+    }
 }
