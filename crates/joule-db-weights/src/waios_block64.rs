@@ -1078,4 +1078,109 @@ mod tests {
         assert_eq!(eval_q(&query_1), 0xa9f1_ecbb_e09e_ef08);
         assert_eq!(eval_q(&query_2), 0x6fdf_a70a_f313_9c94);
     }
+
+    #[test]
+    fn weightdb_sakana_svf_continual_plasticity_and_zero_forgetting_match_sel4_h44_exact() {
+        let make_l1_svf = |mults: &[u16; 8]| WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 1536,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![WaiOsBlock64Tile {
+                local_rank: 8,
+                b_v_u64: (0..8usize)
+                    .map(|k| {
+                        (0xA5A5_5A5A_F00F_0FF0u64 ^ 0x0F0F_F0F0_0F0F_F0F0)
+                            ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                    })
+                    .collect(),
+                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                alpha_q12: [512i16, 384, 256, 192, 128, 96, 64, 32]
+                    .iter()
+                    .zip(mults.iter())
+                    .map(|(&a, &m)| ((i32::from(a) * i32::from(m)) >> 8) as i16)
+                    .collect(),
+            }],
+        };
+
+        let l0 = WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 2560,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![WaiOsBlock64Tile {
+                local_rank: 8,
+                b_v_u64: (0..8usize)
+                    .map(|k| {
+                        (0xA5A5_5A5A_F00F_0FF0u64 ^ 0x5555_AAAA_5555_AAAA)
+                            ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                    })
+                    .collect(),
+                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
+            }],
+        };
+
+        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
+        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
+
+        let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
+        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let v_q7: Vec<i8> = y0_p
+            .iter()
+            .zip(prefix_a.iter())
+            .map(|(&y, &px)| ((y >> 17) + i64::from(px)).clamp(-127, 127) as i8)
+            .collect();
+        let y0_q = l0.forward_simd_lut4_q24(&query_1).unwrap();
+        let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+
+        let mut x1 = vec![0i8; 64];
+        for h in 0..4usize {
+            let base = h * 16;
+            let mut score = 0i32;
+            for d in 0..16usize {
+                score += i32::from(q_q7[base + d]) * i32::from(k_q7[base + d]);
+            }
+            let gate_q8 = ((score >> 10) + 128).clamp(16, 240);
+            for d in 0..16usize {
+                let idx = base + d;
+                x1[idx] = (i32::from(query_1[idx]) + ((gate_q8 * i32::from(v_q7[idx])) >> 8))
+                    .clamp(-127, 127) as i8;
+            }
+        }
+
+        let eval_svf = |mults: &[u16; 8]| -> u64 {
+            let y1 = make_l1_svf(mults).forward_simd_lut4_q24(&x1).unwrap();
+            let mut fnv = 0xCBF2_9CE4_8422_2325u64;
+            for (&a, &b) in y1.iter().zip(y0_q.iter()) {
+                for &byte in &a.wrapping_add(b).to_le_bytes() {
+                    fnv ^= u64::from(byte);
+                    fnv = fnv.wrapping_mul(0x0100_0000_01B3);
+                }
+            }
+            fnv
+        };
+
+        assert_eq!(
+            eval_svf(&[320, 288, 256, 256, 224, 224, 192, 192]),
+            0xc04b_5c79_86c1_7156
+        );
+        assert_eq!(
+            eval_svf(&[192, 224, 256, 288, 320, 256, 256, 384]),
+            0x0ceb_18f6_2d1b_8984
+        );
+        assert_eq!(eval_svf(&[256; 8]), 0xa9f1_ecbb_e09e_ef08);
+    }
 }
