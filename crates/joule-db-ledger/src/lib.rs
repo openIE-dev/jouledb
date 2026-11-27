@@ -47,6 +47,7 @@ pub mod committer;
 pub mod error;
 #[cfg(feature = "http")]
 pub mod http;
+pub mod jouleos_ingest;
 pub mod kulisch;
 pub mod merkle;
 pub mod receipt;
