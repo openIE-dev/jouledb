@@ -1001,8 +1001,8 @@ pub struct AmorphicStore {
     /// Scalar base for numeric encoding
     scalar_base: BinaryHV,
 
-    /// Next record ID
-    next_id: RecordId,
+    /// Next record ID (atomic so OLTP batches can reserve IDs without holding `AmorphicStore` write lock)
+    next_id: std::sync::Arc<std::sync::atomic::AtomicU64>,
 
     /// RNG for vector generation
     rng: StdRng,
@@ -1097,7 +1097,7 @@ impl AmorphicStore {
             field_vectors: HashMap::new(),
             type_vectors,
             scalar_base,
-            next_id: 1,
+            next_id: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(1)),
             rng,
             columnar: ColumnarStore::new(),
             hnsw_index: None,
@@ -1810,11 +1810,15 @@ impl AmorphicStore {
     }
 
     /// Allocate an id for a field map (bulk path; validates field count).
-    /// Reserve `n` consecutive record ids (columnar bulk ingest).
-    pub fn reserve_ids(&mut self, n: usize) -> RecordId {
-        let first = self.next_id;
-        self.next_id += n as RecordId;
-        first
+    /// Reserve `n` consecutive record ids (columnar bulk ingest or lock-free OLTP batching).
+    pub fn reserve_ids(&self, n: usize) -> RecordId {
+        self.next_id
+            .fetch_add(n as RecordId, std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Shared atomic handle to `next_id` for lock-free OLTP ID reservation.
+    pub fn next_id_counter(&self) -> std::sync::Arc<std::sync::atomic::AtomicU64> {
+        self.next_id.clone()
     }
 
     pub fn prepare_fields_ingest(
@@ -1827,8 +1831,9 @@ impl AmorphicStore {
                 MAX_FIELDS_ERROR,
             ));
         }
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok((id, fields))
     }
 
@@ -1986,8 +1991,9 @@ impl AmorphicStore {
         fields.insert("_relation".to_string(), Value::String(relation.to_string()));
         fields.insert("_target".to_string(), Value::String(target.to_string()));
 
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         let hologram = self.encode_record(&fields);
 
@@ -2047,8 +2053,9 @@ impl AmorphicStore {
         // The hologram is segmented (SegmentedHologram), so no bundle ever
         // holds more than GLOBAL_HOLOGRAM_SATURATION_LIMIT records.
 
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         // Use hierarchical encoding for high-field-count records
         let field_count = fields.len();
@@ -2145,8 +2152,9 @@ impl AmorphicStore {
                 }
 
                 // Allocate ID
-                let id = self.next_id;
-                self.next_id += 1;
+                let id = self
+                    .next_id
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
                 Ok((id, fields))
             }
@@ -2185,8 +2193,9 @@ impl AmorphicStore {
         }
 
         // Allocate ID
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         Ok((id, fields))
     }
@@ -2329,9 +2338,8 @@ impl AmorphicStore {
     ) -> AmorphicResult<()> {
         self.catch_up_holograms(usize::MAX);
         // Ensure next_id is beyond this recovered record
-        if id >= self.next_id {
-            self.next_id = id + 1;
-        }
+        self.next_id
+            .fetch_max(id + 1, std::sync::atomic::Ordering::SeqCst);
 
         let hologram = self.encode_record(&fields);
 
@@ -2692,8 +2700,9 @@ impl AmorphicStore {
         metadata: HashMap<String, Value>,
     ) -> AmorphicResult<RecordId> {
         self.catch_up_holograms(usize::MAX);
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         // Update standard indices from metadata
         for (field, value) in &metadata {

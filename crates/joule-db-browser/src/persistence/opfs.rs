@@ -164,11 +164,17 @@ impl OPFSBackend {
         {
             let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
             if let Some(data) = cache.get(&page_id) {
-                self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_hits += 1;
+                self.stats
+                    .write()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .cache_hits += 1;
                 return Ok(data.clone());
             }
         }
-        self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
+        self.stats
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .cache_misses += 1;
 
         let dir_handle = self.dir_handle.read().unwrap_or_else(|e| e.into_inner());
         let dir_handle = dir_handle.as_ref().ok_or_else(|| {
@@ -236,7 +242,10 @@ impl OPFSBackend {
         let mut data = vec![0u8; uint8_array.length() as usize];
         uint8_array.copy_to(&mut data);
 
-        self.stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
+        self.stats
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .read_ops += 1;
 
         // Update cache
         {
@@ -384,7 +393,10 @@ impl OPFSBackend {
     ) -> Result<(), PersistenceError> {
         let mut cache = self.cache.write().unwrap_or_else(|e| e.into_inner());
         cache.insert(page_id, data.to_vec());
-        self.stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
+        self.stats
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .write_ops += 1;
         Ok(())
     }
 
@@ -453,7 +465,10 @@ impl AsyncPersistenceBackend for OPFSBackend {
                     return Ok(data.clone());
                 }
             }
-            stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
+            stats
+                .write()
+                .unwrap_or_else(|e| e.into_inner())
+                .cache_misses += 1;
 
             let dir_handle_guard = dir_handle.read().unwrap_or_else(|e| e.into_inner());
             let dir_handle_val = dir_handle_guard.as_ref().ok_or_else(|| {

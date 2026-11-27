@@ -216,10 +216,7 @@ impl AmorphicTableStorage {
                 if pk_vals.is_empty() {
                     continue;
                 }
-                let sig = format!(
-                    "{:?}",
-                    pk_vals.iter().map(|(_, v)| *v).collect::<Vec<_>>()
-                );
+                let sig = format!("{:?}", pk_vals.iter().map(|(_, v)| *v).collect::<Vec<_>>());
                 if !batch_seen.insert(sig) {
                     let pk_desc: Vec<String> = pk_vals
                         .iter()

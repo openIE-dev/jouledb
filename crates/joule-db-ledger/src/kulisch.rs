@@ -391,7 +391,9 @@ pub fn sum_receipt_joules_exact_kulisch(receipts: &[LedgerEnergyReceipt]) -> (f6
 
 /// Summarizes all local silicon, grid carbon, Landauer lower-bound, and segregated external-API
 /// metrics across `receipts` using stack-resident `ExactF64Superaccumulator`s (`0` heap allocations).
-pub fn summarize_receipt_batch_exact(receipts: &[LedgerEnergyReceipt]) -> BatchThermodynamicSummary {
+pub fn summarize_receipt_batch_exact(
+    receipts: &[LedgerEnergyReceipt],
+) -> BatchThermodynamicSummary {
     let mut silicon_acc = ExactF64Superaccumulator::new();
     let mut kwh_acc = ExactF64Superaccumulator::new();
     let mut co2_acc = ExactF64Superaccumulator::new();
@@ -512,7 +514,10 @@ mod tests {
 
         let s1 = summarize_receipt_batch_exact(&[r_macro.clone(), r_micro.clone(), r_mid.clone()]);
         let s2 = summarize_receipt_batch_exact(&[r_micro, r_mid, r_macro]);
-        assert_eq!(s1.silicon_joules_total.to_bits(), s2.silicon_joules_total.to_bits());
+        assert_eq!(
+            s1.silicon_joules_total.to_bits(),
+            s2.silicon_joules_total.to_bits()
+        );
         assert_eq!(s1.kwh_total.to_bits(), s2.kwh_total.to_bits());
         assert_eq!(s1.kg_co2e_total.to_bits(), s2.kg_co2e_total.to_bits());
         assert_eq!(

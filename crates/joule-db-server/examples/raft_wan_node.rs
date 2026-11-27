@@ -8,14 +8,14 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use joule_db_server::raft::{
     BatchReplicationConfig, ClusterConfig, Command, KvStateMachine, RaftConfig, RaftNode,
 };
-use joule_db_server::raft_server::{election_loop, replication_loop, RaftRpcServer};
+use joule_db_server::raft_server::{RaftRpcServer, election_loop, replication_loop};
 use joule_db_server::raft_transport::TcpRaftTransport;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
@@ -99,11 +99,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 let mut sever_watch = sever_rx.clone();
                 let _ = sever_watch.borrow_and_update();
                 tokio::spawn(async move {
-                    let Ok(Ok(mut upstream)) = tokio::time::timeout(
-                        Duration::from_millis(1200),
-                        TcpStream::connect(&tgt),
-                    )
-                    .await
+                    let Ok(Ok(mut upstream)) =
+                        tokio::time::timeout(Duration::from_millis(1200), TcpStream::connect(&tgt))
+                            .await
                     else {
                         let _ = client_sock.shutdown().await;
                         return;
@@ -226,14 +224,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     ["READ", key] => {
                         let k = (*key).to_string();
                         match node_ref
-                            .read_linearizable(
-                                Duration::from_millis(1600),
-                                move |sm| {
-                                    sm.data()
-                                        .get(&k)
-                                        .map(|b| String::from_utf8_lossy(b).to_string())
-                                },
-                            )
+                            .read_linearizable(Duration::from_millis(1600), move |sm| {
+                                sm.data()
+                                    .get(&k)
+                                    .map(|b| String::from_utf8_lossy(b).to_string())
+                            })
                             .await
                         {
                             Ok(val) => {

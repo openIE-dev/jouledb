@@ -184,11 +184,17 @@ impl IndexedDBBackend {
         {
             let cache = self.cache.read().unwrap_or_else(|e| e.into_inner());
             if let Some(data) = cache.get(&page_id) {
-                self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_hits += 1;
+                self.stats
+                    .write()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .cache_hits += 1;
                 return Ok(data.clone());
             }
         }
-        self.stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
+        self.stats
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .cache_misses += 1;
 
         let db_guard = self.db.read().unwrap_or_else(|e| e.into_inner());
         let db = db_guard.as_ref().ok_or_else(|| {
@@ -250,7 +256,10 @@ impl IndexedDBBackend {
             cache.insert(page_id, data.clone());
         }
 
-        self.stats.write().unwrap_or_else(|e| e.into_inner()).read_ops += 1;
+        self.stats
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .read_ops += 1;
         Ok(data)
     }
 
@@ -314,7 +323,10 @@ impl IndexedDBBackend {
             cache.insert(page_id, data.to_vec());
         }
 
-        self.stats.write().unwrap_or_else(|e| e.into_inner()).write_ops += 1;
+        self.stats
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .write_ops += 1;
         Ok(())
     }
 }
@@ -340,7 +352,10 @@ impl AsyncPersistenceBackend for IndexedDBBackend {
                     return Ok(data.clone());
                 }
             }
-            stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
+            stats
+                .write()
+                .unwrap_or_else(|e| e.into_inner())
+                .cache_misses += 1;
 
             let db_guard = db_arc.read().unwrap_or_else(|e| e.into_inner());
             let db = db_guard.as_ref().ok_or_else(|| {

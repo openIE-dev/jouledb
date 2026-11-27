@@ -71,10 +71,9 @@ async fn test_wave31_subsystem_smoke_http_mcp_migration_pitr_and_aqe_e2e() {
         .await
         .expect("resp");
     assert_eq!(mig_resp.status(), StatusCode::OK);
-    let mig_json: serde_json::Value = serde_json::from_slice(
-        &mig_resp.into_body().collect().await.expect("b").to_bytes(),
-    )
-    .expect("json");
+    let mig_json: serde_json::Value =
+        serde_json::from_slice(&mig_resp.into_body().collect().await.expect("b").to_bytes())
+            .expect("json");
     assert_eq!(mig_json["zero_row_drift"], true);
     assert_eq!(mig_json["final_reconciled_rows"], 3);
     assert_eq!(mig_json["pq_signature_verified"], true);
@@ -99,10 +98,9 @@ async fn test_wave31_subsystem_smoke_http_mcp_migration_pitr_and_aqe_e2e() {
         .await
         .expect("resp");
     assert_eq!(mcp_resp.status(), StatusCode::OK);
-    let mcp_json: serde_json::Value = serde_json::from_slice(
-        &mcp_resp.into_body().collect().await.expect("b").to_bytes(),
-    )
-    .expect("json");
+    let mcp_json: serde_json::Value =
+        serde_json::from_slice(&mcp_resp.into_body().collect().await.expect("b").to_bytes())
+            .expect("json");
     let tools = mcp_json["result"]["tools"].as_array().expect("tools array");
     assert_eq!(tools.len(), 59);
 
@@ -133,10 +131,9 @@ async fn test_wave31_subsystem_smoke_http_mcp_migration_pitr_and_aqe_e2e() {
             .await
             .expect("resp");
         assert_eq!(call_resp.status(), StatusCode::OK);
-        let call_json: serde_json::Value = serde_json::from_slice(
-            &call_resp.into_body().collect().await.expect("b").to_bytes(),
-        )
-        .expect("json");
+        let call_json: serde_json::Value =
+            serde_json::from_slice(&call_resp.into_body().collect().await.expect("b").to_bytes())
+                .expect("json");
         assert!(
             call_json.get("error").is_none() || call_json["error"].is_null(),
             "MCP tool {tool_name} failed: {call_json}"

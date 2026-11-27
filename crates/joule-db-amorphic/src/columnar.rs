@@ -74,7 +74,12 @@ impl Column {
     /// Append a value to this column
     #[inline]
     pub fn push(&mut self, record_id: RecordId, value: f64) {
-        if self.sorted && self.record_ids.last().is_some_and(|&last| record_id <= last) {
+        if self.sorted
+            && self
+                .record_ids
+                .last()
+                .is_some_and(|&last| record_id <= last)
+        {
             self.sorted = false;
         }
         self.values.push(value);

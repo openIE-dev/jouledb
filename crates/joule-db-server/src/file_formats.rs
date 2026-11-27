@@ -460,7 +460,7 @@ pub fn batches_to_columns(
         .into_par_iter()
         .map(|ci| {
             let raw_dt = schema.field(ci).data_type().clone();
-            let mut casted_storage: Option< Vec<ArrayRef> > = None;
+            let mut casted_storage: Option<Vec<ArrayRef>> = None;
             let dt = match raw_dt {
                 DataType::Dictionary(_, vt) => {
                     let mut v = Vec::with_capacity(batches.len());
@@ -498,7 +498,12 @@ pub fn batches_to_columns(
                 ($arr_ty:ty, $dst_ty:ty, $variant:ident) => {{
                     let mut v = Vec::with_capacity(total);
                     for a in &arrays {
-                        v.extend(a.as_primitive::<$arr_ty>().values().iter().map(|&x| x as $dst_ty));
+                        v.extend(
+                            a.as_primitive::<$arr_ty>()
+                                .values()
+                                .iter()
+                                .map(|&x| x as $dst_ty),
+                        );
                     }
                     ColData::$variant(v)
                 }};

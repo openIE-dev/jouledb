@@ -446,8 +446,9 @@ fn extract_f32_vec(v: &Value) -> Option<Vec<f32>> {
             }
             Some(out)
         }
-        Value::String(s) => crate::vector::parse_vector(s)
-            .map(|v64| v64.into_iter().map(|x| x as f32).collect()),
+        Value::String(s) => {
+            crate::vector::parse_vector(s).map(|v64| v64.into_iter().map(|x| x as f32).collect())
+        }
         _ => None,
     }
 }
@@ -3243,9 +3244,9 @@ pub fn eval_scalar_function(
         }
 
         // PostgreSQL catalog reflection functions (SQLAlchemy 2 / psycopg / JDBC)
-        "PG_TABLE_IS_VISIBLE" | "PG_TYPE_IS_VISIBLE" | "PG_FUNCTION_IS_VISIBLE" => {
-            Ok(Value::Bool(!matches!(args.first(), None | Some(Value::Null))))
-        }
+        "PG_TABLE_IS_VISIBLE" | "PG_TYPE_IS_VISIBLE" | "PG_FUNCTION_IS_VISIBLE" => Ok(Value::Bool(
+            !matches!(args.first(), None | Some(Value::Null)),
+        )),
         "CURRENT_SCHEMAS" => Ok(Value::Array(vec![
             Value::String("pg_catalog".to_string()),
             Value::String("public".to_string()),

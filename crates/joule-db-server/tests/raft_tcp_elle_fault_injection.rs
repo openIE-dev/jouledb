@@ -322,7 +322,9 @@ async fn client_linearizable_read_register(
         .await
     {
         Ok(val) => {
-            let val_edn = val.map(|v| v.to_string()).unwrap_or_else(|| "nil".to_string());
+            let val_edn = val
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "nil".to_string());
             rec.record(":ok", proc_id, format!("[[:r :{reg_kw} {val_edn}]]"));
             Ok(val)
         }

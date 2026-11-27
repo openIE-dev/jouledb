@@ -1248,7 +1248,10 @@ impl FourierBenchmark {
 
     /// Benchmark single unbind operation
     pub fn bench_unbind(&self) -> HyperVector {
-        let Ok(bound) = self.binder.bind(&self.test_vectors[0], &self.test_vectors[1]) else {
+        let Ok(bound) = self
+            .binder
+            .bind(&self.test_vectors[0], &self.test_vectors[1])
+        else {
             return self.test_vectors[0].clone();
         };
         self.binder

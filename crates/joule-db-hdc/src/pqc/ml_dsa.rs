@@ -1102,7 +1102,10 @@ impl MlDsaCore {
 
         // Parse verification key
         let vk_bytes = vk.as_bytes();
-        let Some(rho) = vk_bytes.get(..32).and_then(|s| <[u8; 32]>::try_from(s).ok()) else {
+        let Some(rho) = vk_bytes
+            .get(..32)
+            .and_then(|s| <[u8; 32]>::try_from(s).ok())
+        else {
             return false;
         };
         let t1 = PolyVec::decode_t1(&vk_bytes[32..], k);

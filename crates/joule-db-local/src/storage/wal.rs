@@ -489,8 +489,9 @@ impl WalManager {
 
         // Seek to end of valid records (within pre-allocated extents if present)
         let mut file = file;
-        file.seek(SeekFrom::Start(valid_end_pos))
-            .map_err(|e| StorageError::Backend(format!("Failed to seek to WAL write pos: {}", e)))?;
+        file.seek(SeekFrom::Start(valid_end_pos)).map_err(|e| {
+            StorageError::Backend(format!("Failed to seek to WAL write pos: {}", e))
+        })?;
 
         let writer = BufWriter::new(file);
 
@@ -578,10 +579,8 @@ impl WalManager {
         }
         let step: u64 = if alloc < 256 * 1024 {
             256 * 1024
-        } else if alloc < 4 * 1024 * 1024 {
-            4 * 1024 * 1024
         } else {
-            16 * 1024 * 1024
+            32 * 1024 * 1024
         };
         let target = needed.max(alloc.saturating_add(step));
         self.writer
@@ -824,6 +823,72 @@ impl WalManager {
         }
 
         Ok(lsn)
+    }
+
+    /// Encode and flush an entire atomic OLTP transaction (`PageWrite` frames + `Commit` frame)
+    /// in a single contiguous buffer, single `write_all`, single `BufWriter::flush()`, and zero
+    /// `active_transactions` lock churn. Returns the committed LSN for `GroupSync::wait_durable`.
+    pub fn log_atomic_tx_fast(
+        &mut self,
+        tx_id: u64,
+        pages: &[(PageId, Vec<u8>)],
+    ) -> Result<u64, StorageError> {
+        let count = pages.len() as u64 + 1;
+        let first_lsn = self.current_lsn.fetch_add(count, Ordering::SeqCst);
+        let commit_lsn = first_lsn + pages.len() as u64;
+
+        let mut total_bytes = WAL_HEADER_SIZE + 8; // Commit frame
+        for (_, data) in pages {
+            let payload_size = 16 + data.len();
+            if payload_size > MAX_WAL_PAYLOAD {
+                return Err(StorageError::Backend(format!(
+                    "WAL entry payload too large: {} bytes (max {})",
+                    payload_size, MAX_WAL_PAYLOAD
+                )));
+            }
+            total_bytes += WAL_HEADER_SIZE + payload_size;
+        }
+
+        let mut buf = Vec::with_capacity(total_bytes);
+        for (i, (page_id, data)) in pages.iter().enumerate() {
+            let entry_start = buf.len();
+            let lsn = first_lsn + i as u64;
+            let payload_size = 16 + data.len();
+            buf.extend_from_slice(&WAL_MAGIC);
+            buf.extend_from_slice(&[0u8; 4]);
+            buf.extend_from_slice(&lsn.to_le_bytes());
+            buf.push(WalEntryType::PageWrite as u8);
+            buf.extend_from_slice(&(payload_size as u32).to_le_bytes());
+            buf.extend_from_slice(&tx_id.to_le_bytes());
+            buf.extend_from_slice(&page_id.to_le_bytes());
+            buf.extend_from_slice(data);
+            let crc = crc32(&buf[entry_start + 8..]);
+            buf[entry_start + 4..entry_start + 8].copy_from_slice(&crc.to_le_bytes());
+        }
+
+        // Append Commit frame inline
+        let commit_start = buf.len();
+        buf.extend_from_slice(&WAL_MAGIC);
+        buf.extend_from_slice(&[0u8; 4]);
+        buf.extend_from_slice(&commit_lsn.to_le_bytes());
+        buf.push(WalEntryType::Commit as u8);
+        buf.extend_from_slice(&8u32.to_le_bytes());
+        buf.extend_from_slice(&tx_id.to_le_bytes());
+        let commit_crc = crc32(&buf[commit_start + 8..]);
+        buf[commit_start + 4..commit_start + 8].copy_from_slice(&commit_crc.to_le_bytes());
+
+        self.ensure_wal_capacity(total_bytes as u64)?;
+        self.writer
+            .write_all(&buf)
+            .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+        self.file_position
+            .fetch_add(total_bytes as u64, Ordering::SeqCst);
+        self.writer
+            .flush()
+            .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
+        self.committed_lsn.fetch_max(commit_lsn, Ordering::AcqRel);
+
+        Ok(commit_lsn)
     }
 
     /// Append a rollback entry

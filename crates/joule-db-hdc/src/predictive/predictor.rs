@@ -237,10 +237,7 @@ impl QueryPredictor {
             .prediction_cache
             .read()
             .unwrap_or_else(|e| e.into_inner());
-        let history = self
-            .query_history
-            .read()
-            .unwrap_or_else(|e| e.into_inner());
+        let history = self.query_history.read().unwrap_or_else(|e| e.into_inner());
 
         let total_transitions: usize = transitions.values().map(|m| m.len()).sum();
 

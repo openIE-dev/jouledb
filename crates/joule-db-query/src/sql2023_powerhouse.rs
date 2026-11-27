@@ -63,7 +63,10 @@ pub fn evaluate_sql2023_window_partition(
 ) -> Vec<WindowEvaluatedRow> {
     let mut partitions: BTreeMap<String, Vec<WarehouseFactRow>> = BTreeMap::new();
     for r in rows {
-        partitions.entry(r.region.clone()).or_default().push(r.clone());
+        partitions
+            .entry(r.region.clone())
+            .or_default()
+            .push(r.clone());
     }
 
     let mut out = Vec::with_capacity(rows.len());
@@ -165,16 +168,18 @@ pub fn evaluate_olap_cube_3d(rows: &[WarehouseFactRow]) -> Vec<OlapCubeCell> {
         }
     }
     acc.into_iter()
-        .map(|((grouping_id, region, product_family, quarter), (row_count, sum_revenue_cents))| {
-            OlapCubeCell {
-                grouping_id,
-                region,
-                product_family,
-                quarter,
-                row_count,
-                sum_revenue_cents,
-            }
-        })
+        .map(
+            |((grouping_id, region, product_family, quarter), (row_count, sum_revenue_cents))| {
+                OlapCubeCell {
+                    grouping_id,
+                    region,
+                    product_family,
+                    quarter,
+                    row_count,
+                    sum_revenue_cents,
+                }
+            },
+        )
         .collect()
 }
 
@@ -548,8 +553,7 @@ pub fn run_sql2023_powerhouse_certification() -> Sql2023PowerhouseReceipt {
             rabitq_bits: target_bits,
         },
     ];
-    let topk =
-        execute_hybrid_sql_jsonb_vector_topk(&docs, "acme-gov", "sovereign", target_bits, 2);
+    let topk = execute_hybrid_sql_jsonb_vector_topk(&docs, "acme-gov", "sovereign", target_bits, 2);
     let top1_id = topk.first().map(|x| x.0).unwrap_or(0);
 
     let all_passed = window_rank_and_frame_exact
@@ -559,7 +563,8 @@ pub fn run_sql2023_powerhouse_certification() -> Sql2023PowerhouseReceipt {
         && top1_id == 202;
 
     Sql2023PowerhouseReceipt {
-        pillar: "Pillar 33 — SQL:2023 Window/Cube/Recursive-CTE + Runtime AQE + Hybrid Vector".to_string(),
+        pillar: "Pillar 33 — SQL:2023 Window/Cube/Recursive-CTE + Runtime AQE + Hybrid Vector"
+            .to_string(),
         window_rows_evaluated: win.len(),
         window_rank_and_frame_exact,
         cube_grouping_sets_count: distinct_masks.len(),
@@ -581,7 +586,10 @@ mod tests {
     #[test]
     fn test_sql2023_powerhouse_and_aqe_suite() {
         let receipt = run_sql2023_powerhouse_certification();
-        assert!(receipt.all_passed, "SQL:2023 powerhouse failed: {receipt:?}");
+        assert!(
+            receipt.all_passed,
+            "SQL:2023 powerhouse failed: {receipt:?}"
+        );
         assert_eq!(receipt.hybrid_jsonb_vector_top1_doc_id, 202);
         assert!(receipt.aqe_receipt.comparisons_avoided_x > 1_000.0);
     }

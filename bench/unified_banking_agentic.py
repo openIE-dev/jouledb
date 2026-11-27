@@ -289,7 +289,7 @@ def main() -> None:
         sql_exec(base, "COMMIT", session_id=sid2)
 
         summary = {
-            "version": "0.15.0",
+            "version": "0.16.0",
             "exact_decimal128_verified": True,
             "double_entry_ledger": {
                 "hot_wallet_attempts": 500,

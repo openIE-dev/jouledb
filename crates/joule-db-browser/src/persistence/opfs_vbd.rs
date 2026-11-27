@@ -212,12 +212,18 @@ impl OPFSVirtualBlockDevice {
 
         // Store handles
         {
-            let mut data_handle = self.data_file_handle.write().unwrap_or_else(|e| e.into_inner());
+            let mut data_handle = self
+                .data_file_handle
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             *data_handle = Some(data_file.clone());
         }
 
         {
-            let mut meta_handle = self.meta_file_handle.write().unwrap_or_else(|e| e.into_inner());
+            let mut meta_handle = self
+                .meta_file_handle
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             *meta_handle = Some(meta_file);
         }
 
@@ -275,7 +281,10 @@ impl OPFSVirtualBlockDevice {
     async fn load_page_table(&self) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        let meta_handle = self.meta_file_handle.read().unwrap_or_else(|e| e.into_inner());
+        let meta_handle = self
+            .meta_file_handle
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         let meta_handle = meta_handle.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Meta file not initialized".to_string())
         })?;
@@ -428,7 +437,10 @@ impl OPFSVirtualBlockDevice {
     pub async fn save_page_table(&self) -> Result<(), PersistenceError> {
         use wasm_bindgen_futures::JsFuture;
 
-        let meta_handle = self.meta_file_handle.read().unwrap_or_else(|e| e.into_inner());
+        let meta_handle = self
+            .meta_file_handle
+            .read()
+            .unwrap_or_else(|e| e.into_inner());
         let meta_handle = meta_handle.as_ref().ok_or_else(|| {
             PersistenceError::NotAvailable("Meta file not initialized".to_string())
         })?;
@@ -694,7 +706,10 @@ impl AsyncPersistenceBackend for OPFSVirtualBlockDevice {
                     return Ok(data.clone());
                 }
             }
-            stats.write().unwrap_or_else(|e| e.into_inner()).cache_misses += 1;
+            stats
+                .write()
+                .unwrap_or_else(|e| e.into_inner())
+                .cache_misses += 1;
 
             // Look up block address
             let addr = {

@@ -553,9 +553,7 @@ impl MvccTransaction {
     /// before the committed versions are published.
     pub fn commit_with_hook<F>(mut self, persist_fn: F) -> Result<(), TransactionError>
     where
-        F: FnOnce(
-            &HashMap<Vec<u8>, Option<Vec<u8>>>,
-        ) -> Result<Vec<(Vec<u8>, Vec<u8>)>, String>,
+        F: FnOnce(&HashMap<Vec<u8>, Option<Vec<u8>>>) -> Result<Vec<(Vec<u8>, Vec<u8>)>, String>,
     {
         if self.state != TxState::Active {
             return Err(TransactionError::AlreadyCommitted { tx_id: self.id });
@@ -694,10 +692,7 @@ impl MvccStore {
 
     /// Register an active transaction
     fn register_active(&self, tx_id: TxId) {
-        let mut active = self
-            .active_txns
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
+        let mut active = self.active_txns.lock().unwrap_or_else(|p| p.into_inner());
         active.insert(tx_id);
         // Update oldest if needed (tx_id is also read_ts in our impl)
         let current_oldest = self.oldest_active_ts.load(Ordering::Relaxed);
@@ -708,10 +703,7 @@ impl MvccStore {
 
     /// Unregister an active transaction
     fn unregister_active(&self, tx_id: TxId) {
-        let mut active = self
-            .active_txns
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
+        let mut active = self.active_txns.lock().unwrap_or_else(|p| p.into_inner());
         active.remove(&tx_id);
 
         // Only rescan min when the removed tx was the oldest active timestamp
@@ -939,12 +931,11 @@ impl MvccStore {
     #[allow(dead_code)]
     fn commit_transaction(&self, tx_id: TxId) -> Result<(), TransactionError> {
         for shard in self.shards.iter() {
-            let mut chains =
-                shard
-                    .write()
-                    .map_err(|_| TransactionError::SerializationFailure {
-                        reason: "lock poisoned".to_string(),
-                    })?;
+            let mut chains = shard
+                .write()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "lock poisoned".to_string(),
+                })?;
 
             for chain in chains.values_mut() {
                 chain.commit_version(tx_id);
@@ -962,12 +953,11 @@ impl MvccStore {
         commit_ts: u64,
     ) -> Result<(), TransactionError> {
         for shard in self.shards.iter() {
-            let mut chains =
-                shard
-                    .write()
-                    .map_err(|_| TransactionError::SerializationFailure {
-                        reason: "lock poisoned".to_string(),
-                    })?;
+            let mut chains = shard
+                .write()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "lock poisoned".to_string(),
+                })?;
 
             for chain in chains.values_mut() {
                 chain.commit_version_with_ts(tx_id, commit_ts);
@@ -981,12 +971,11 @@ impl MvccStore {
     #[allow(dead_code)]
     fn abort_transaction(&self, tx_id: TxId) -> Result<(), TransactionError> {
         for shard in self.shards.iter() {
-            let mut chains =
-                shard
-                    .write()
-                    .map_err(|_| TransactionError::SerializationFailure {
-                        reason: "lock poisoned".to_string(),
-                    })?;
+            let mut chains = shard
+                .write()
+                .map_err(|_| TransactionError::SerializationFailure {
+                    reason: "lock poisoned".to_string(),
+                })?;
 
             for chain in chains.values_mut() {
                 chain.abort_version(tx_id);
@@ -1012,11 +1001,12 @@ impl MvccStore {
         while rem != 0 {
             let s = rem.trailing_zeros() as usize;
             rem &= rem - 1;
-            let mut chains = self.shards[s].write().map_err(|_| {
-                TransactionError::SerializationFailure {
-                    reason: "lock poisoned".to_string(),
-                }
-            })?;
+            let mut chains =
+                self.shards[s]
+                    .write()
+                    .map_err(|_| TransactionError::SerializationFailure {
+                        reason: "lock poisoned".to_string(),
+                    })?;
             for key in keys {
                 if mvcc_shard_idx(key) == s
                     && let Some(chain) = chains.get_mut(key.as_slice())
@@ -1043,11 +1033,12 @@ impl MvccStore {
         while rem != 0 {
             let s = rem.trailing_zeros() as usize;
             rem &= rem - 1;
-            let mut chains = self.shards[s].write().map_err(|_| {
-                TransactionError::SerializationFailure {
-                    reason: "lock poisoned".to_string(),
-                }
-            })?;
+            let mut chains =
+                self.shards[s]
+                    .write()
+                    .map_err(|_| TransactionError::SerializationFailure {
+                        reason: "lock poisoned".to_string(),
+                    })?;
             for key in keys {
                 if mvcc_shard_idx(key) == s
                     && let Some(chain) = chains.get_mut(key.as_slice())
@@ -1108,10 +1099,7 @@ impl MvccStore {
             key_count += chains.len();
             version_count += chains.values().map(|c| c.len()).sum::<usize>();
         }
-        let active = self
-            .active_txns
-            .lock()
-            .unwrap_or_else(|p| p.into_inner());
+        let active = self.active_txns.lock().unwrap_or_else(|p| p.into_inner());
 
         MvccStats {
             key_count,
@@ -1296,11 +1284,12 @@ impl MvccStore {
         while rem != 0 {
             let s = rem.trailing_zeros() as usize;
             rem &= rem - 1;
-            let mut chains = self.shards[s].write().map_err(|_| {
-                TransactionError::SerializationFailure {
-                    reason: "lock poisoned".to_string(),
-                }
-            })?;
+            let mut chains =
+                self.shards[s]
+                    .write()
+                    .map_err(|_| TransactionError::SerializationFailure {
+                        reason: "lock poisoned".to_string(),
+                    })?;
             for (key, new_bytes) in updates {
                 if mvcc_shard_idx(key) == s
                     && let Some(chain) = chains.get_mut(key.as_slice())

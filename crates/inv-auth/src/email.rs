@@ -101,7 +101,10 @@ impl DevEmailSender {
 
     /// Get all captured emails.
     pub fn captured_emails(&self) -> Vec<EmailMessage> {
-        self.captured.read().unwrap_or_else(|e| e.into_inner()).clone()
+        self.captured
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Get the last captured email.
@@ -115,12 +118,18 @@ impl DevEmailSender {
 
     /// Clear captured emails.
     pub fn clear(&self) {
-        self.captured.write().unwrap_or_else(|e| e.into_inner()).clear();
+        self.captured
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     /// Count of captured emails.
     pub fn count(&self) -> usize {
-        self.captured.read().unwrap_or_else(|e| e.into_inner()).len()
+        self.captured
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 }
 

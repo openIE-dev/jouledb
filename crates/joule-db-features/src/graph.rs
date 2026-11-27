@@ -296,10 +296,7 @@ impl GraphStore {
 
     /// Create a node
     pub fn create_node(&self) -> NodeId {
-        let mut id = self
-            .next_node_id
-            .write()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut id = self.next_node_id.write().unwrap_or_else(|e| e.into_inner());
         let node_id = *id;
         *id += 1;
 
@@ -451,10 +448,7 @@ impl GraphStore {
         }
         drop(nodes);
 
-        let mut id = self
-            .next_edge_id
-            .write()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut id = self.next_edge_id.write().unwrap_or_else(|e| e.into_inner());
         let edge_id = *id;
         *id += 1;
 

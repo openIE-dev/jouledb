@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 int main(void) {
-    if (strcmp(JOULEDB_SDK_VERSION, "0.15.0") != 0) {
+    if (strcmp(JOULEDB_SDK_VERSION, "0.16.0") != 0) {
         return 1;
     }
     const char *port_env = getenv("JOULEDB_PORT");

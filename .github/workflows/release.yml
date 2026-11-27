@@ -232,24 +232,43 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
+      - name: Validate Python wheel & sdist metadata (twine check)
+        run: |
+          pip install --quiet twine
+          twine check --strict pypi-dist/*
+      - name: Publish @openie/jouledb to GitHub Packages npm registry
+        continue-on-error: true
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@openie"
+      - name: npm publish to GitHub Packages (GITHUB_TOKEN)
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for tgz in npm-dist/*.tgz; do
+            npm publish "$tgz" --registry=https://npm.pkg.github.com || true
+          done
       - name: Publish Python wheels to PyPI (OIDC Trusted Publisher when configured)
         continue-on-error: true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: pypi-dist/
           skip-existing: true
-      - name: Publish @openie/jouledb to npm (OIDC provenance / NPM_TOKEN when configured)
+      - name: Setup Node 22 + npm >= 11.5.1 for npmjs OIDC provenance
         continue-on-error: true
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
-      - name: npm publish tarball
-        if: env.NODE_AUTH_TOKEN != ''
+      - name: Publish @openie/jouledb to npmjs (OIDC Trusted Publisher or NPM_TOKEN)
         continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          npm install -g npm@latest >/dev/null 2>&1 || true
           for tgz in npm-dist/*.tgz; do
             npm publish "$tgz" --access public --provenance || true
           done

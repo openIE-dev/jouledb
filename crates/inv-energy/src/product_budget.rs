@@ -279,7 +279,10 @@ impl ProductBudgetManager {
 
     /// Get all triggered alerts.
     pub fn get_alerts(&self) -> Vec<BudgetAlert> {
-        self.alerts.read().unwrap_or_else(|e| e.into_inner()).clone()
+        self.alerts
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Get alerts for a specific product.

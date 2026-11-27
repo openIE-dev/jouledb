@@ -533,16 +533,12 @@ impl WgpuComputeBackend {
         // One portable pipeline for all five: per-workgroup partials, host
         // reduction in f64 (no float atomics; naga rejects them).
         self.get_or_create_pipeline("agg_partials", shaders::AGG_PARTIALS_SHADER)?;
-        let pipeline = self
-            .pipelines
-            .get("agg_partials")
-            .ok_or_else(|| StorageError::Backend("Pipeline 'agg_partials' not found".to_string()))?;
-        let bind_group_layout = self
-            .bind_group_layouts
-            .get("agg_partials")
-            .ok_or_else(|| {
-                StorageError::Backend("Bind group layout 'agg_partials' not found".to_string())
-            })?;
+        let pipeline = self.pipelines.get("agg_partials").ok_or_else(|| {
+            StorageError::Backend("Pipeline 'agg_partials' not found".to_string())
+        })?;
+        let bind_group_layout = self.bind_group_layouts.get("agg_partials").ok_or_else(|| {
+            StorageError::Backend("Bind group layout 'agg_partials' not found".to_string())
+        })?;
         let input_data = self
             .buffers
             .get(&input_handle.0)
@@ -723,12 +719,9 @@ impl WgpuComputeBackend {
             .pipelines
             .get(shader_name)
             .ok_or_else(|| StorageError::Backend(format!("Pipeline '{shader_name}' not found")))?;
-        let bind_group_layout = self
-            .bind_group_layouts
-            .get(shader_name)
-            .ok_or_else(|| {
-                StorageError::Backend(format!("Bind group layout '{shader_name}' not found"))
-            })?;
+        let bind_group_layout = self.bind_group_layouts.get(shader_name).ok_or_else(|| {
+            StorageError::Backend(format!("Bind group layout '{shader_name}' not found"))
+        })?;
         let input_data = self
             .buffers
             .get(&input_handle.0)
@@ -862,12 +855,14 @@ impl WgpuComputeBackend {
         let pipeline = self.pipelines.get("btree_range_scan").ok_or_else(|| {
             StorageError::Backend("Pipeline 'btree_range_scan' not found".to_string())
         })?;
-        let bind_group_layout = self
-            .bind_group_layouts
-            .get("btree_range_scan")
-            .ok_or_else(|| {
-                StorageError::Backend("Bind group layout 'btree_range_scan' not found".to_string())
-            })?;
+        let bind_group_layout =
+            self.bind_group_layouts
+                .get("btree_range_scan")
+                .ok_or_else(|| {
+                    StorageError::Backend(
+                        "Bind group layout 'btree_range_scan' not found".to_string(),
+                    )
+                })?;
 
         // Now get buffer data (immutable borrow)
         let nodes_data = self
@@ -1198,12 +1193,14 @@ impl WgpuComputeBackend {
         let pipeline = self.pipelines.get("binary_hd_bundle").ok_or_else(|| {
             StorageError::Backend("Pipeline 'binary_hd_bundle' not found".to_string())
         })?;
-        let bind_group_layout = self
-            .bind_group_layouts
-            .get("binary_hd_bundle")
-            .ok_or_else(|| {
-                StorageError::Backend("Bind group layout 'binary_hd_bundle' not found".to_string())
-            })?;
+        let bind_group_layout =
+            self.bind_group_layouts
+                .get("binary_hd_bundle")
+                .ok_or_else(|| {
+                    StorageError::Backend(
+                        "Bind group layout 'binary_hd_bundle' not found".to_string(),
+                    )
+                })?;
 
         // Now get buffer data (immutable borrow)
         let vectors_data = self

@@ -36,11 +36,12 @@ pub struct DurableAmorphicStore {
     /// The underlying in-memory store
     store: AmorphicStore,
 
-    /// Write-ahead log manager
-    wal: WalManager,
+    /// Write-ahead log manager (independently mutex-protected so OLTP WAL serialization
+    /// and OS page-cache flushes never block concurrent `AmorphicStore` SQL readers)
+    wal: std::sync::Arc<std::sync::Mutex<WalManager>>,
 
     /// Transaction counter
-    tx_counter: AtomicU64,
+    tx_counter: std::sync::Arc<AtomicU64>,
 
     /// Database directory path
     path: PathBuf,
@@ -121,11 +122,61 @@ enum WalOperation {
 }
 
 impl DurableAmorphicStore {
+    fn lock_wal(&self) -> std::sync::MutexGuard<'_, WalManager> {
+        self.wal.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Shared WAL handle so OLTP commits can write and flush WAL frames without holding
+    /// the `DurableAmorphicStore` `RwLockWriteGuard`.
+    pub fn wal_handle(&self) -> std::sync::Arc<std::sync::Mutex<WalManager>> {
+        self.wal.clone()
+    }
+
+    /// Shared atomic transaction counter handle.
+    pub fn tx_counter_handle(&self) -> std::sync::Arc<AtomicU64> {
+        self.tx_counter.clone()
+    }
+
+    /// Shared atomic `RecordId` counter handle.
+    pub fn next_id_handle(&self) -> std::sync::Arc<AtomicU64> {
+        self.store.next_id_counter()
+    }
+
+    /// Encode a single `Delete` WAL payload without acquiring any store lock.
+    pub fn encode_delete_wal(id: RecordId) -> AmorphicResult<Vec<u8>> {
+        let op = WalOperation::Delete { id };
+        serde_json::to_vec(&op)
+            .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))
+    }
+
+    /// Apply an already-WAL-committed OLTP `INSERT` to in-memory indexes (deferred hologram).
+    pub fn apply_oltp_ram_insert(
+        &mut self,
+        id: RecordId,
+        fields: HashMap<String, Value>,
+    ) -> AmorphicResult<()> {
+        self.store.apply_prepared_ingest_deferred_holo(id, fields)
+    }
+
+    /// Apply an already-WAL-committed OLTP `UPDATE` to in-memory indexes (deferred hologram).
+    pub fn apply_oltp_ram_update(
+        &mut self,
+        id: RecordId,
+        updates: HashMap<String, Value>,
+    ) -> AmorphicResult<()> {
+        self.store.update_fields_deferred_holo(id, updates)
+    }
+
+    /// Apply an already-WAL-committed OLTP `DELETE` to in-memory indexes.
+    pub fn apply_oltp_ram_delete(&mut self, id: RecordId) -> AmorphicResult<()> {
+        self.store.delete(id)
+    }
+
     /// Group-commit handle for this store's WAL: after a write lock is
     /// released, `wait_durable(committed_lsn())` makes every commit made so
     /// far power-loss durable, sharing one fsync among concurrent writers.
     pub fn group_sync(&self) -> AmorphicResult<GroupSync> {
-        self.wal
+        self.lock_wal()
             .group_sync()
             .map_err(|e| AmorphicError::IngestionError(e.to_string()))
     }
@@ -168,8 +219,8 @@ impl DurableAmorphicStore {
 
         Ok(Self {
             store,
-            wal,
-            tx_counter: AtomicU64::new(max_tx_id + 1),
+            wal: std::sync::Arc::new(std::sync::Mutex::new(wal)),
+            tx_counter: std::sync::Arc::new(AtomicU64::new(max_tx_id + 1)),
             path,
             active_batch: None,
             pending: Default::default(),
@@ -315,7 +366,7 @@ impl DurableAmorphicStore {
             .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
 
         // Log to WAL BEFORE applying
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
@@ -323,7 +374,7 @@ impl DurableAmorphicStore {
         self.store.apply_prepared_ingest(id, fields)?;
 
         // Commit transaction (syncs to disk)
-        self.wal
+        self.lock_wal()
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
@@ -405,12 +456,18 @@ impl DurableAmorphicStore {
         // WAL records are serialized and appended (in id order) in parallel
         // with the index updates; the commit is logged after both, so a
         // crash before it leaves an uncommitted (ignored) transaction.
-        let wal = &mut self.wal;
+        let wal_arc = self.wal.clone();
         let t_apply = std::time::Instant::now();
         let wal_result = self
             .store
             .apply_prepared_ingest_batch_with(prepared, |rows| {
-                let (w, x) = rayon::join(|| Self::wal_chunks(wal, tx_id, rows), || extra(rows));
+                let (w, x) = rayon::join(
+                    || {
+                        let mut wal = wal_arc.lock().unwrap_or_else(|p| p.into_inner());
+                        Self::wal_chunks(&mut wal, tx_id, rows)
+                    },
+                    || extra(rows),
+                );
                 w.map(|()| x)
             })?;
         let x = wal_result?;
@@ -421,7 +478,7 @@ impl DurableAmorphicStore {
                 t_apply.elapsed()
             );
         }
-        self.wal
+        self.lock_wal()
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
         Ok((ids, x))
@@ -474,7 +531,7 @@ impl DurableAmorphicStore {
             .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
 
         // Log to WAL
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
@@ -482,7 +539,7 @@ impl DurableAmorphicStore {
         self.store.apply_prepared_ingest(id, fields)?;
 
         // Commit
-        self.wal
+        self.lock_wal()
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
@@ -530,7 +587,7 @@ impl DurableAmorphicStore {
             .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
 
         // Log to WAL (no commit yet)
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
@@ -538,6 +595,10 @@ impl DurableAmorphicStore {
         self.store.apply_prepared_ingest(id, fields)?;
 
         // Track in batch
+        let batch = self
+            .active_batch
+            .as_mut()
+            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
         batch.records.push((id, serialized));
 
         Ok(id)
@@ -545,21 +606,27 @@ impl DurableAmorphicStore {
 
     /// Add a pre-built field map to the current batch using binary `JWB1` WAL framing
     /// and deferred hypervector encoding (zero JSON serialization, zero synchronous HDC stall).
-    pub fn batch_ingest_fields(&mut self, fields: HashMap<String, Value>) -> AmorphicResult<RecordId> {
-        let batch = self
+    pub fn batch_ingest_fields(
+        &mut self,
+        fields: HashMap<String, Value>,
+    ) -> AmorphicResult<RecordId> {
+        let tx_id = self
             .active_batch
-            .as_mut()
-            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
-
-        let tx_id = batch.tx_id;
+            .as_ref()
+            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?
+            .tx_id;
         let (id, fields) = self.store.prepare_fields_ingest(fields)?;
-        let serialized = crate::wal_codec::encode_chunk(&[(id, fields.clone())]);
+        let serialized = crate::wal_codec::encode_single_row(id, &fields);
 
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
         self.store.apply_prepared_ingest_deferred_holo(id, fields)?;
+        let batch = self
+            .active_batch
+            .as_mut()
+            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
         batch.records.push((id, serialized));
         Ok(id)
     }
@@ -573,37 +640,34 @@ impl DurableAmorphicStore {
         self.settle_pending()?;
         let tx_id = self.next_tx_id();
         let (id, fields) = self.store.prepare_fields_ingest(fields)?;
-        let serialized = crate::wal_codec::encode_chunk(&[(id, fields.clone())]);
+        let serialized = crate::wal_codec::encode_single_row(id, &fields);
 
-        self.wal
-            .log_page_write(tx_id, id, &serialized)
-            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+        self.lock_wal()
+            .log_atomic_tx_fast(tx_id, &[(id, serialized)])
+            .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
         self.store.apply_prepared_ingest_deferred_holo(id, fields)?;
-
-        self.wal
-            .log_commit(tx_id)
-            .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
         Ok(id)
     }
 
     /// Delete a record within the current batch transaction
     pub fn batch_delete(&mut self, id: RecordId) -> AmorphicResult<()> {
-        let batch = self
-            .active_batch
-            .as_mut()
-            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
-
-        let tx_id = batch.tx_id;
+        let (tx_id, rec_len) = {
+            let batch = self
+                .active_batch
+                .as_ref()
+                .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
+            (batch.tx_id, batch.records.len())
+        };
 
         // WAL-log the delete operation
         let op = WalOperation::Delete { id };
         let serialized = serde_json::to_vec(&op)
             .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
 
-        let virtual_page_id = u64::MAX - tx_id - batch.records.len() as u64 - 1;
-        self.wal
+        let virtual_page_id = u64::MAX - tx_id.wrapping_mul(65_536) - rec_len as u64 - 1;
+        self.lock_wal()
             .log_page_write(tx_id, virtual_page_id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
@@ -611,6 +675,10 @@ impl DurableAmorphicStore {
         self.store.delete(id)?;
 
         // Track in batch (for rollback — re-ingest is not straightforward, but we track it)
+        let batch = self
+            .active_batch
+            .as_mut()
+            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
         batch.records.push((virtual_page_id, serialized));
 
         Ok(())
@@ -623,20 +691,26 @@ impl DurableAmorphicStore {
         id: RecordId,
         updates: HashMap<String, Value>,
     ) -> AmorphicResult<()> {
-        let batch = self
-            .active_batch
-            .as_mut()
-            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
+        let (tx_id, rec_len) = {
+            let batch = self
+                .active_batch
+                .as_ref()
+                .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
+            (batch.tx_id, batch.records.len())
+        };
 
-        let tx_id = batch.tx_id;
         let serialized = crate::wal_codec::encode_update(id, &updates);
 
-        let virtual_page_id = u64::MAX - tx_id - batch.records.len() as u64 - 1;
-        self.wal
+        let virtual_page_id = u64::MAX - tx_id.wrapping_mul(65_536) - rec_len as u64 - 1;
+        self.lock_wal()
             .log_page_write(tx_id, virtual_page_id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
         self.store.update_fields_deferred_holo(id, updates)?;
+        let batch = self
+            .active_batch
+            .as_mut()
+            .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
         batch.records.push((virtual_page_id, serialized));
 
         Ok(())
@@ -652,7 +726,7 @@ impl DurableAmorphicStore {
         let count = batch.records.len();
 
         // Commit transaction (syncs to disk)
-        self.wal
+        self.lock_wal()
             .log_commit(batch.tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
@@ -667,7 +741,7 @@ impl DurableAmorphicStore {
             .ok_or_else(|| AmorphicError::IngestionError("No active batch".into()))?;
 
         // Log rollback
-        self.wal
+        self.lock_wal()
             .log_rollback(batch.tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL rollback failed: {}", e)))?;
 
@@ -686,7 +760,7 @@ impl DurableAmorphicStore {
     /// guaranteed to be committed. Used to truncate old WAL entries.
     pub fn checkpoint(&mut self) -> AmorphicResult<u64> {
         let lsn = self
-            .wal
+            .lock_wal()
             .log_checkpoint()
             .map_err(|e| AmorphicError::IngestionError(format!("Checkpoint failed: {}", e)))?;
 
@@ -695,7 +769,7 @@ impl DurableAmorphicStore {
 
     /// Sync WAL to disk without creating checkpoint
     pub fn sync(&mut self) -> AmorphicResult<()> {
-        self.wal
+        self.lock_wal()
             .sync()
             .map_err(|e| AmorphicError::IngestionError(format!("Sync failed: {}", e)))?;
 
@@ -728,7 +802,7 @@ impl DurableAmorphicStore {
 
         // Use virtual page_id to avoid colliding with record-based page_ids
         let virtual_page_id = u64::MAX - tx_id;
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, virtual_page_id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
@@ -736,7 +810,7 @@ impl DurableAmorphicStore {
         let id = self.store.ingest_edge(source, relation, target)?;
 
         // Commit
-        self.wal
+        self.lock_wal()
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
@@ -760,7 +834,7 @@ impl DurableAmorphicStore {
             .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
 
         let virtual_page_id = u64::MAX - tx_id;
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, virtual_page_id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
@@ -768,7 +842,7 @@ impl DurableAmorphicStore {
         self.store.delete(id)?;
 
         // Commit
-        self.wal
+        self.lock_wal()
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
@@ -787,11 +861,11 @@ impl DurableAmorphicStore {
         let op = WalOperation::DeleteBatch { ids: ids.to_vec() };
         let serialized = serde_json::to_vec(&op)
             .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, u64::MAX - tx_id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
         let n = self.store.delete_batch(ids);
-        self.wal
+        self.lock_wal()
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
         Ok(n)
@@ -819,7 +893,7 @@ impl DurableAmorphicStore {
             .map_err(|e| AmorphicError::IngestionError(format!("Serialization failed: {}", e)))?;
 
         let virtual_page_id = u64::MAX - tx_id;
-        self.wal
+        self.lock_wal()
             .log_page_write(tx_id, virtual_page_id, &serialized)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
 
@@ -827,7 +901,7 @@ impl DurableAmorphicStore {
         self.store.update_fields(id, updates)?;
 
         // Commit
-        self.wal
+        self.lock_wal()
             .log_commit(tx_id)
             .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
 
@@ -894,12 +968,13 @@ impl DurableAmorphicStore {
             },
             || extra(b),
         );
-        self.wal
-            .log_page_writes_owned(tx_id, writes)
-            .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
-        self.wal
-            .log_commit(tx_id)
-            .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
+        {
+            let mut wal = self.lock_wal();
+            wal.log_page_writes_owned(tx_id, writes)
+                .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
+            wal.log_commit(tx_id)
+                .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
+        }
         self.pending_rows += batch.len;
         self.pending.push_back(std::sync::Arc::new(batch));
         self.col_gen = self.col_gen.wrapping_add(1);
@@ -964,11 +1039,11 @@ impl DurableAmorphicStore {
             let serialized = serde_json::to_vec(&op).map_err(|e| {
                 AmorphicError::IngestionError(format!("Serialization failed: {}", e))
             })?;
-            self.wal
+            self.lock_wal()
                 .log_page_write(tx_id, u64::MAX - tx_id, &serialized)
                 .map_err(|e| AmorphicError::IngestionError(format!("WAL write failed: {}", e)))?;
             self.store.delete_batch(&ids);
-            self.wal
+            self.lock_wal()
                 .log_commit(tx_id)
                 .map_err(|e| AmorphicError::IngestionError(format!("WAL commit failed: {}", e)))?;
         }
@@ -1121,12 +1196,12 @@ impl DurableAmorphicStore {
 
     /// Get current WAL LSN
     pub fn current_lsn(&self) -> u64 {
-        self.wal.current_lsn()
+        self.lock_wal().current_lsn()
     }
 
     /// Check if the WAL needs a checkpoint (exceeds size threshold)
     pub fn needs_checkpoint(&self) -> bool {
-        self.wal.needs_checkpoint()
+        self.lock_wal().needs_checkpoint()
     }
 
     /// Find amorphic RecordId for a SQL table row matching given column/value pairs.
@@ -1373,10 +1448,10 @@ mod tests {
             let bytes = serde_json::to_vec(&op).unwrap();
             assert_eq!(bytes[0], b'{');
             store
-                .wal
+                .lock_wal()
                 .log_page_writes_owned(tx, vec![(old_ids[0], bytes)])
                 .unwrap();
-            store.wal.log_commit(tx).unwrap();
+            store.lock_wal().log_commit(tx).unwrap();
             std::mem::forget(store);
         }
         let store = DurableAmorphicStore::open(temp_dir.path()).unwrap();

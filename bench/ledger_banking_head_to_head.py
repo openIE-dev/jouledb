@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Head-to-Head Core Banking Double-Entry Ledger Benchmark (NVMe + Hardware RAPL `reported_j`):
-JouleDB v0.14.0 (`JWL1` Binary CRC-32 + SHA-256 Chain + FIFO Group Commit) vs PostgreSQL 16 (`fsync=on`).
+JouleDB v0.16.0 (`JWL1` Binary CRC-32 + SHA-256 Chain + Adaptive FIFO Group Commit) vs PostgreSQL 16 (`fsync=on`).
 
 Enforces identical core-banking invariants on both engines over 1,000 customer accounts:
   1. Conservation of Money: every transfer records balanced debit + credit amounts (sum(debits) == sum(credits)).
@@ -335,7 +335,7 @@ def run_jouledb_banking(
         batch_size=batch_size,
     )
     return {
-        "engine": "JouleDB v0.15.0 HTTP (Pre-Allocated JWL1 + SHA-256 Chain + FIFO Group Commit, fsync=on)",
+        "engine": "JouleDB v0.16.0 HTTP (Pre-Allocated JWL1 + SHA-256 Chain + Adaptive FIFO Group Commit, fsync=on)",
         "invariants_verified": {
             "sha256_chain_valid": verify["valid"],
             "journal_entries_verified": verify["journal_entries_verified"],
@@ -531,7 +531,7 @@ def run_jouledb_pgwire_banking(
         batch_size=batch_size,
     )
     return {
-        "engine": "JouleDB v0.15.0 pgwire (psycopg3 + Pre-Allocated JWL1 + SHA-256 Chain + FIFO Group Commit, fsync=on)",
+        "engine": "JouleDB v0.16.0 pgwire (psycopg3 + Pre-Allocated JWL1 + SHA-256 Chain + Adaptive FIFO Group Commit, fsync=on)",
         "invariants_verified": {
             "sha256_chain_valid": verify["valid"],
             "journal_entries_verified": verify["journal_entries_verified"],
@@ -850,7 +850,7 @@ def main() -> None:
 
     report: dict = {
         "benchmark": "Core Banking Double-Entry Ledger Head-to-Head (Conservation + NO_OVERDRAFT + Idempotency + SHA-256 + fsync=on)",
-        "version": "0.15.0",
+        "version": "0.16.0",
         "host": platform.node(),
         "platform": platform.platform(),
         "cpu_count": os.cpu_count(),
@@ -866,7 +866,7 @@ def main() -> None:
     }
 
     try:
-        # 1A. JouleDB v0.15.0 (HTTP REST API)
+        # 1A. JouleDB v0.16.0 (HTTP REST API)
         jdb_dir = os.path.join(root_tmp, "jouledb_data")
         os.makedirs(jdb_dir, exist_ok=True)
         jdb_proc = subprocess.Popen(
@@ -894,7 +894,7 @@ def main() -> None:
             except Exception:
                 jdb_proc.kill()
 
-        # 1B. JouleDB v0.15.0 (Native pgwire + psycopg3 — exact wire protocol parity with PostgreSQL 16)
+        # 1B. JouleDB v0.16.0 (Native pgwire + psycopg3 — exact wire protocol parity with PostgreSQL 16)
         jdb_pg_dir = os.path.join(root_tmp, "jouledb_pgwire_data")
         os.makedirs(jdb_pg_dir, exist_ok=True)
         jdb_pgwire_port = args.http_port + 2

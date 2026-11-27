@@ -1,5 +1,5 @@
 /*
- * jouledb_universal.h — Official Single-Header C99 / C++20 SDK for JouleDB v0.15.0
+ * jouledb_universal.h — Official Single-Header C99 / C++20 SDK for JouleDB v0.16.0
  * Dual-licensed under Apache-2.0 OR MIT. Zero external dependencies.
  */
 #ifndef JOULEDB_UNIVERSAL_H
@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define JOULEDB_SDK_VERSION "0.15.0"
+#define JOULEDB_SDK_VERSION "0.16.0"
 
 /* Sends an HTTP/1.1 POST JSON request to 127.0.0.1:`port` and writes response body into `out_buf`. */
 static inline int jouledb_http_post_local(

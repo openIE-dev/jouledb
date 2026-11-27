@@ -77,7 +77,10 @@ impl OpfsOplogTailer {
 
         // Get current file size (for resuming)
         let size = self.get_file_size()?;
-        *self.current_offset.write().unwrap_or_else(|e| e.into_inner()) = size;
+        *self
+            .current_offset
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = size;
 
         Ok(())
     }
@@ -119,14 +122,20 @@ impl OpfsOplogTailer {
     /// Seek to offset (for resuming)
 
     pub fn seek(&self, offset: u64) -> Result<(), JsValue> {
-        *self.current_offset.write().unwrap_or_else(|e| e.into_inner()) = offset;
+        *self
+            .current_offset
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = offset;
         Ok(())
     }
 
     /// Get current offset
 
     pub fn current_offset(&self) -> u64 {
-        *self.current_offset.read().unwrap_or_else(|e| e.into_inner())
+        *self
+            .current_offset
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
     }
 
     /// Check if tailing is active
@@ -159,7 +168,11 @@ impl OpfsOplogTailer {
             }
 
             // Read new data
-            if let Some(handle) = oplog_handle.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            if let Some(handle) = oplog_handle
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .as_ref()
+            {
                 let offset = *current_offset.read().unwrap_or_else(|e| e.into_inner());
                 let mut buf = buffer.write().unwrap_or_else(|e| e.into_inner());
 
@@ -175,7 +188,8 @@ impl OpfsOplogTailer {
                         }
 
                         // Update offset
-                        *current_offset.write().unwrap_or_else(|e| e.into_inner()) += bytes_read as u64;
+                        *current_offset.write().unwrap_or_else(|e| e.into_inner()) +=
+                            bytes_read as u64;
                     }
                 }
             }

@@ -492,8 +492,7 @@ impl AmorphicTableStorage {
         if let Ok(mut dc) = self.disk_cols.write() {
             dc.remove(name);
         }
-        let _ =
-            crate::disk_col_segments::DiskColumnTable::remove_table_files(&self.db_path, name);
+        let _ = crate::disk_col_segments::DiskColumnTable::remove_table_files(&self.db_path, name);
         if std::env::var_os("JOULEDB_LAT_TRACE").is_some() {
             eprintln!(
                 "[lat] drop_table {name}: {} rows, lock {lock_wait:?}, schema {:?}, find {:?}, delete {:?}",

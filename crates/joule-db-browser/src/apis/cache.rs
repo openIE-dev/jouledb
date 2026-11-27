@@ -70,12 +70,7 @@ impl CacheManager {
 
     #[cfg(target_arch = "wasm32")]
     pub async fn add(&self, url: &str) -> Result<(), JsValue> {
-        if let Some(cache) = self
-            .cache
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
-        {
+        if let Some(cache) = self.cache.read().unwrap_or_else(|e| e.into_inner()).clone() {
             let add_func = js_sys::Reflect::get(&cache, &JsValue::from_str("add"))
                 .ok()
                 .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
@@ -104,12 +99,7 @@ impl CacheManager {
     #[wasm_bindgen(js_name = "match")]
     #[cfg(target_arch = "wasm32")]
     pub async fn cache_match(&self, url: &str) -> Result<Option<js_sys::Object>, JsValue> {
-        if let Some(cache) = self
-            .cache
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
-        {
+        if let Some(cache) = self.cache.read().unwrap_or_else(|e| e.into_inner()).clone() {
             let match_func = js_sys::Reflect::get(&cache, &JsValue::from_str("match"))
                 .ok()
                 .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
@@ -129,11 +119,9 @@ impl CacheManager {
             if result.is_null() || result.is_undefined() {
                 Ok(None)
             } else {
-                Ok(Some(
-                    result
-                        .dyn_into::<js_sys::Object>()
-                        .map_err(|_| JsValue::from_str("Invalid cache match result"))?,
-                ))
+                Ok(Some(result.dyn_into::<js_sys::Object>().map_err(|_| {
+                    JsValue::from_str("Invalid cache match result")
+                })?))
             }
         } else {
             Ok(None)

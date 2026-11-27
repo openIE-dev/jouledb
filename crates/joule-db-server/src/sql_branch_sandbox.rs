@@ -16,7 +16,9 @@
 //!    Coordinates row-level exclusive/shared locks across concurrent `pgwire`/HTTP transactions.
 
 use crate::amorphic_adapter::{AmorphicTableStorage, ColumnDefInfo};
-use crate::query::{QueryErrorResponse, QueryExecutor, QueryRequest, QueryResponse, SimpleQueryExecutor};
+use crate::query::{
+    QueryErrorResponse, QueryExecutor, QueryRequest, QueryResponse, SimpleQueryExecutor,
+};
 use joule_db_query::{RowData, TableStorage};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -162,15 +164,15 @@ impl SqlBranchSandboxManager {
         f: F,
     ) {
         if let Ok(mut map) = self.session_guardrails.write() {
-            let entry = map
-                .entry(session_key.to_string())
-                .or_insert_with(|| SessionGuardrailPolicy {
-                    strict: false,
-                    allow_destructive_ddl: true,
-                    require_where_on_write: false,
-                    max_joules_uj: None,
-                    spent_joules_uj: 0,
-                });
+            let entry =
+                map.entry(session_key.to_string())
+                    .or_insert_with(|| SessionGuardrailPolicy {
+                        strict: false,
+                        allow_destructive_ddl: true,
+                        require_where_on_write: false,
+                        max_joules_uj: None,
+                        spent_joules_uj: 0,
+                    });
             f(entry);
         }
     }
@@ -262,7 +264,11 @@ impl SqlBranchSandboxManager {
     }
 
     pub fn get_branch_executor(&self, name: &str) -> Option<Arc<SimpleQueryExecutor>> {
-        let entry = self.branches.read().ok().and_then(|m| m.get(name).cloned())?;
+        let entry = self
+            .branches
+            .read()
+            .ok()
+            .and_then(|m| m.get(name).cloned())?;
         let _ = materialize_all_branch_tables(&entry);
         Some(entry.executor().clone())
     }
@@ -371,7 +377,10 @@ impl SqlBranchSandboxManager {
 
     pub fn drop_branch(&self, name: &str, if_exists: bool) -> Result<bool, QueryErrorResponse> {
         if name.eq_ignore_ascii_case("main") {
-            return Err(sqlstate_err("42501", "cannot drop the 'main' branch".into()));
+            return Err(sqlstate_err(
+                "42501",
+                "cannot drop the 'main' branch".into(),
+            ));
         }
         let mut wmap = self
             .branches
@@ -595,7 +604,10 @@ impl DurableWorkflowCheckpointStore {
         energy_uj: u64,
     ) -> Result<(WorkflowStepRecord, bool), String> {
         let mut guard = self.inner.lock().map_err(|e| e.to_string())?;
-        let steps = guard.by_workflow.entry(workflow_id.to_string()).or_default();
+        let steps = guard
+            .by_workflow
+            .entry(workflow_id.to_string())
+            .or_default();
 
         if let Some(existing) = steps.iter().find(|s| s.step_id == step_id)
             && existing.status.eq_ignore_ascii_case("completed")
@@ -735,9 +747,9 @@ impl RowLockManager {
         loop {
             if let Ok(mut map) = self.locks.lock() {
                 let holders = map.entry(key.clone()).or_default();
-                let conflict = holders.iter().any(|h| {
-                    h.owner_session != sid && (exclusive || h.exclusive)
-                });
+                let conflict = holders
+                    .iter()
+                    .any(|h| h.owner_session != sid && (exclusive || h.exclusive));
                 if !conflict {
                     if let Some(mine) = holders.iter_mut().find(|h| h.owner_session == sid) {
                         mine.exclusive |= exclusive;
@@ -795,10 +807,7 @@ impl RowLockManager {
 
 pub fn is_branch_or_workflow_sql(sql: &str) -> bool {
     let t = sql.trim_start();
-    let up = t
-        .get(..32.min(t.len()))
-        .unwrap_or(t)
-        .to_ascii_uppercase();
+    let up = t.get(..32.min(t.len())).unwrap_or(t).to_ascii_uppercase();
     up.starts_with("CREATE BRANCH ")
         || up.starts_with("USE BRANCH ")
         || up == "SHOW BRANCHES"
@@ -825,12 +834,21 @@ pub fn execute_branch_or_workflow_sql(
     }
 
     let w0 = toks[0].to_ascii_uppercase();
-    let w1 = toks.get(1).map(|s| s.to_ascii_uppercase()).unwrap_or_default();
+    let w1 = toks
+        .get(1)
+        .map(|s| s.to_ascii_uppercase())
+        .unwrap_or_default();
 
     match (w0.as_str(), w1.as_str()) {
         ("SHOW", "BRANCHES") => {
             let (columns, rows) = branch_mgr.list_branches_rows();
-            Ok(simple_rows_response(columns, rows, None, start, "cow-branch-list"))
+            Ok(simple_rows_response(
+                columns,
+                rows,
+                None,
+                start,
+                "cow-branch-list",
+            ))
         }
         ("CREATE", "BRANCH") => {
             // CREATE BRANCH <name> [FROM <parent>] [ENERGY BUDGET <u64>] [GUARDRAILS STRICT|OFF]
@@ -848,7 +866,10 @@ pub fn execute_branch_or_workflow_sql(
                         parent = toks.get(i).cloned().unwrap_or_else(|| "main".into());
                     }
                     "ENERGY" => {
-                        if toks.get(i + 1).is_some_and(|t| t.eq_ignore_ascii_case("BUDGET")) {
+                        if toks
+                            .get(i + 1)
+                            .is_some_and(|t| t.eq_ignore_ascii_case("BUDGET"))
+                        {
                             i += 2;
                         } else {
                             i += 1;
@@ -861,9 +882,9 @@ pub fn execute_branch_or_workflow_sql(
                     }
                     "GUARDRAILS" => {
                         i += 1;
-                        strict = toks
-                            .get(i)
-                            .is_some_and(|v| v.eq_ignore_ascii_case("STRICT") || v.eq_ignore_ascii_case("ON"));
+                        strict = toks.get(i).is_some_and(|v| {
+                            v.eq_ignore_ascii_case("STRICT") || v.eq_ignore_ascii_case("ON")
+                        });
                     }
                     _ => {}
                 }
@@ -988,7 +1009,9 @@ pub fn execute_branch_or_workflow_sql(
         }
         ("DROP", "BRANCH") => {
             let (if_exists, name_idx) = if toks.get(2).is_some_and(|t| t.eq_ignore_ascii_case("IF"))
-                && toks.get(3).is_some_and(|t| t.eq_ignore_ascii_case("EXISTS"))
+                && toks
+                    .get(3)
+                    .is_some_and(|t| t.eq_ignore_ascii_case("EXISTS"))
             {
                 (true, 4)
             } else {
@@ -1008,9 +1031,10 @@ pub fn execute_branch_or_workflow_sql(
         }
         ("WORKFLOW", "CHECKPOINT") => {
             // WORKFLOW CHECKPOINT '<wf_id>' STEP '<step_id>' [STATUS '<st>'] [OUTPUT '<json>'] [INPUT_HASH '<h>'] [ENERGY_UJ <u64>]
-            let wf_id = toks.get(2).cloned().ok_or_else(|| {
-                QueryErrorResponse::syntax_error("missing workflow_id", 1, 1)
-            })?;
+            let wf_id = toks
+                .get(2)
+                .cloned()
+                .ok_or_else(|| QueryErrorResponse::syntax_error("missing workflow_id", 1, 1))?;
             let mut step_id = String::new();
             let mut status = "completed".to_string();
             let mut output_json = serde_json::json!({});
@@ -1025,10 +1049,7 @@ pub fn execute_branch_or_workflow_sql(
                     }
                     "STATUS" => {
                         i += 1;
-                        status = toks
-                            .get(i)
-                            .cloned()
-                            .unwrap_or_else(|| "completed".into());
+                        status = toks.get(i).cloned().unwrap_or_else(|| "completed".into());
                     }
                     "OUTPUT" => {
                         i += 1;
@@ -1057,7 +1078,14 @@ pub fn execute_branch_or_workflow_sql(
                 ));
             }
             let (rec, memoized) = wf_store
-                .checkpoint_step(&wf_id, &step_id, &status, input_hash, output_json, energy_uj)
+                .checkpoint_step(
+                    &wf_id,
+                    &step_id,
+                    &status,
+                    input_hash,
+                    output_json,
+                    energy_uj,
+                )
                 .map_err(|e| sqlstate_err("23505", e))?;
             Ok(simple_rows_response(
                 vec![
@@ -1331,10 +1359,7 @@ fn materialize_referenced_branch_tables(
     Ok(())
 }
 
-fn raw_rows_to_json_rows(
-    raw_rows: &[RowData],
-    columns: &[String],
-) -> Vec<Vec<serde_json::Value>> {
+fn raw_rows_to_json_rows(raw_rows: &[RowData], columns: &[String]) -> Vec<Vec<serde_json::Value>> {
     raw_rows
         .iter()
         .map(|row_data| {
@@ -1523,7 +1548,9 @@ fn apply_three_way_merge(
 
     for td in &diff.tables {
         if td.is_new_table {
-            let col_defs = branch_storage.get_column_defs(&td.table).unwrap_or_default();
+            let col_defs = branch_storage
+                .get_column_defs(&td.table)
+                .unwrap_or_default();
             let cols = branch_storage.columns(&td.table).unwrap_or_default();
             let ddl = if !col_defs.is_empty() {
                 render_create_table_sql(&td.table, &col_defs)

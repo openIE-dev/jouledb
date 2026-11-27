@@ -167,7 +167,11 @@ fn normalize_json_scalar(v: &serde_json::Value) -> serde_json::Value {
             if let Some(i) = n.as_i64() {
                 serde_json::json!(i)
             } else if let Some(f) = n.as_f64() {
-                let clean = if f == 0.0 { 0.0 } else { (f * 1e9).round() / 1e9 };
+                let clean = if f == 0.0 {
+                    0.0
+                } else {
+                    (f * 1e9).round() / 1e9
+                };
                 serde_json::json!(clean)
             } else {
                 v.clone()
@@ -201,7 +205,8 @@ pub fn load_migration_source_from_path(
     format: MigrationSourceFormat,
     path: &Path,
 ) -> Result<Vec<CanonicalMigratedRecord>, String> {
-    let bytes = std::fs::read(path).map_err(|e| format!("failed to read {}: {e}", path.display()))?;
+    let bytes =
+        std::fs::read(path).map_err(|e| format!("failed to read {}: {e}", path.display()))?;
     if bytes.starts_with(b"SQLite format 3\0") {
         // Live binary SQLite3 file: dump SQL cleanly via `sqlite3 <path> .dump`
         let output = Command::new("sqlite3")
@@ -227,10 +232,7 @@ pub fn load_migration_source_from_path(
     Ok(parse_migration_payload(format, stem, &text))
 }
 
-fn parse_sql_dump_records(
-    default_table: &str,
-    sql_text: &str,
-) -> Vec<CanonicalMigratedRecord> {
+fn parse_sql_dump_records(default_table: &str, sql_text: &str) -> Vec<CanonicalMigratedRecord> {
     let mut table_schemas: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut out = Vec::new();
     let mut auto_seq = 1u64;
@@ -326,7 +328,11 @@ fn parse_insert_statement(
             .to_string();
         let cols: Vec<String> = head[open_p + 1..close_p]
             .split(',')
-            .map(|c| c.trim().trim_matches(|ch| ch == '"' || ch == '`').to_string())
+            .map(|c| {
+                c.trim()
+                    .trim_matches(|ch| ch == '"' || ch == '`')
+                    .to_string()
+            })
             .collect();
         (t, Some(cols))
     } else {
@@ -336,7 +342,9 @@ fn parse_insert_statement(
         )
     };
 
-    let tail = line[values_pos + "VALUES".len()..].trim().trim_end_matches(';');
+    let tail = line[values_pos + "VALUES".len()..]
+        .trim()
+        .trim_end_matches(';');
     let mut tuples = Vec::new();
     let mut in_quote = false;
     let mut depth = 0i32;
@@ -414,7 +422,9 @@ fn parse_mongo_or_jsonl_records(
         if trimmed.is_empty() {
             continue;
         }
-        if let Ok(serde_json::Value::Object(map)) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        if let Ok(serde_json::Value::Object(map)) =
+            serde_json::from_str::<serde_json::Value>(trimmed)
+        {
             let mut fields = BTreeMap::new();
             for (k, v) in map {
                 fields.insert(k, normalize_json_scalar(&v));
@@ -434,12 +444,13 @@ fn parse_mongo_or_jsonl_records(
     out
 }
 
-fn parse_elastic_bulk_records(
-    default_index: &str,
-    raw_text: &str,
-) -> Vec<CanonicalMigratedRecord> {
+fn parse_elastic_bulk_records(default_index: &str, raw_text: &str) -> Vec<CanonicalMigratedRecord> {
     let mut out = Vec::new();
-    let lines: Vec<&str> = raw_text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let lines: Vec<&str> = raw_text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
     let mut i = 0usize;
     while i < lines.len() {
         if let Ok(meta) = serde_json::from_str::<serde_json::Value>(lines[i]) {
@@ -666,11 +677,15 @@ fn run_shadow_traffic_queries(
     let t3 = Instant::now();
     let mut src_counts: BTreeMap<&str, usize> = BTreeMap::new();
     for r in source_rows {
-        *src_counts.entry(r.collection_or_table.as_str()).or_insert(0) += 1;
+        *src_counts
+            .entry(r.collection_or_table.as_str())
+            .or_insert(0) += 1;
     }
     let mut dst_counts: BTreeMap<&str, usize> = BTreeMap::new();
     for r in target_rows {
-        *dst_counts.entry(r.collection_or_table.as_str()).or_insert(0) += 1;
+        *dst_counts
+            .entry(r.collection_or_table.as_str())
+            .or_insert(0) += 1;
     }
     let s3 = blake3::hash(&serde_json::to_vec(&src_counts).unwrap_or_default())
         .to_hex()
@@ -697,7 +712,8 @@ pub fn run_all_ecosystems_migration_certification() -> serde_json::Value {
     let pg_sql = "\
 CREATE TABLE ledger_entries (id INT PRIMARY KEY, account TEXT, amount_cents INT);
 INSERT INTO ledger_entries (id, account, amount_cents) VALUES (1, 'operating', 1425000), (2, 'reserve', 890000), (3, 'escrow', 250000);";
-    let pg_records = parse_migration_payload(MigrationSourceFormat::Postgres, "ledger_entries", pg_sql);
+    let pg_records =
+        parse_migration_payload(MigrationSourceFormat::Postgres, "ledger_entries", pg_sql);
     let pg_cdc = vec![
         MigrationCdcEvent {
             lsn: 5001,
@@ -751,7 +767,11 @@ INSERT INTO ledger_entries (id, account, amount_cents) VALUES (1, 'operating', 1
     let elastic_cert = execute_zero_downtime_migration(
         "mig-elastic-logs-03",
         MigrationSourceFormat::Elastic,
-        parse_migration_payload(MigrationSourceFormat::Elastic, "telemetry-2026", elastic_bulk),
+        parse_migration_payload(
+            MigrationSourceFormat::Elastic,
+            "telemetry-2026",
+            elastic_bulk,
+        ),
         &[],
     );
 
@@ -763,14 +783,13 @@ INSERT INTO ledger_entries (id, account, amount_cents) VALUES (1, 'operating', 1
         &[],
     );
 
-    let all_passed = [
-        &pg_cert,
-        &mongo_cert,
-        &elastic_cert,
-        &csv_cert,
-    ]
-    .iter()
-    .all(|c| c.zero_row_drift && (c.shadow_parity_rate - 1.0).abs() < 1e-12 && c.pq_signature_verified);
+    let all_passed = [&pg_cert, &mongo_cert, &elastic_cert, &csv_cert]
+        .iter()
+        .all(|c| {
+            c.zero_row_drift
+                && (c.shadow_parity_rate - 1.0).abs() < 1e-12
+                && c.pq_signature_verified
+        });
 
     serde_json::json!({
         "pillar": "Pillar 31 — Zero-Downtime Polyglot Migration, Multiset BLAKE3 Reconciliation & Shadow-Traffic Parity",
@@ -792,9 +811,14 @@ pub struct MigrateRunRequest {
     pub cdc_events: Vec<MigrationCdcEvent>,
 }
 
-async fn handle_migrate_run(Json(req): Json<MigrateRunRequest>) -> Json<MigrationCutoverCertificate> {
+async fn handle_migrate_run(
+    Json(req): Json<MigrateRunRequest>,
+) -> Json<MigrationCutoverCertificate> {
     let fmt = MigrationSourceFormat::parse_str(&req.source_format);
-    let tbl = req.collection_or_table.as_deref().unwrap_or("migrated_records");
+    let tbl = req
+        .collection_or_table
+        .as_deref()
+        .unwrap_or("migrated_records");
     let records = parse_migration_payload(fmt, tbl, &req.payload);
     let mig_id = req
         .migration_id
@@ -827,11 +851,7 @@ mod tests {
         let cert_suite = run_all_ecosystems_migration_certification();
         assert_eq!(cert_suite["all_passed"], serde_json::json!(true));
 
-        let a = parse_migration_payload(
-            MigrationSourceFormat::Csv,
-            "t",
-            "id,v\n1,100\n2,200\n",
-        );
+        let a = parse_migration_payload(MigrationSourceFormat::Csv, "t", "id,v\n1,100\n2,200\n");
         let mut b = a.clone();
         b.reverse();
         assert_eq!(

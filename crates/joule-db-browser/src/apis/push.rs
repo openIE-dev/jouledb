@@ -158,11 +158,9 @@ impl PushManager {
         if result.is_null() || result.is_undefined() {
             Ok(None)
         } else {
-            Ok(Some(
-                result
-                    .dyn_into::<js_sys::Object>()
-                    .map_err(|_| JsValue::from_str("Invalid subscription object"))?,
-            ))
+            Ok(Some(result.dyn_into::<js_sys::Object>().map_err(|_| {
+                JsValue::from_str("Invalid subscription object")
+            })?))
         }
     }
 

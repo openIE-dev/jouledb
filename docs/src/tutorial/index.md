@@ -1,6 +1,6 @@
-# Guided Tour (`v0.15.0` Preview)
+# Guided Tour (`v0.16.0` Preview)
 
-Explore JouleDB `v0.15.0` locally in seven steps:
+Explore JouleDB `v0.16.0` locally in seven steps:
 
 1. **Claude Desktop / MCP App (`jouledb mcp` & `.mcpb`):** Install the `.mcpb` bundle in Claude Desktop or configure `jouledb mcp --data ./jdb` to launch the interactive **JouleDB Studio** (`ui://jouledb/studio.html`, `59` MCP tools).
 2. **SQL & PostgreSQL `pgwire` (`:8082`):** Start `jouledb --port 8080 --data ./jdb` and run SQL via `jouledb query` or `psql -h 127.0.0.1 -p 8082 -U postgres`.

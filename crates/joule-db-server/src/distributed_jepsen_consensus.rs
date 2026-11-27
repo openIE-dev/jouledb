@@ -10,7 +10,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Instant;
 
-use axum::{Json, Router, extract::Query, routing::{get, post}};
+use axum::{
+    Json, Router,
+    extract::Query,
+    routing::{get, post},
+};
 use serde::{Deserialize, Serialize};
 
 /// Hybrid Logical Clock (`HLC`) stamp `(physical_ms, logical_seq)` immune to NTP wall-clock jumps.
@@ -177,7 +181,14 @@ pub fn run_geo_raft_jepsen_certification() -> GeoRaftJepsenReceipt {
     // Step 1: Commit 3 linearizable quorum writes under Term 1 leader `n1`
     for i in 1..=3u64 {
         let val = format!("v1_commit_{i}");
-        let ok = propose_quorum_write(&mut nodes, 0, &full_mesh, 1_000 + i * 10, "acct:global", &val);
+        let ok = propose_quorum_write(
+            &mut nodes,
+            0,
+            &full_mesh,
+            1_000 + i * 10,
+            "acct:global",
+            &val,
+        );
         if ok {
             history.push(LinearizableHistoryEvent {
                 seq_no: seq,
@@ -199,7 +210,14 @@ pub fn run_geo_raft_jepsen_certification() -> GeoRaftJepsenReceipt {
     let mut split_brain_writes_blocked = 0usize;
     for attempt in 1..=2u64 {
         let bad_val = format!("split_brain_uncommitted_{attempt}");
-        if !propose_quorum_write(&mut nodes, 0, &minority_part, 1_100 + attempt, "acct:global", &bad_val) {
+        if !propose_quorum_write(
+            &mut nodes,
+            0,
+            &minority_part,
+            1_100 + attempt,
+            "acct:global",
+            &bad_val,
+        ) {
             split_brain_writes_blocked += 1;
             history.push(LinearizableHistoryEvent {
                 seq_no: seq,
@@ -258,21 +276,11 @@ pub fn run_geo_raft_jepsen_certification() -> GeoRaftJepsenReceipt {
 
     // Step 3: Bounded-Staleness Follower Reads (`AS OF SYSTEM TIME '-50ms'`)
     // Case A: Follower `n5` in `ap-northeast-1` has `safe_closed_ts_ms = 1200`; at `now = 1230` (`lag = 30ms <= 50ms`), serves locally in 0 WAN hops!
-    let fresh_follower = bounded_staleness_follower_read(
-        &nodes[4],
-        &nodes[2],
-        1_230,
-        50,
-        "acct:global",
-    );
+    let fresh_follower =
+        bounded_staleness_follower_read(&nodes[4], &nodes[2], 1_230, 50, "acct:global");
     // Case B: Partitioned follower `n2` in `us-east-1` has `safe_closed_ts_ms = 1030`; at `now = 1230` (`lag = 200ms > 50ms`), safely reroutes to quorum leader `n3`!
-    let lagging_follower = bounded_staleness_follower_read(
-        &nodes[1],
-        &nodes[2],
-        1_230,
-        50,
-        "acct:global",
-    );
+    let lagging_follower =
+        bounded_staleness_follower_read(&nodes[1], &nodes[2], 1_230, 50, "acct:global");
 
     // Step 4: NEMESIS B — Inject `+250 ms` NTP forward/backward clock jump on `n4` and verify strict HLC monotonicity
     let mut hlc_trace = Vec::new();
@@ -299,7 +307,10 @@ pub fn run_geo_raft_jepsen_certification() -> GeoRaftJepsenReceipt {
         });
     }
 
-    let digests: BTreeSet<String> = nodes.iter().map(GeoRaftReplica::state_digest_blake3).collect();
+    let digests: BTreeSet<String> = nodes
+        .iter()
+        .map(GeoRaftReplica::state_digest_blake3)
+        .collect();
     let replicas_bit_identical_after_heal = digests.len() == 1;
     let converged_hash = digests.into_iter().next().unwrap_or_default();
 
@@ -358,7 +369,11 @@ fn propose_quorum_write(
         return false;
     }
     let term = nodes[leader_idx].current_term;
-    let next_index = nodes[leader_idx].log.last().map(|e| e.index + 1).unwrap_or(1);
+    let next_index = nodes[leader_idx]
+        .log
+        .last()
+        .map(|e| e.index + 1)
+        .unwrap_or(1);
     let hlc = HlcStamp::tick_local(nodes[leader_idx].hlc, wall_ms);
     nodes[leader_idx].hlc = hlc;
     let entry = GeoRaftEntry {
@@ -439,7 +454,10 @@ fn bounded_staleness_follower_read(
     }
 }
 
-fn heal_partition_and_reconcile_logs(nodes: &mut [GeoRaftReplica], auth_leader_idx: usize) -> usize {
+fn heal_partition_and_reconcile_logs(
+    nodes: &mut [GeoRaftReplica],
+    auth_leader_idx: usize,
+) -> usize {
     let leader_term = nodes[auth_leader_idx].current_term;
     let leader_commit = nodes[auth_leader_idx].commit_index;
     let leader_safe_ts = nodes[auth_leader_idx].safe_closed_ts_ms;
@@ -529,8 +547,7 @@ pub fn generate_iac_compliance_blueprint(tier: u8) -> serde_json::Value {
 pub fn run_v1_global_powerhouse_suite() -> serde_json::Value {
     let t0 = Instant::now();
     let migration = crate::live_migration::run_all_ecosystems_migration_certification();
-    let abi_pitr = joule_db_core::v1_stability_and_pitr::certify_v1_abi_stability_and_pitr()
-        .ok();
+    let abi_pitr = joule_db_core::v1_stability_and_pitr::certify_v1_abi_stability_and_pitr().ok();
     let sql2023 = joule_db_query::sql2023_powerhouse::run_sql2023_powerhouse_certification();
     let partition_sim = run_geo_raft_jepsen_certification();
     let bridge = crate::universal_bridge::run_universal_bridge_certification();
@@ -541,7 +558,9 @@ pub fn run_v1_global_powerhouse_suite() -> serde_json::Value {
     let c2_ok = abi_pitr.as_ref().map(|r| r.all_passed).unwrap_or(false);
     let c3_ok = sql2023.all_passed;
     let c4_ok = partition_sim.all_passed;
-    let c5_ok = bridge["in_process_entity_merge_smoke_passed"].as_bool().unwrap_or(false);
+    let c5_ok = bridge["in_process_entity_merge_smoke_passed"]
+        .as_bool()
+        .unwrap_or(false);
     let c6_ok = trust
         .as_ref()
         .and_then(|v| v["implemented_technical_controls_self_test_passed"].as_bool())
@@ -586,7 +605,8 @@ async fn handle_v1_abi_pitr_certify() -> Json<serde_json::Value> {
     }
 }
 
-async fn handle_sql2023_powerhouse() -> Json<joule_db_query::sql2023_powerhouse::Sql2023PowerhouseReceipt> {
+async fn handle_sql2023_powerhouse()
+-> Json<joule_db_query::sql2023_powerhouse::Sql2023PowerhouseReceipt> {
     Json(joule_db_query::sql2023_powerhouse::run_sql2023_powerhouse_certification())
 }
 
@@ -601,11 +621,23 @@ async fn handle_v1_powerhouse_suite() -> Json<serde_json::Value> {
 /// Builds the Axum router for `v1.0.0` Geo-Raft Jepsen, `v1` ABI/PITR, `SQL:2023 + AQE`, IaC, and Master 36-Pillar certification.
 pub fn v1_powerhouse_router() -> Router {
     Router::new()
-        .route("/api/v1/certify/geo_raft_jepsen", post(handle_geo_raft_certify))
-        .route("/api/v1/certify/v1_abi_pitr", post(handle_v1_abi_pitr_certify))
-        .route("/api/v1/bench/sql2023_powerhouse", post(handle_sql2023_powerhouse))
+        .route(
+            "/api/v1/certify/geo_raft_jepsen",
+            post(handle_geo_raft_certify),
+        )
+        .route(
+            "/api/v1/certify/v1_abi_pitr",
+            post(handle_v1_abi_pitr_certify),
+        )
+        .route(
+            "/api/v1/bench/sql2023_powerhouse",
+            post(handle_sql2023_powerhouse),
+        )
         .route("/api/v1/deploy/iac_blueprint", get(handle_iac_blueprint))
-        .route("/api/v1/bench/v1_powerhouse", post(handle_v1_powerhouse_suite))
+        .route(
+            "/api/v1/bench/v1_powerhouse",
+            post(handle_v1_powerhouse_suite),
+        )
 }
 
 #[cfg(test)]

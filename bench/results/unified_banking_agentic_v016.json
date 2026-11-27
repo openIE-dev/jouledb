@@ -1,0 +1,27 @@
+{
+  "version": "0.16.0",
+  "exact_decimal128_verified": true,
+  "double_entry_ledger": {
+    "hot_wallet_attempts": 500,
+    "hot_wallet_committed": 350,
+    "overdrafts": 0,
+    "throughput_ops_per_sec": 879.0,
+    "sha256_chain_valid": true,
+    "journal_entries_verified": 358,
+    "head_hash": "11ab7bd1b06a3c93b9a80bcf3a25b936d114f56117c8d95c74cc204f4b22286f"
+  },
+  "agentic_cow_branches": {
+    "branches_tested": 10,
+    "pure_create_branch_median_ms": 0.553,
+    "median_fork_guardrail_write_ms": 30.82,
+    "destructive_ddl_blocked": true,
+    "unbounded_delete_blocked": true,
+    "three_way_conflict_detected": true,
+    "durable_workflow_memoization_verified": true,
+    "pgvector_hnsw_verified": true
+  },
+  "human_row_locking": {
+    "for_update_nowait_verified": true,
+    "for_update_skip_locked_verified": true
+  }
+}

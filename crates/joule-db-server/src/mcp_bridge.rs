@@ -851,7 +851,11 @@ impl DatabaseToolHandler {
     }
 
     fn handle_workflow_checkpoint(&self, request: &ToolCallRequest) -> ToolCallResponse {
-        let Some(wf_id) = request.arguments.get("workflow_id").and_then(|v| v.as_str()) else {
+        let Some(wf_id) = request
+            .arguments
+            .get("workflow_id")
+            .and_then(|v| v.as_str())
+        else {
             return Self::missing(&request.id, "missing required parameter: workflow_id");
         };
         let Some(step_id) = request.arguments.get("step_id").and_then(|v| v.as_str()) else {
@@ -879,7 +883,11 @@ impl DatabaseToolHandler {
     }
 
     fn handle_workflow_resume(&self, request: &ToolCallRequest) -> ToolCallResponse {
-        let Some(wf_id) = request.arguments.get("workflow_id").and_then(|v| v.as_str()) else {
+        let Some(wf_id) = request
+            .arguments
+            .get("workflow_id")
+            .and_then(|v| v.as_str())
+        else {
             return Self::missing(&request.id, "missing required parameter: workflow_id");
         };
         self.query_sql(

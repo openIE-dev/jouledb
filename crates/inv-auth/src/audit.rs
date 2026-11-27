@@ -256,7 +256,10 @@ impl AuditLog {
 
     /// Return all entries in chronological order.
     pub fn all(&self) -> Vec<AuditEntry> {
-        self.entries.read().unwrap_or_else(|e| e.into_inner()).clone()
+        self.entries
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Return the `limit` most recent entries, newest first.
@@ -285,7 +288,10 @@ impl Default for AuditLog {
 /// Whether a durable sink has been attached.
 impl AuditLog {
     pub fn has_sink(&self) -> bool {
-        self.sink.read().unwrap_or_else(|e| e.into_inner()).is_some()
+        self.sink
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
     }
 }
 

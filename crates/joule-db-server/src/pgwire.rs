@@ -1501,7 +1501,15 @@ fn run_statement_with_args(
     query_timeout_ms: Option<u64>,
 ) -> Result<QueryResponse, QueryErrorResponse> {
     let t = std::time::Instant::now();
-    let r = run_statement_inner(sql, args, executor, conn_state, query_timeout_ms);
+    let r = if tokio::runtime::Handle::try_current()
+        .is_ok_and(|h| h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread)
+    {
+        tokio::task::block_in_place(|| {
+            run_statement_inner(sql, args, executor, conn_state, query_timeout_ms)
+        })
+    } else {
+        run_statement_inner(sql, args, executor, conn_state, query_timeout_ms)
+    };
     if crate::query::lat_trace() {
         eprintln!("lat pgwire run_statement={:?}", t.elapsed());
     }
@@ -1560,15 +1568,17 @@ fn run_statement_inner(
                     conn_state.active_branch = None;
                     return Ok(empty_response());
                 }
-                if first == "SET" && u.contains("JOULEDB.BRANCH")
+                if first == "SET"
+                    && u.contains("JOULEDB.BRANCH")
                     && let Some((_, rhs)) = t.split_once('=')
                 {
                     let bname = rhs.trim().trim_matches('\'').trim_matches('"').to_string();
-                    conn_state.active_branch = if bname.eq_ignore_ascii_case("main") || bname.is_empty() {
-                        None
-                    } else {
-                        Some(bname)
-                    };
+                    conn_state.active_branch =
+                        if bname.eq_ignore_ascii_case("main") || bname.is_empty() {
+                            None
+                        } else {
+                            Some(bname)
+                        };
                     return Ok(empty_response());
                 }
             } else {
@@ -1580,13 +1590,14 @@ fn run_statement_inner(
     }
     // RBAC: check write permission before executing
     crate::query::check_write_permission(&conn_state.user_id, &conn_state.roles, sql)?;
-    let effective_session = conn_state
-        .session_id
-        .clone()
-        .or_else(|| Some(conn_state.conn_guard_key.clone()).filter(|_| {
-            sql.trim_start().get(..11).is_some_and(|p| p.eq_ignore_ascii_case("SET JOULEDB"))
+    let effective_session = conn_state.session_id.clone().or_else(|| {
+        Some(conn_state.conn_guard_key.clone()).filter(|_| {
+            sql.trim_start()
+                .get(..11)
+                .is_some_and(|p| p.eq_ignore_ascii_case("SET JOULEDB"))
                 || conn_state.has_custom_guardrails
-        }));
+        })
+    });
     let request = QueryRequest {
         sql: strip_pg_catalog(sql),
         params: HashMap::new(),
@@ -1595,10 +1606,7 @@ fn run_statement_inner(
         limit: None,
         session_id: conn_state.session_id.clone().or_else(|| {
             if conn_state.has_custom_guardrails
-                || sql
-                    .trim_start()
-                    .to_ascii_uppercase()
-                    .contains("JOULEDB.")
+                || sql.trim_start().to_ascii_uppercase().contains("JOULEDB.")
             {
                 effective_session
             } else {
@@ -1747,7 +1755,9 @@ fn show_setting(sql: &str) -> Option<QueryResponse> {
 /// types, so it answers with zero rows, which psycopg reads as "not installed".
 fn type_info_lookup(sql: &str) -> Option<QueryResponse> {
     let l = sql.to_ascii_lowercase();
-    if !(l.contains("from pg_type") && (l.contains("::regtype") || l.contains("to_regtype") || l.contains("pg_range"))) {
+    if !(l.contains("from pg_type")
+        && (l.contains("::regtype") || l.contains("to_regtype") || l.contains("pg_range")))
+    {
         return None;
     }
     Some(QueryResponse {
@@ -2033,32 +2043,30 @@ fn copy_file(
             crate::file_formats::for_each_parquet_batch_group_owned(
                 p_str,
                 1,
-                |chunk, total_hint| {
-                    match executor.bulk_insert_arrow_owned_with_hint(
-                        &spec.target,
-                        &spec.columns,
-                        chunk,
-                        total_hint,
-                    ) {
-                        Some(Ok(n)) => {
-                            total_inserted += n;
-                            Ok(true)
-                        }
-                        Some(Err(e)) => {
-                            chunk_err = Some((e.code, e.message));
-                            Ok(false)
-                        }
-                        None if total_inserted == 0 => {
-                            streamed = false;
-                            Ok(false)
-                        }
-                        None => {
-                            chunk_err = Some((
-                                "22000".to_string(),
-                                "Parquet row-group schema changed mid-stream".to_string(),
-                            ));
-                            Ok(false)
-                        }
+                |chunk, total_hint| match executor.bulk_insert_arrow_owned_with_hint(
+                    &spec.target,
+                    &spec.columns,
+                    chunk,
+                    total_hint,
+                ) {
+                    Some(Ok(n)) => {
+                        total_inserted += n;
+                        Ok(true)
+                    }
+                    Some(Err(e)) => {
+                        chunk_err = Some((e.code, e.message));
+                        Ok(false)
+                    }
+                    None if total_inserted == 0 => {
+                        streamed = false;
+                        Ok(false)
+                    }
+                    None => {
+                        chunk_err = Some((
+                            "22000".to_string(),
+                            "Parquet row-group schema changed mid-stream".to_string(),
+                        ));
+                        Ok(false)
                     }
                 },
             )

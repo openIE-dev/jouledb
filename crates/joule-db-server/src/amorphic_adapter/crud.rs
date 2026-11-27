@@ -294,60 +294,120 @@ impl AmorphicTableStorage {
         Ok(())
     }
 
-    /// Execute an entire batch of inserts, updates, and deletes atomically under a
-    /// single exclusive store lock, releasing the lock before returning a
-    /// [`DeferredBatchSync`] handle so concurrent committers coalesce into a single
-    /// `GroupSync::wait_durable` fsync.
+    /// Execute an entire batch of inserts, updates, and deletes atomically while keeping
+    /// all WAL serialization and OS page-cache flushes OUTSIDE the exclusive `AmorphicStore`
+    /// `RwLockWriteGuard` (so concurrent SQL readers run without starvation) and returning
+    /// a [`DeferredBatchSync`] handle so concurrent committers coalesce into one `fdatasync`.
     pub fn apply_atomic_batch_deferred(
         &self,
         ops: Vec<AtomicBatchOp>,
     ) -> QueryResult<(Vec<(usize, RecordId)>, DeferredBatchSync)> {
-        let (mut guard, sync_arc) = self.store.write_deferred_sync().map_err(lock_error)?;
-        guard.begin_batch().map_err(amorphic_error)?;
+        enum RamOp {
+            Insert(RecordId, HashMap<String, AmorphicValue>),
+            Update(RecordId, HashMap<String, AmorphicValue>),
+            Delete(RecordId),
+        }
 
-        let mut assigned_ids = Vec::new();
+        if ops.is_empty() {
+            return Ok((
+                Vec::new(),
+                DeferredBatchSync {
+                    sync: None,
+                    lsn: None,
+                },
+            ));
+        }
+
+        // 1. Ensure any pending bulk-COPY columnar batches are materialized before IDs/mutations.
+        self.store.settle_if_cols_pending();
+
+        // 2. Prepare field maps and count inserts with ZERO locks held!
+        let mut n_inserts = 0usize;
+        for op in &ops {
+            if let AtomicBatchOp::Insert { row, .. } = op {
+                let ncols = row.columns.len() + 1;
+                if ncols > joule_db_amorphic::MAX_FIELDS_ERROR {
+                    return Err(amorphic_error(
+                        joule_db_amorphic::AmorphicError::FieldCountExceeded(
+                            ncols,
+                            joule_db_amorphic::MAX_FIELDS_ERROR,
+                        ),
+                    ));
+                }
+                n_inserts += 1;
+            }
+        }
+
+        let (tx_id, first_insert_id) = self.store.alloc_tx_and_ids(n_inserts);
+        let mut next_ins_id = first_insert_id;
+
+        let mut assigned_ids = Vec::with_capacity(n_inserts);
+        let mut wal_pages: Vec<(u64, Vec<u8>)> = Vec::with_capacity(ops.len());
+        let mut ram_ops: Vec<RamOp> = Vec::with_capacity(ops.len());
         let mut any_holo_change = false;
-        for op in ops {
-            let step_res: QueryResult<()> = match op {
+
+        for (op_idx, op) in ops.into_iter().enumerate() {
+            match op {
                 AtomicBatchOp::Insert {
                     key_idx,
                     table,
                     row,
                 } => {
+                    let id = next_ins_id;
+                    next_ins_id += 1;
                     let mut fields = HashMap::with_capacity(row.columns.len() + 1);
                     fields.insert(TABLE_FIELD.to_string(), AmorphicValue::String(table));
                     for (col, val) in row.columns.into_iter().zip(row.values) {
                         fields.insert(col, ast_into_amorphic(val));
                     }
-                    match guard.batch_ingest_fields(fields) {
-                        Ok(id) => {
-                            any_holo_change = true;
-                            assigned_ids.push((key_idx, id));
-                            Ok(())
-                        }
-                        Err(e) => Err(amorphic_error(e)),
-                    }
+                    let wal_bytes = joule_db_amorphic::wal_codec::encode_single_row(id, &fields);
+                    wal_pages.push((id, wal_bytes));
+                    assigned_ids.push((key_idx, id));
+                    ram_ops.push(RamOp::Insert(id, fields));
+                    any_holo_change = true;
                 }
                 AtomicBatchOp::Update { id, updates } => {
+                    let vpid = u64::MAX - tx_id.wrapping_mul(65_536) - (op_idx as u64) - 1;
+                    let wal_bytes = joule_db_amorphic::wal_codec::encode_update(id, &updates);
+                    wal_pages.push((vpid, wal_bytes));
+                    ram_ops.push(RamOp::Update(id, updates));
                     any_holo_change = true;
-                    guard.batch_update_fields(id, updates).map_err(amorphic_error)
                 }
-                AtomicBatchOp::Delete { id } => guard.batch_delete(id).map_err(amorphic_error),
-            };
-            if let Err(e) = step_res {
-                let _ = guard.rollback_batch();
-                return Err(e);
+                AtomicBatchOp::Delete { id } => {
+                    let vpid = u64::MAX - tx_id.wrapping_mul(65_536) - (op_idx as u64) - 1;
+                    let wal_bytes =
+                        DurableAmorphicStore::encode_delete_wal(id).map_err(amorphic_error)?;
+                    wal_pages.push((vpid, wal_bytes));
+                    ram_ops.push(RamOp::Delete(id));
+                }
             }
         }
 
-        if let Err(e) = guard.commit_batch() {
-            let _ = guard.rollback_batch();
-            return Err(amorphic_error(e));
-        }
+        // 3. Write + flush single-buffer atomic WAL transaction under `wal` mutex ONLY
+        //    (concurrent `SELECT` / `UPDATE` SQL readers on `AmorphicStore` are NOT blocked!).
+        let (commit_lsn, sync_arc) = self
+            .store
+            .log_wal_tx_unlocked(tx_id, &wal_pages)
+            .map_err(QueryError::ExecutionError)?;
 
+        // 4. Acquire `AmorphicStore` write lock ONLY for ~1µs pure in-memory index mutation!
+        let mut guard = self.store.write_ram_only().map_err(lock_error)?;
+        for rop in ram_ops {
+            match rop {
+                RamOp::Insert(id, fields) => {
+                    let _ = guard.apply_oltp_ram_insert(id, fields);
+                }
+                RamOp::Update(id, updates) => {
+                    let _ = guard.apply_oltp_ram_update(id, updates);
+                }
+                RamOp::Delete(id) => {
+                    let _ = guard.apply_oltp_ram_delete(id);
+                }
+            }
+        }
         let has_pending_holo = any_holo_change && guard.pending_holograms() > 0;
-        let lsn = sync_arc.as_ref().map(|g| g.committed_lsn());
         drop(guard);
+
         if has_pending_holo {
             self.store.mark_pending();
         }
@@ -355,7 +415,7 @@ impl AmorphicTableStorage {
             assigned_ids,
             DeferredBatchSync {
                 sync: sync_arc,
-                lsn,
+                lsn: Some(commit_lsn),
             },
         ))
     }
@@ -492,10 +552,8 @@ impl AmorphicTableStorage {
             && let Some(dt) = dc.remove(table)
         {
             count += dt.total_rows;
-            let _ = crate::disk_col_segments::DiskColumnTable::remove_table_files(
-                &self.db_path,
-                table,
-            );
+            let _ =
+                crate::disk_col_segments::DiskColumnTable::remove_table_files(&self.db_path, table);
         }
         Ok(count)
     }
@@ -808,13 +866,11 @@ impl AmorphicTableStorage {
             } else {
                 0
             };
-            let existing_rows = cached_rows
-                .max(pending_table_rows)
-                .max(
-                    store
-                        .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
-                        .len(),
-                );
+            let existing_rows = cached_rows.max(pending_table_rows).max(
+                store
+                    .records_equal(TABLE_FIELD, &AmorphicValue::String(table.to_string()))
+                    .len(),
+            );
             let projected_rows = existing_rows
                 .saturating_add(n)
                 .max(total_rows_hint.unwrap_or(0));

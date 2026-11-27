@@ -109,7 +109,10 @@ impl AcceleratorManager {
 
     /// List all detected devices.
     pub fn list_devices(&self) -> Vec<AcceleratorDevice> {
-        self.devices.read().unwrap_or_else(|e| e.into_inner()).clone()
+        self.devices
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// List only devices of a specific kind.

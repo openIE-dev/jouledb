@@ -18,7 +18,6 @@ pub mod binary_protocol;
 pub mod columnar_exec;
 pub mod columnar_join;
 pub mod config;
-pub mod disk_col_segments;
 pub mod cost_model;
 pub mod cql_executor;
 pub mod cxl_memory;
@@ -26,6 +25,7 @@ pub mod cypher_executor;
 pub mod datalog_executor;
 pub mod decimal128;
 pub mod deployment;
+pub mod disk_col_segments;
 pub mod distributed_query;
 pub mod dynamic_routes;
 pub mod edge_pop;
@@ -101,10 +101,12 @@ pub mod workflow;
 // Amorphic modules
 pub mod amorphic_adapter;
 pub mod certification_routes;
+pub mod distributed_jepsen_consensus;
 pub mod ducklake;
 pub mod fabric_routes;
 pub mod gin_index;
 pub mod kube_control_plane;
+pub mod live_migration;
 pub mod living_embodied_routes;
 pub mod mcp_agent_loop;
 pub mod mcp_app_ui;
@@ -115,8 +117,6 @@ pub mod pulse_mesh_routes;
 pub mod spatial_index;
 pub mod swot_capsule_routes;
 pub mod synapse_routes;
-pub mod distributed_jepsen_consensus;
-pub mod live_migration;
 pub mod trust_compliance;
 pub mod universal_bridge;
 pub mod vector_index;
@@ -3825,7 +3825,10 @@ async fn security_headers_middleware(
     use axum::http::HeaderValue;
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
-    headers.insert("X-Content-Type-Options", HeaderValue::from_static("nosniff"));
+    headers.insert(
+        "X-Content-Type-Options",
+        HeaderValue::from_static("nosniff"),
+    );
     headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
     headers.insert(
         "X-XSS-Protection",

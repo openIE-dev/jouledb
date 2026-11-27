@@ -370,8 +370,8 @@ impl WaiOsBlock64WeightTensor {
         if crc32_ieee(&raw) != expected_crc {
             return Err(io_err("JSYN-v1 CRC-32 integrity check failed"));
         }
-        let tensor: Self = serde_json::from_slice(&raw)
-            .map_err(|e| io_err(format!("JSYN Block64 JSON: {e}")))?;
+        let tensor: Self =
+            serde_json::from_slice(&raw).map_err(|e| io_err(format!("JSYN Block64 JSON: {e}")))?;
         tensor.validate_invariants()?;
         Ok(tensor)
     }
@@ -737,8 +737,8 @@ impl WaiOsBlock64WeightTensor {
         total_model_f32_bytes: usize,
         cache_override_bytes: Option<usize>,
     ) -> Result<(Vec<f32>, WeightDbNumericRegime), Error> {
-        let eff_cache =
-            cache_override_bytes.unwrap_or_else(|| WeightDbCacheTopology::discover().effective_fpu_cache_bytes);
+        let eff_cache = cache_override_bytes
+            .unwrap_or_else(|| WeightDbCacheTopology::discover().effective_fpu_cache_bytes);
         let layer_f32 = self.rows.saturating_mul(self.cols).saturating_mul(4);
         let working_set = total_model_f32_bytes
             .max(layer_f32)
@@ -815,7 +815,9 @@ mod tests {
     fn sample_block64_tensor() -> WaiOsBlock64WeightTensor {
         let tile = WaiOsBlock64Tile {
             local_rank: 8,
-            b_v_u64: (0..8).map(|k| 0xAAAA_5555_F0F0_0F0Fu64.rotate_left(k * 5)).collect(),
+            b_v_u64: (0..8)
+                .map(|k| 0xAAAA_5555_F0F0_0F0Fu64.rotate_left(k * 5))
+                .collect(),
             b_u_u64: (0..64).map(|r| (0x5Au64 ^ (r as u64 * 3)) & 0xFF).collect(),
             alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
         };
@@ -903,9 +905,13 @@ mod tests {
         let tile = WaiOsBlock64Tile {
             local_rank: 8,
             b_v_u64: (0..8usize)
-                .map(|k| 0xA5A5_5A5A_F00F_0FF0u64 ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111)))
+                .map(|k| {
+                    0xA5A5_5A5A_F00F_0FF0u64 ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                })
                 .collect(),
-            b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+            b_u_u64: (0..64usize)
+                .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                .collect(),
             alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
         };
         let tensor = WaiOsBlock64WeightTensor {
@@ -954,7 +960,9 @@ mod tests {
                         ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                 })
                 .collect(),
-            b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+            b_u_u64: (0..64usize)
+                .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                .collect(),
             alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
         };
         let tensor_b = WaiOsBlock64WeightTensor {
@@ -1012,7 +1020,9 @@ mod tests {
                             ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                     })
                     .collect(),
-                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                b_u_u64: (0..64usize)
+                    .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                    .collect(),
                 alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
             }],
         };
@@ -1033,13 +1043,22 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
-        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
-        let query_2: Vec<i8> = (0..64i32).map(|i| (((i * 9 + 23) & 0x7F) - 64) as i8).collect();
+        let prefix_a: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8)
+            .collect();
+        let query_1: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8)
+            .collect();
+        let query_2: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 9 + 23) & 0x7F) - 64) as i8)
+            .collect();
 
         // Populate cached (K, V) from prefix_A once, then evaluate query_1 and query_2:
         let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
-        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let k_q7: Vec<i8> = y0_p
+            .iter()
+            .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+            .collect();
         let v_q7: Vec<i8> = y0_p
             .iter()
             .zip(prefix_a.iter())
@@ -1048,7 +1067,10 @@ mod tests {
 
         let eval_q = |qx: &[i8]| -> u64 {
             let y0_q = l0.forward_simd_lut4_q24(qx).unwrap();
-            let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+            let q_q7: Vec<i8> = y0_q
+                .iter()
+                .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+                .collect();
             let mut x1 = vec![0i8; 64];
             for h in 0..4usize {
                 let base = h * 16;
@@ -1059,9 +1081,8 @@ mod tests {
                 let gate_q8 = ((score >> 10) + 128).clamp(16, 240);
                 for d in 0..16usize {
                     let idx = base + d;
-                    x1[idx] =
-                        (i32::from(qx[idx]) + ((gate_q8 * i32::from(v_q7[idx])) >> 8)).clamp(-127, 127)
-                            as i8;
+                    x1[idx] = (i32::from(qx[idx]) + ((gate_q8 * i32::from(v_q7[idx])) >> 8))
+                        .clamp(-127, 127) as i8;
                 }
             }
             let y1 = l1.forward_simd_lut4_q24(&x1).unwrap();
@@ -1100,7 +1121,9 @@ mod tests {
                             ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                     })
                     .collect(),
-                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                b_u_u64: (0..64usize)
+                    .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                    .collect(),
                 alpha_q12: [512i16, 384, 256, 192, 128, 96, 64, 32]
                     .iter()
                     .zip(mults.iter())
@@ -1128,23 +1151,35 @@ mod tests {
                             ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                     })
                     .collect(),
-                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                b_u_u64: (0..64usize)
+                    .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                    .collect(),
                 alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
             }],
         };
 
-        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
-        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
+        let prefix_a: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8)
+            .collect();
+        let query_1: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8)
+            .collect();
 
         let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
-        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let k_q7: Vec<i8> = y0_p
+            .iter()
+            .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+            .collect();
         let v_q7: Vec<i8> = y0_p
             .iter()
             .zip(prefix_a.iter())
             .map(|(&y, &px)| ((y >> 17) + i64::from(px)).clamp(-127, 127) as i8)
             .collect();
         let y0_q = l0.forward_simd_lut4_q24(&query_1).unwrap();
-        let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let q_q7: Vec<i8> = y0_q
+            .iter()
+            .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+            .collect();
 
         let mut x1 = vec![0i8; 64];
         for h in 0..4usize {
@@ -1205,7 +1240,9 @@ mod tests {
                             ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                     })
                     .collect(),
-                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                b_u_u64: (0..64usize)
+                    .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                    .collect(),
                 alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
             }],
         };
@@ -1229,23 +1266,35 @@ mod tests {
                             ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
                     })
                     .collect(),
-                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                b_u_u64: (0..64usize)
+                    .map(|r| ((r * 37 + 13) as u64) & 0xFF)
+                    .collect(),
                 alpha_q12: alphas,
             }],
         };
 
-        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
-        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
+        let prefix_a: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8)
+            .collect();
+        let query_1: Vec<i8> = (0..64i32)
+            .map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8)
+            .collect();
 
         let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
-        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let k_q7: Vec<i8> = y0_p
+            .iter()
+            .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+            .collect();
         let v_q7: Vec<i8> = y0_p
             .iter()
             .zip(prefix_a.iter())
             .map(|(&y, &px)| ((y >> 17) + i64::from(px)).clamp(-127, 127) as i8)
             .collect();
         let y0_q = l0.forward_simd_lut4_q24(&query_1).unwrap();
-        let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let q_q7: Vec<i8> = y0_q
+            .iter()
+            .map(|&y| (y >> 18).clamp(-127, 127) as i8)
+            .collect();
 
         let mut x1 = vec![0i8; 64];
         for h in 0..4usize {

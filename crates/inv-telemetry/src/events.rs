@@ -127,7 +127,10 @@ impl EventStream {
 
     /// Retrieve all events.
     pub fn all(&self) -> Vec<Event> {
-        self.events.read().unwrap_or_else(|e| e.into_inner()).clone()
+        self.events
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Filter events by kind.
@@ -170,7 +173,10 @@ impl EventStream {
 
     /// Clear all events from the stream.
     pub fn clear(&self) {
-        self.events.write().unwrap_or_else(|e| e.into_inner()).clear();
+        self.events
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     /// Maximum capacity of the stream.

@@ -978,7 +978,10 @@ fn decode_col_payload_selected(
     let mut codes = vec![NULL_CODE_U32; seg_len];
     let mut compact_dict: Vec<Arc<str>> = Vec::with_capacity(rows.len().min(dict_len));
     let mut remap: rustc_hash::FxHashMap<u32, u32> =
-        rustc_hash::FxHashMap::with_capacity_and_hasher(rows.len().min(dict_len), Default::default());
+        rustc_hash::FxHashMap::with_capacity_and_hasher(
+            rows.len().min(dict_len),
+            Default::default(),
+        );
 
     for &ri_u32 in rows {
         let ri = ri_u32 as usize;
@@ -1022,8 +1025,7 @@ fn decode_col_payload_selected(
         }
         let oa = offs_start + di * 4;
         let a = u32::from_le_bytes([raw[oa], raw[oa + 1], raw[oa + 2], raw[oa + 3]]) as usize;
-        let b =
-            u32::from_le_bytes([raw[oa + 4], raw[oa + 5], raw[oa + 6], raw[oa + 7]]) as usize;
+        let b = u32::from_le_bytes([raw[oa + 4], raw[oa + 5], raw[oa + 6], raw[oa + 7]]) as usize;
         if b < a || b > arena.len() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -1280,7 +1282,12 @@ impl DiskColumnTable {
             segment_files: self
                 .segments
                 .iter()
-                .filter_map(|s| s.path.file_name().and_then(|n| n.to_str()).map(String::from))
+                .filter_map(|s| {
+                    s.path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .map(String::from)
+                })
                 .collect(),
         };
         let bytes = serde_json::to_vec(&manifest)
@@ -1767,7 +1774,7 @@ impl DiskColumnTable {
                     };
                     vals.push(v);
                 }
-            rows.push(RowData::new(columns.to_vec(), vals));
+                rows.push(RowData::new(columns.to_vec(), vals));
             }
         }
         Ok(rows)

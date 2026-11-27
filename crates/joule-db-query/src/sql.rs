@@ -946,12 +946,12 @@ pub enum Token {
     VectorCosine,    // <=>
 
     // Punctuation
-    LParen,    // (
-    RParen,    // )
-    LBracket,  // [
-    RBracket,  // ]
-    Comma,     // ,
-    Semicolon, // ;
+    LParen,      // (
+    RParen,      // )
+    LBracket,    // [
+    RBracket,    // ]
+    Comma,       // ,
+    Semicolon,   // ;
     Dot,         // .
     Colon,       // :
     DoubleColon, // ::
@@ -2838,9 +2838,7 @@ impl SqlParser {
             });
 
             // Store natural flag: for NATURAL joins, we set a special using_columns marker
-            if is_natural
-                && let Some(last_join) = joins.last_mut()
-            {
+            if is_natural && let Some(last_join) = joins.last_mut() {
                 last_join.using_columns = vec!["*".to_string()];
             }
         }

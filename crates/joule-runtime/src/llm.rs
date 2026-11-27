@@ -263,7 +263,10 @@ impl LlmRuntime {
 
     /// Get telemetry for all active LLM instances.
     pub fn all_telemetry(&self) -> HashMap<String, InferenceTelemetry> {
-        self.telemetry.read().unwrap_or_else(|e| e.into_inner()).clone()
+        self.telemetry
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Get the model cache directory path.

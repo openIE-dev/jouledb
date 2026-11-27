@@ -1159,7 +1159,8 @@ impl QueryExecutor for SimpleQueryExecutor {
 /// Check if a SQL string is a read-only query (eligible for energy routing).
 fn is_read_only_query(sql: &str) -> bool {
     let t = sql.trim_start();
-    (t.get(..7).is_some_and(|p| p.eq_ignore_ascii_case("SELECT "))
+    (t.get(..7)
+        .is_some_and(|p| p.eq_ignore_ascii_case("SELECT "))
         && parse_trailing_row_lock(t).is_none())
         || t.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("SHOW "))
         || t.get(..9)
@@ -1645,10 +1646,9 @@ impl SimpleQueryExecutor {
 
         fn infer_expr_oid(e: &Expression, col_oids: &HashMap<String, i32>) -> i32 {
             match e {
-                Expression::Column(c) => col_oids
-                    .get(&c.to_ascii_lowercase())
-                    .copied()
-                    .unwrap_or(0),
+                Expression::Column(c) => {
+                    col_oids.get(&c.to_ascii_lowercase()).copied().unwrap_or(0)
+                }
                 Expression::QualifiedColumn { column, .. } => col_oids
                     .get(&column.to_ascii_lowercase())
                     .copied()
@@ -3721,11 +3721,9 @@ impl SimpleQueryExecutor {
                         result_rows,
                         params,
                     ),
-                    Expression::Binary { left, right, .. } => extract_knn_binary_column_and_vector(
-                        left,
-                        right,
-                        params,
-                    ),
+                    Expression::Binary { left, right, .. } => {
+                        extract_knn_binary_column_and_vector(left, right, params)
+                    }
                     _ => None,
                 };
                 if let Some((col_name, query_vec)) = extracted_col_vec {
@@ -3744,11 +3742,10 @@ impl SimpleQueryExecutor {
                         };
 
                         let query_f32: Vec<f32> = query_vec.iter().map(|x| *x as f32).collect();
-                        if let Ok(knn_results) = self.vector_index_manager.knn_search(
-                            &index_name,
-                            &query_f32,
-                            fetch_k,
-                        ) {
+                        if let Ok(knn_results) =
+                            self.vector_index_manager
+                                .knn_search(&index_name, &query_f32, fetch_k)
+                        {
                             if !knn_results.is_empty() {
                                 let matching_ids: std::collections::HashSet<&str> =
                                     knn_results.iter().map(|(id, _)| id.as_str()).collect();
@@ -5526,7 +5523,8 @@ impl SimpleQueryExecutor {
                             )
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        let res = self.amorphic
+                        let res = self
+                            .amorphic
                             .update_with_expressions_returning(
                                 table_name,
                                 &update.assignments,
@@ -5554,7 +5552,8 @@ impl SimpleQueryExecutor {
                             )
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        let cnt = self.amorphic
+                        let cnt = self
+                            .amorphic
                             .update_with_expressions(
                                 table_name,
                                 &update.assignments,
@@ -5702,7 +5701,8 @@ impl SimpleQueryExecutor {
                             .delete_returning(session_id, table_name, delete.where_clause.as_ref())
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        let res = self.amorphic
+                        let res = self
+                            .amorphic
                             .delete_returning(table_name, delete.where_clause.as_ref())
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
                         if res.0 > 0 {
@@ -5719,7 +5719,8 @@ impl SimpleQueryExecutor {
                             .delete(session_id, table_name, delete.where_clause.as_ref())
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?
                     } else {
-                        let cnt = self.amorphic
+                        let cnt = self
+                            .amorphic
                             .delete(table_name, delete.where_clause.as_ref())
                             .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
                         if cnt > 0 {
@@ -7710,21 +7711,20 @@ impl SimpleQueryExecutor {
                 }
                 let t = d.data_type.to_uppercase();
                 let coerced = match &c.data {
-                    ColData::Int8(_)
-                    | ColData::Int16(_)
-                    | ColData::Int32(_)
-                    | ColData::Int(_) => matches!(
-                        &t[..],
-                        "FLOAT"
-                            | "DOUBLE"
-                            | "REAL"
-                            | "BOOLEAN"
-                            | "BOOL"
-                            | "TEXT"
-                            | "VARCHAR"
-                            | "CHAR"
-                            | "STRING"
-                    ),
+                    ColData::Int8(_) | ColData::Int16(_) | ColData::Int32(_) | ColData::Int(_) => {
+                        matches!(
+                            &t[..],
+                            "FLOAT"
+                                | "DOUBLE"
+                                | "REAL"
+                                | "BOOLEAN"
+                                | "BOOL"
+                                | "TEXT"
+                                | "VARCHAR"
+                                | "CHAR"
+                                | "STRING"
+                        )
+                    }
                     ColData::Float(_) => matches!(
                         &t[..],
                         "INT"
@@ -7832,7 +7832,10 @@ impl SimpleQueryExecutor {
         }
     }
 
-    fn bind_select_query_params(query: &SqlQuery, params: &[serde_json::Value]) -> Option<SqlQuery> {
+    fn bind_select_query_params(
+        query: &SqlQuery,
+        params: &[serde_json::Value],
+    ) -> Option<SqlQuery> {
         let mut q = query.clone();
         if let Some(ref mut w) = q.where_clause
             && !Self::bind_expr_params(w, params)
@@ -7885,7 +7888,9 @@ impl SimpleQueryExecutor {
         params: &[serde_json::Value],
     ) -> Option<SqlStatement> {
         match stmt {
-            SqlStatement::Select(q) => Self::bind_select_query_params(q, params).map(SqlStatement::Select),
+            SqlStatement::Select(q) => {
+                Self::bind_select_query_params(q, params).map(SqlStatement::Select)
+            }
             SqlStatement::Update(u) => {
                 let mut u2 = u.clone();
                 for (_, expr) in &mut u2.assignments {
@@ -7945,9 +7950,10 @@ impl SimpleQueryExecutor {
         table: &str,
         defs: &[crate::amorphic_adapter::ColumnDefInfo],
     ) -> bool {
-        if defs.iter().any(|d| {
-            d.auto_increment || d.foreign_key.is_some() || d.computed_expr.is_some()
-        }) {
+        if defs
+            .iter()
+            .any(|d| d.auto_increment || d.foreign_key.is_some() || d.computed_expr.is_some())
+        {
             return false;
         }
         if !self
@@ -8032,8 +8038,9 @@ impl SimpleQueryExecutor {
             Some(c) => c,
             None => {
                 // Fast O(1)/O(k) direct indexed OLTP point-read & aggregate probe when `col_cache` missed!
-                if let Some((columns, rows, truncated)) =
-                    self.amorphic.try_direct_indexed_eq_query(query, request_limit)
+                if let Some((columns, rows, truncated)) = self
+                    .amorphic
+                    .try_direct_indexed_eq_query(query, request_limit)
                 {
                     return Some(QueryResponse {
                         columns,
@@ -9249,25 +9256,24 @@ impl SimpleQueryExecutor {
         // When GROUP BY is present, HAVING is already applied inside apply_group_by
         // (where raw group rows are available for aggregate computation).
         // This post-projection HAVING only applies for non-GROUP-BY cases (e.g., aggregate without GROUP BY).
-        let final_rows: Vec<Vec<serde_json::Value>> =
-            if let Some(ref having) = query.having
-                && query.group_by.is_empty()
-            {
-                // First resolve aliases, then evaluate the HAVING expression as an aggregate
-                // against the pre-projection source rows. This allows HAVING to reference
-                // aggregates not in the SELECT list (e.g., HAVING COUNT(*) > 3).
-                let resolved = resolve_having_aliases(having, &query.columns);
-                let row_refs: Vec<&Vec<serde_json::Value>> = result_rows.iter().collect();
-                let having_val = evaluate_aggregate(&resolved, &result_columns, &row_refs, params);
-                let passes = match having_val {
-                    serde_json::Value::Bool(b) => b,
-                    serde_json::Value::Number(ref n) => n.as_i64().map(|i| i != 0).unwrap_or(false),
-                    _ => false,
-                };
-                if passes { final_rows } else { Vec::new() }
-            } else {
-                final_rows
+        let final_rows: Vec<Vec<serde_json::Value>> = if let Some(ref having) = query.having
+            && query.group_by.is_empty()
+        {
+            // First resolve aliases, then evaluate the HAVING expression as an aggregate
+            // against the pre-projection source rows. This allows HAVING to reference
+            // aggregates not in the SELECT list (e.g., HAVING COUNT(*) > 3).
+            let resolved = resolve_having_aliases(having, &query.columns);
+            let row_refs: Vec<&Vec<serde_json::Value>> = result_rows.iter().collect();
+            let having_val = evaluate_aggregate(&resolved, &result_columns, &row_refs, params);
+            let passes = match having_val {
+                serde_json::Value::Bool(b) => b,
+                serde_json::Value::Number(ref n) => n.as_i64().map(|i| i != 0).unwrap_or(false),
+                _ => false,
             };
+            if passes { final_rows } else { Vec::new() }
+        } else {
+            final_rows
+        };
 
         // KNN vector index optimization: detect ORDER BY distance_func(...) LIMIT k
         // When a vector index exists, evaluate distance once per row instead of O(N log N)
@@ -11159,10 +11165,7 @@ impl SimpleQueryExecutor {
         if branch_conjs.iter().any(|bc| bc.is_empty()) {
             return common_expr;
         }
-        let rem_branches: Vec<Expression> = branch_conjs
-            .into_iter()
-            .filter_map(join_and)
-            .collect();
+        let rem_branches: Vec<Expression> = branch_conjs.into_iter().filter_map(join_and).collect();
         if let Some(or_rem) = join_or(rem_branches) {
             Expression::Binary {
                 left: Box::new(common_expr),
@@ -11374,14 +11377,11 @@ impl SimpleQueryExecutor {
                 .where_clause
                 .as_ref()
                 .is_some_and(|w| self.expr_has_outer_ref(w, in_scope, cte_tables))
-            || sub_sql
-                .joins
-                .iter()
-                .any(|j| {
-                    j.condition
-                        .as_ref()
-                        .is_some_and(|c| self.expr_has_outer_ref(c, in_scope, cte_tables))
-                })
+            || sub_sql.joins.iter().any(|j| {
+                j.condition
+                    .as_ref()
+                    .is_some_and(|c| self.expr_has_outer_ref(c, in_scope, cte_tables))
+            })
             || sub_sql
                 .group_by
                 .iter()
@@ -11409,13 +11409,7 @@ impl SimpleQueryExecutor {
                     && !self.subquery_has_outer_ref(&sub_sql, &inner_scope, cte_tables)
                 {
                     let res = self.execute_select_inner(
-                        &sub_sql,
-                        params,
-                        None,
-                        start,
-                        session_id,
-                        None,
-                        cte_tables,
+                        &sub_sql, params, None, start, session_id, None, cte_tables,
                     )?;
                     if res.rows.len() > 1 {
                         return Err(QueryErrorResponse::execution_error(
@@ -11453,32 +11447,17 @@ impl SimpleQueryExecutor {
             }
             Expression::Binary { left, op, right } => Ok(Expression::Binary {
                 left: Box::new(self.materialize_uncorrelated_expr_subqueries(
-                    left,
-                    outer_set,
-                    cte_tables,
-                    params,
-                    start,
-                    session_id,
+                    left, outer_set, cte_tables, params, start, session_id,
                 )?),
                 op: *op,
                 right: Box::new(self.materialize_uncorrelated_expr_subqueries(
-                    right,
-                    outer_set,
-                    cte_tables,
-                    params,
-                    start,
-                    session_id,
+                    right, outer_set, cte_tables, params, start, session_id,
                 )?),
             }),
             Expression::Unary { op, expr: inner } => Ok(Expression::Unary {
                 op: *op,
                 expr: Box::new(self.materialize_uncorrelated_expr_subqueries(
-                    inner,
-                    outer_set,
-                    cte_tables,
-                    params,
-                    start,
-                    session_id,
+                    inner, outer_set, cte_tables, params, start, session_id,
                 )?),
             }),
             Expression::Between {
@@ -11488,28 +11467,13 @@ impl SimpleQueryExecutor {
                 negated,
             } => Ok(Expression::Between {
                 expr: Box::new(self.materialize_uncorrelated_expr_subqueries(
-                    inner,
-                    outer_set,
-                    cte_tables,
-                    params,
-                    start,
-                    session_id,
+                    inner, outer_set, cte_tables, params, start, session_id,
                 )?),
                 low: Box::new(self.materialize_uncorrelated_expr_subqueries(
-                    low,
-                    outer_set,
-                    cte_tables,
-                    params,
-                    start,
-                    session_id,
+                    low, outer_set, cte_tables, params, start, session_id,
                 )?),
                 high: Box::new(self.materialize_uncorrelated_expr_subqueries(
-                    high,
-                    outer_set,
-                    cte_tables,
-                    params,
-                    start,
-                    session_id,
+                    high, outer_set, cte_tables, params, start, session_id,
                 )?),
                 negated: *negated,
             }),
@@ -11520,12 +11484,7 @@ impl SimpleQueryExecutor {
             } => {
                 let op_new = match operand {
                     Some(o) => Some(Box::new(self.materialize_uncorrelated_expr_subqueries(
-                        o,
-                        outer_set,
-                        cte_tables,
-                        params,
-                        start,
-                        session_id,
+                        o, outer_set, cte_tables, params, start, session_id,
                     )?)),
                     None => None,
                 };
@@ -11533,31 +11492,16 @@ impl SimpleQueryExecutor {
                 for (w, t) in when_clauses {
                     wc_new.push((
                         self.materialize_uncorrelated_expr_subqueries(
-                            w,
-                            outer_set,
-                            cte_tables,
-                            params,
-                            start,
-                            session_id,
+                            w, outer_set, cte_tables, params, start, session_id,
                         )?,
                         self.materialize_uncorrelated_expr_subqueries(
-                            t,
-                            outer_set,
-                            cte_tables,
-                            params,
-                            start,
-                            session_id,
+                            t, outer_set, cte_tables, params, start, session_id,
                         )?,
                     ));
                 }
                 let el_new = match else_clause {
                     Some(el) => Some(Box::new(self.materialize_uncorrelated_expr_subqueries(
-                        el,
-                        outer_set,
-                        cte_tables,
-                        params,
-                        start,
-                        session_id,
+                        el, outer_set, cte_tables, params, start, session_id,
                     )?)),
                     None => None,
                 };
@@ -11633,13 +11577,7 @@ impl SimpleQueryExecutor {
                 && !self.subquery_has_outer_ref(&sub_sql, &inner_scope, cte_tables)
             {
                 let sub_res = self.execute_select_inner(
-                    &sub_sql,
-                    params,
-                    None,
-                    start,
-                    session_id,
-                    None,
-                    cte_tables,
+                    &sub_sql, params, None, start, session_id, None, cte_tables,
                 )?;
                 let mut set: std::collections::HashSet<String> =
                     std::collections::HashSet::with_capacity(sub_res.rows.len());
@@ -11717,10 +11655,9 @@ impl SimpleQueryExecutor {
                             && Self::col_belongs_to_set(left, &inner_scope);
                         let r_in = !self.expr_has_outer_ref(right, &inner_scope, cte_tables)
                             && Self::col_belongs_to_set(right, &inner_scope);
-                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables)
-                            && !l_in;
-                        let r_out = !self.expr_has_outer_ref(right, &outer_set, cte_tables)
-                            && !r_in;
+                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables) && !l_in;
+                        let r_out =
+                            !self.expr_has_outer_ref(right, &outer_set, cte_tables) && !r_in;
                         if l_in && r_out {
                             equi_pairs.push((left.as_ref().clone(), right.as_ref().clone()));
                         } else if r_in && l_out {
@@ -11740,10 +11677,9 @@ impl SimpleQueryExecutor {
                             && Self::col_belongs_to_set(left, &inner_scope);
                         let r_in = !self.expr_has_outer_ref(right, &inner_scope, cte_tables)
                             && Self::col_belongs_to_set(right, &inner_scope);
-                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables)
-                            && !l_in;
-                        let r_out = !self.expr_has_outer_ref(right, &outer_set, cte_tables)
-                            && !r_in;
+                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables) && !l_in;
+                        let r_out =
+                            !self.expr_has_outer_ref(right, &outer_set, cte_tables) && !r_in;
                         if l_in && r_out {
                             ne_pair = Some((left.as_ref().clone(), right.as_ref().clone()));
                         } else if r_in && l_out {
@@ -11827,14 +11763,17 @@ impl SimpleQueryExecutor {
                                     in_cols.iter().position(|c| c.eq_ignore_ascii_case(column))
                                 }
                                 Expression::Column(name) => {
-                                    let bare = name.rsplit_once('.').map_or(name.as_str(), |(_, c)| c);
+                                    let bare =
+                                        name.rsplit_once('.').map_or(name.as_str(), |(_, c)| c);
                                     in_cols.iter().position(|c| c.eq_ignore_ascii_case(bare))
                                 }
                                 _ => None,
                             }
                         };
-                        let in_equi_idxs: Option<Vec<usize>> =
-                            equi_pairs.iter().map(|(ie, _)| resolve_in_idx(ie)).collect();
+                        let in_equi_idxs: Option<Vec<usize>> = equi_pairs
+                            .iter()
+                            .map(|(ie, _)| resolve_in_idx(ie))
+                            .collect();
                         let in_ne_idx: Option<usize> = match &ne_pair {
                             Some((ine, _)) => resolve_in_idx(ine),
                             None => None,
@@ -11860,7 +11799,8 @@ impl SimpleQueryExecutor {
                                     let Some(k) = self.compute_hash_key(r, &eq_idxs) else {
                                         continue;
                                     };
-                                    let Some(nv) = r.get(ne_ci).and_then(Self::canonical_hash_scalar)
+                                    let Some(nv) =
+                                        r.get(ne_ci).and_then(Self::canonical_hash_scalar)
                                     else {
                                         continue;
                                     };
@@ -11877,7 +11817,8 @@ impl SimpleQueryExecutor {
                                 result_rows.retain(|row| {
                                     let mut key_str = String::new();
                                     for (pi, (_, oe)) in equi_pairs.iter().enumerate() {
-                                        let ov = evaluate_expression(oe, result_columns, row, params);
+                                        let ov =
+                                            evaluate_expression(oe, result_columns, row, params);
                                         let Some(ok) = Self::canonical_hash_scalar(&ov) else {
                                             return is_not_exists;
                                         };
@@ -11922,7 +11863,8 @@ impl SimpleQueryExecutor {
                                 result_rows.retain(|row| {
                                     let mut key_str = String::new();
                                     for (pi, (_, oe)) in equi_pairs.iter().enumerate() {
-                                        let ov = evaluate_expression(oe, result_columns, row, params);
+                                        let ov =
+                                            evaluate_expression(oe, result_columns, row, params);
                                         let Some(ok) = Self::canonical_hash_scalar(&ov) else {
                                             return is_not_exists;
                                         };
@@ -11954,8 +11896,7 @@ impl SimpleQueryExecutor {
                         | Operator::Le
                         | Operator::Gt
                         | Operator::Ge
-                )
-            {
+                ) {
                 if let Expression::Subquery(sub) = right.as_ref() {
                     Some((left.as_ref().clone(), op, sub.as_ref()))
                 } else if let Expression::Subquery(sub) = left.as_ref() {
@@ -12005,10 +11946,9 @@ impl SimpleQueryExecutor {
                             && Self::col_belongs_to_set(left, &inner_scope);
                         let r_in = !self.expr_has_outer_ref(right, &inner_scope, cte_tables)
                             && Self::col_belongs_to_set(right, &inner_scope);
-                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables)
-                            && !l_in;
-                        let r_out = !self.expr_has_outer_ref(right, &outer_set, cte_tables)
-                            && !r_in;
+                        let l_out = !self.expr_has_outer_ref(left, &outer_set, cte_tables) && !l_in;
+                        let r_out =
+                            !self.expr_has_outer_ref(right, &outer_set, cte_tables) && !r_in;
                         if l_in && r_out {
                             equi_pairs.push((left.as_ref().clone(), right.as_ref().clone()));
                         } else if r_in && l_out {
@@ -12161,12 +12101,7 @@ impl SimpleQueryExecutor {
 
             // 4. Materialize any remaining uncorrelated scalar subqueries inside `conj`
             let rewritten = self.materialize_uncorrelated_expr_subqueries(
-                &conj,
-                &outer_set,
-                cte_tables,
-                params,
-                start,
-                session_id,
+                &conj, &outer_set, cte_tables, params, start, session_id,
             )?;
             kept.push(rewritten);
         }
@@ -12206,8 +12141,7 @@ impl SimpleQueryExecutor {
             Expression::In {
                 expr: inner, list, ..
             } => {
-                Self::expr_contains_subquery(inner)
-                    || list.iter().any(Self::expr_contains_subquery)
+                Self::expr_contains_subquery(inner) || list.iter().any(Self::expr_contains_subquery)
             }
             Expression::Between {
                 expr: inner,
@@ -12256,12 +12190,7 @@ impl SimpleQueryExecutor {
                 while !pool.is_empty() {
                     let left_set: Vec<(String, Vec<String>)> = accumulated_tables
                         .iter()
-                        .map(|t| {
-                            (
-                                t.clone(),
-                                table_columns.get(t).cloned().unwrap_or_default(),
-                            )
-                        })
+                        .map(|t| (t.clone(), table_columns.get(t).cloned().unwrap_or_default()))
                         .collect();
 
                     let mut best_pos: Option<(usize, usize)> = None;
@@ -12275,9 +12204,7 @@ impl SimpleQueryExecutor {
                                 .unwrap_or_default();
                             let right_set = [(cand_alias.clone(), cand_cols)];
                             let (pred, _) = self.extract_join_predicate_by_tables(
-                                where_expr,
-                                &left_set,
-                                &right_set,
+                                where_expr, &left_set, &right_set,
                             );
                             if pred.is_some() {
                                 let est = table_est_rows
@@ -12302,11 +12229,8 @@ impl SimpleQueryExecutor {
                     let right_set = [(chosen_alias.clone(), chosen_cols)];
 
                     if let Some(ref where_expr) = remaining_where {
-                        let (predicate, remaining) = self.extract_join_predicate_by_tables(
-                            where_expr,
-                            &left_set,
-                            &right_set,
-                        );
+                        let (predicate, remaining) = self
+                            .extract_join_predicate_by_tables(where_expr, &left_set, &right_set);
                         if let Some(pred) = predicate {
                             chosen.join_type = JoinType::Inner;
                             chosen.condition = Some(pred);
@@ -12480,7 +12404,8 @@ impl SimpleQueryExecutor {
                     }
                     Expression::QualifiedColumn { table, column } => {
                         if table.eq_ignore_ascii_case(alias)
-                            && let Some(real_c) = cols.iter().find(|c| c.eq_ignore_ascii_case(column))
+                            && let Some(real_c) =
+                                cols.iter().find(|c| c.eq_ignore_ascii_case(column))
                         {
                             needed.insert(real_c.clone());
                         }
@@ -12490,11 +12415,13 @@ impl SimpleQueryExecutor {
                             *wildcard = true;
                         } else if let Some((tbl, col)) = name.rsplit_once('.') {
                             if tbl.eq_ignore_ascii_case(alias)
-                                && let Some(real_c) = cols.iter().find(|c| c.eq_ignore_ascii_case(col))
+                                && let Some(real_c) =
+                                    cols.iter().find(|c| c.eq_ignore_ascii_case(col))
                             {
                                 needed.insert(real_c.clone());
                             }
-                        } else if let Some(real_c) = cols.iter().find(|c| c.eq_ignore_ascii_case(name))
+                        } else if let Some(real_c) =
+                            cols.iter().find(|c| c.eq_ignore_ascii_case(name))
                         {
                             needed.insert(real_c.clone());
                         }
@@ -12823,8 +12750,9 @@ impl SimpleQueryExecutor {
 
         let vec_res = if let Some(ref dt) = disk_tbl {
             if let Some(wc) = pushed_where.clone() {
-                crate::columnar_exec::execute_segmented(&make_sub_query(Some(wc)), dt)
-                    .or_else(|| crate::columnar_exec::execute_segmented(&make_sub_query(None), dt))?
+                crate::columnar_exec::execute_segmented(&make_sub_query(Some(wc)), dt).or_else(
+                    || crate::columnar_exec::execute_segmented(&make_sub_query(None), dt),
+                )?
             } else {
                 crate::columnar_exec::execute_segmented(&make_sub_query(None), dt)?
             }
@@ -12886,10 +12814,11 @@ impl SimpleQueryExecutor {
                 }
                 if let Expression::Column(name) = expr
                     && !columns.iter().any(|c| c.eq_ignore_ascii_case(name))
-                    && let Some(sc) = query
-                        .columns
-                        .iter()
-                        .find(|sc| sc.alias.as_ref().is_some_and(|a| a.eq_ignore_ascii_case(name)))
+                    && let Some(sc) = query.columns.iter().find(|sc| {
+                        sc.alias
+                            .as_ref()
+                            .is_some_and(|a| a.eq_ignore_ascii_case(name))
+                    })
                 {
                     return sc.expr.clone();
                 }
@@ -146278,7 +146207,10 @@ mod columnar_ingest_tests {
             &e,
             "CREATE TABLE _reserved_cp (id BIGINT, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",
         );
-        assert!(e.bulk_insert_arrow("_reserved_cp", &[], &batches(0, 10)).is_none());
+        assert!(
+            e.bulk_insert_arrow("_reserved_cp", &[], &batches(0, 10))
+                .is_none()
+        );
         q(
             &e,
             "CREATE TABLE cs (id SERIAL, k INT, f DOUBLE, t TEXT, b BOOLEAN, d TEXT)",

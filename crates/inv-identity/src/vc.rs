@@ -268,7 +268,9 @@ fn uuid_from_hash(subject: &str, time: DateTime<Utc>) -> String {
         u16::from_be_bytes([hash[6], hash[7]]),
         u16::from_be_bytes([hash[8], hash[9]]),
         // Use 6 bytes for the last segment.
-        u64::from_be_bytes([0, 0, hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]]),
+        u64::from_be_bytes([
+            0, 0, hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]
+        ]),
     )
 }
 

@@ -413,7 +413,10 @@ mod tests {
     #[test]
     fn sel4_h41_6pd_preclassifier_timer_ceiling_and_hotswap_merkle_seq5_verify() {
         // 8 uJ over 10,000 us = 800 uW <= 1,000 uW (OK), while 8 uJ over 1,000 us = 8,000 uW > 1,000 uW (ERR):
-        assert_eq!(verify_sel4_timer_window_power_bound(8, 10_000, 1_000).unwrap(), 800);
+        assert_eq!(
+            verify_sel4_timer_window_power_bound(8, 10_000, 1_000).unwrap(),
+            800
+        );
         assert!(verify_sel4_timer_window_power_bound(8, 1_000, 1_000).is_err());
 
         let raw_events: [(&str, u64, u64, u64); 5] = [
@@ -495,7 +498,8 @@ mod tests {
                 claimed_root_u64: 0x2b40_af95_6b2b_f47c,
             },
         ];
-        let beta_r1 = advance_sel4_merkle_chain(0xCBF2_9CE4_8422_2325, 1, 0x7da1_44b9_7d05_4b25, 8, 8);
+        let beta_r1 =
+            advance_sel4_merkle_chain(0xCBF2_9CE4_8422_2325, 1, 0x7da1_44b9_7d05_4b25, 8, 8);
         let beta_r2 = advance_sel4_merkle_chain(beta_r1, 2, 0x7da1_44b9_7d05_4b25, 8, 0);
         let beta_steps = vec![
             Sel4GovernorMerkleStep {
@@ -582,11 +586,9 @@ mod tests {
         assert_eq!(prev_b, 0x5e0d_f9c0_3038_c6d9);
 
         let (a_rec, a_tree, a_j) =
-            verify_and_ingest_sel4_multipd_chain(&a_steps, "h43-alpha", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&a_steps, "h43-alpha", "US-NE-ISO", 0.31).unwrap();
         let (b_rec, b_tree, b_j) =
-            verify_and_ingest_sel4_multipd_chain(&b_steps, "h43-beta", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&b_steps, "h43-beta", "US-NE-ISO", 0.31).unwrap();
         assert_eq!((a_rec.len(), b_rec.len()), (5, 3));
         assert!(a_tree.proof(4).unwrap().verify_self());
         assert!(b_tree.proof(2).unwrap().verify_self());
@@ -642,11 +644,9 @@ mod tests {
         assert_eq!(prev_b, 0xa1d0_5f20_5938_c3f5);
 
         let (a_rec, a_tree, a_j) =
-            verify_and_ingest_sel4_multipd_chain(&a_steps, "h44-alpha", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&a_steps, "h44-alpha", "US-NE-ISO", 0.31).unwrap();
         let (b_rec, b_tree, b_j) =
-            verify_and_ingest_sel4_multipd_chain(&b_steps, "h44-beta", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&b_steps, "h44-beta", "US-NE-ISO", 0.31).unwrap();
         assert_eq!((a_rec.len(), b_rec.len()), (7, 3));
         assert!(a_tree.proof(6).unwrap().verify_self());
         assert!(b_tree.proof(2).unwrap().verify_self());
@@ -704,11 +704,9 @@ mod tests {
         assert_eq!(prev_a ^ prev_b, 0xd2be_d47c_0e07_2b96);
 
         let (a_rec, a_tree, a_j) =
-            verify_and_ingest_sel4_multipd_chain(&a_steps, "h45-alpha", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&a_steps, "h45-alpha", "US-NE-ISO", 0.31).unwrap();
         let (b_rec, b_tree, b_j) =
-            verify_and_ingest_sel4_multipd_chain(&b_steps, "h45-beta", "US-NE-ISO", 0.31)
-                .unwrap();
+            verify_and_ingest_sel4_multipd_chain(&b_steps, "h45-beta", "US-NE-ISO", 0.31).unwrap();
         assert_eq!((a_rec.len(), b_rec.len()), (8, 3));
         assert!(a_tree.proof(7).unwrap().verify_self());
         assert!(b_tree.proof(2).unwrap().verify_self());

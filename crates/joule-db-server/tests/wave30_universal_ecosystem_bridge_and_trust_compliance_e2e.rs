@@ -233,7 +233,10 @@ async fn test_wave30_universal_ecosystem_bridge_and_trust_compliance_e2e() {
     )
     .await;
     assert_eq!(st_tr, StatusCode::OK);
-    assert_eq!(tr_v["implemented_technical_controls_self_test_passed"], true);
+    assert_eq!(
+        tr_v["implemented_technical_controls_self_test_passed"],
+        true
+    );
     assert_eq!(tr_v["external_audit_performed"], false);
     assert_eq!(
         tr_v["controls_verified"]["bell_lapadula_no_write_down_exfiltration_blocked"],

@@ -39,7 +39,8 @@ impl CircuitBreaker {
             CircuitState::Closed => true,
             CircuitState::Open => {
                 // Check if timeout has passed
-                if let Some(last_fail) = *self.last_failure.read().unwrap_or_else(|e| e.into_inner())
+                if let Some(last_fail) =
+                    *self.last_failure.read().unwrap_or_else(|e| e.into_inner())
                 {
                     if last_fail.elapsed() >= self.timeout {
                         // Transition to half-open
@@ -73,10 +74,7 @@ impl CircuitBreaker {
             .write()
             .unwrap_or_else(|e| e.into_inner());
         *failure_count += 1;
-        *self
-            .last_failure
-            .write()
-            .unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
+        *self.last_failure.write().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now());
 
         if *failure_count >= self.failure_threshold {
             *self.state.write().unwrap_or_else(|e| e.into_inner()) = CircuitState::Open;

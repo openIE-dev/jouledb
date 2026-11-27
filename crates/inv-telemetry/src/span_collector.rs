@@ -133,7 +133,10 @@ impl SpanCollector {
 
     /// Remove all stored spans.
     pub fn clear(&self) {
-        self.spans.write().unwrap_or_else(|e| e.into_inner()).clear();
+        self.spans
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     /// Return the maximum number of spans this collector can hold.

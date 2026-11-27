@@ -653,8 +653,9 @@ impl MvccTableStorage {
                 }
             } else {
                 for &(aid, _) in &removed_amorphic_ids {
-                    let mut map =
-                        crate::lock_util::mutex_lock(&self.table_id_shards[record_id_shard_idx(aid)]);
+                    let mut map = crate::lock_util::mutex_lock(
+                        &self.table_id_shards[record_id_shard_idx(aid)],
+                    );
                     if let Some(tmap) = map.get_mut(table) {
                         tmap.remove(&aid);
                     }
@@ -683,10 +684,12 @@ impl MvccTableStorage {
             if let Some((eq_col, eq_val)) =
                 crate::amorphic_adapter::extract_conjunct_eq_predicate(pred)
             {
-                if let Some(indexed_rows) =
-                    self.amorphic.lookup_records_by_eq(table, &eq_col, &eq_val)?
+                if let Some(indexed_rows) = self
+                    .amorphic
+                    .lookup_records_by_eq(table, &eq_col, &eq_val)?
                 {
-                    let mut candidate_mvcc_ids: Vec<u64> = Vec::with_capacity(indexed_rows.len() + 4);
+                    let mut candidate_mvcc_ids: Vec<u64> =
+                        Vec::with_capacity(indexed_rows.len() + 4);
                     let mut seen_ids: HashSet<u64> = HashSet::with_capacity(indexed_rows.len() + 4);
 
                     for (amorphic_id, row) in &indexed_rows {
@@ -822,101 +825,102 @@ impl MvccTableStorage {
             return Ok(());
         }
 
-        let mut pending_sync: Option<DeferredBatchSync> = None;
+        // Pre-decode MVCC records and diff changed columns BEFORE acquiring `MvccStore.commit_lock`
+        // so all CPU serialization work executes in parallel across concurrent connections!
+        let ws_len = tx.write_set().len();
+        let mut ordered_keys: Vec<Vec<u8>> = Vec::with_capacity(ws_len);
+        let mut parsed_inserts: Vec<(usize, String, u64, MvccRecord)> = Vec::new();
+        let mut deleted_tracking: Vec<(String, u64, Option<u64>)> = Vec::new();
+        let mut updated_col_tracking: Vec<(String, String, u64)> = Vec::new();
+        let mut batch_ops: Vec<AtomicBatchOp> = Vec::with_capacity(ws_len);
 
-        tx.commit_with_hook(|write_set| {
-            let mut ordered_keys: Vec<Vec<u8>> = Vec::with_capacity(write_set.len());
-            let mut parsed_inserts: Vec<(usize, String, u64, MvccRecord)> = Vec::new();
-            let mut deleted_tracking: Vec<(String, u64, Option<u64>)> = Vec::new();
-            let mut updated_col_tracking: Vec<(String, String, u64)> = Vec::new();
-            let mut batch_ops: Vec<AtomicBatchOp> = Vec::with_capacity(write_set.len());
+        for (key, value) in tx.write_set() {
+            let Some(null_pos) = key.iter().position(|&b| b == 0) else {
+                continue;
+            };
+            let table = std::str::from_utf8(&key[..null_pos]).unwrap_or("");
+            if table.is_empty() {
+                continue;
+            }
+            let Some(mvcc_id) = decode_record_id(key, table) else {
+                continue;
+            };
 
-            for (key, value) in write_set {
-                let Some(null_pos) = key.iter().position(|&b| b == 0) else {
-                    continue;
-                };
-                let table = std::str::from_utf8(&key[..null_pos]).unwrap_or("");
-                if table.is_empty() {
-                    continue;
-                }
-                let Some(mvcc_id) = decode_record_id(key, table) else {
-                    continue;
-                };
-
-                match value {
-                    Some(data) => {
-                        let record = MvccRecord::from_bytes(data)
-                            .map_err(|e| format!("Corrupt MVCC record on commit: {e}"))?;
-                        let row = record.to_row_data();
-                        if let Some(existing_id) = record.amorphic_id {
-                            // Detect which columns actually changed relative to prior committed value
-                            // and emit ONLY changed columns into `AtomicBatchOp::Update` (`JWU1`).
-                            let mut updates: HashMap<String, joule_db_amorphic::Value> =
-                                HashMap::new();
-                            let mut matched_prev_layout = false;
-                            if let Some(prev_bytes) = self.get_committed_value(key)
-                                && let Ok(prev_rec) = MvccRecord::from_bytes(&prev_bytes)
-                                && prev_rec.columns == row.columns
-                                && prev_rec.values.len() == row.values.len()
+            match value {
+                Some(data) => {
+                    let record = MvccRecord::from_bytes(data).map_err(|e| {
+                        QueryError::ExecutionError(format!("Corrupt MVCC record on commit: {e}"))
+                    })?;
+                    let row = record.to_row_data();
+                    if let Some(existing_id) = record.amorphic_id {
+                        let mut updates: HashMap<String, joule_db_amorphic::Value> = HashMap::new();
+                        let mut matched_prev_layout = false;
+                        if let Some(prev_bytes) = self.get_committed_value(key)
+                            && let Ok(prev_rec) = MvccRecord::from_bytes(&prev_bytes)
+                            && prev_rec.columns == row.columns
+                            && prev_rec.values.len() == row.values.len()
+                        {
+                            matched_prev_layout = true;
+                            for ((col, new_v), old_v) in row
+                                .columns
+                                .iter()
+                                .zip(row.values.iter())
+                                .zip(prev_rec.values.iter())
                             {
-                                matched_prev_layout = true;
-                                for ((col, new_v), old_v) in row
-                                    .columns
-                                    .iter()
-                                    .zip(row.values.iter())
-                                    .zip(prev_rec.values.iter())
-                                {
-                                    if new_v != old_v {
-                                        updated_col_tracking.push((
-                                            table.to_string(),
-                                            col.clone(),
-                                            mvcc_id,
-                                        ));
-                                        updates.insert(
-                                            col.clone(),
-                                            crate::amorphic_adapter::ast_to_amorphic_value(new_v),
-                                        );
-                                    }
-                                }
-                            }
-                            if !matched_prev_layout {
-                                for (col, val) in row.columns.iter().zip(row.values.iter()) {
+                                if new_v != old_v {
+                                    updated_col_tracking.push((
+                                        table.to_string(),
+                                        col.clone(),
+                                        mvcc_id,
+                                    ));
                                     updates.insert(
                                         col.clone(),
-                                        crate::amorphic_adapter::ast_to_amorphic_value(val),
+                                        crate::amorphic_adapter::ast_to_amorphic_value(new_v),
                                     );
                                 }
                             }
-                            if !updates.is_empty() {
-                                batch_ops.push(AtomicBatchOp::Update {
-                                    id: existing_id,
-                                    updates,
-                                });
+                        }
+                        if !matched_prev_layout {
+                            for (col, val) in row.columns.iter().zip(row.values.iter()) {
+                                updates.insert(
+                                    col.clone(),
+                                    crate::amorphic_adapter::ast_to_amorphic_value(val),
+                                );
                             }
-                        } else {
-                            let key_idx = ordered_keys.len();
-                            ordered_keys.push(key.clone());
-                            parsed_inserts.push((key_idx, table.to_string(), mvcc_id, record));
-                            batch_ops.push(AtomicBatchOp::Insert {
-                                key_idx,
-                                table: table.to_string(),
-                                row,
+                        }
+                        if !updates.is_empty() {
+                            batch_ops.push(AtomicBatchOp::Update {
+                                id: existing_id,
+                                updates,
                             });
                         }
-                    }
-                    None => {
-                        let amorphic_id = self
-                            .get_committed_value(key)
-                            .and_then(|orig| MvccRecord::from_bytes(&orig).ok())
-                            .and_then(|r| r.amorphic_id);
-                        if let Some(aid) = amorphic_id {
-                            batch_ops.push(AtomicBatchOp::Delete { id: aid });
-                        }
-                        deleted_tracking.push((table.to_string(), mvcc_id, amorphic_id));
+                    } else {
+                        let key_idx = ordered_keys.len();
+                        ordered_keys.push(key.clone());
+                        parsed_inserts.push((key_idx, table.to_string(), mvcc_id, record));
+                        batch_ops.push(AtomicBatchOp::Insert {
+                            key_idx,
+                            table: table.to_string(),
+                            row,
+                        });
                     }
                 }
+                None => {
+                    let amorphic_id = self
+                        .get_committed_value(key)
+                        .and_then(|orig| MvccRecord::from_bytes(&orig).ok())
+                        .and_then(|r| r.amorphic_id);
+                    if let Some(aid) = amorphic_id {
+                        batch_ops.push(AtomicBatchOp::Delete { id: aid });
+                    }
+                    deleted_tracking.push((table.to_string(), mvcc_id, amorphic_id));
+                }
             }
+        }
 
+        let mut pending_sync: Option<DeferredBatchSync> = None;
+
+        tx.commit_with_hook(|_write_set| {
             let (assigned_ids, sync_handle) = self
                 .amorphic
                 .apply_atomic_batch_deferred(batch_ops)
@@ -1015,9 +1019,7 @@ impl MvccTableStorage {
     pub fn create_savepoint(&self, session_id: &str, name: &str) -> Result<(), String> {
         let session_opt = {
             let shard = &self.session_shards[session_shard_idx(session_id)];
-            crate::lock_util::mutex_lock(shard)
-                .get(session_id)
-                .cloned()
+            crate::lock_util::mutex_lock(shard).get(session_id).cloned()
         };
         if let Some(session_mutex) = session_opt {
             let mut session = crate::lock_util::mutex_lock(&session_mutex);
@@ -1040,9 +1042,7 @@ impl MvccTableStorage {
     pub fn rollback_to_savepoint(&self, session_id: &str, name: &str) -> Result<(), String> {
         let session_opt = {
             let shard = &self.session_shards[session_shard_idx(session_id)];
-            crate::lock_util::mutex_lock(shard)
-                .get(session_id)
-                .cloned()
+            crate::lock_util::mutex_lock(shard).get(session_id).cloned()
         };
         if let Some(session_mutex) = session_opt {
             let mut session = crate::lock_util::mutex_lock(&session_mutex);
@@ -1066,9 +1066,7 @@ impl MvccTableStorage {
     pub fn release_savepoint(&self, session_id: &str, name: &str) -> Result<(), String> {
         let session_opt = {
             let shard = &self.session_shards[session_shard_idx(session_id)];
-            crate::lock_util::mutex_lock(shard)
-                .get(session_id)
-                .cloned()
+            crate::lock_util::mutex_lock(shard).get(session_id).cloned()
         };
         if let Some(session_mutex) = session_opt {
             let mut session = crate::lock_util::mutex_lock(&session_mutex);
@@ -1268,9 +1266,9 @@ impl MvccTableStorage {
                 Ok(updated)
             }
             None => {
-                let cnt = self
-                    .amorphic
-                    .update_with_expressions(table, assignments, predicate, params)?;
+                let cnt =
+                    self.amorphic
+                        .update_with_expressions(table, assignments, predicate, params)?;
                 if cnt > 0 {
                     self.on_external_table_change(table);
                 }
@@ -2052,7 +2050,11 @@ mod tests {
         mvcc.commit_transaction(&sid2).unwrap();
 
         let rows = amorphic.scan("accounts").unwrap();
-        assert_eq!(rows.len(), 1, "UPDATE after MVCC INSERT must not duplicate row");
+        assert_eq!(
+            rows.len(),
+            1,
+            "UPDATE after MVCC INSERT must not duplicate row"
+        );
         assert_eq!(rows[0].get("balance"), Some(&AstValue::Int(250)));
     }
 

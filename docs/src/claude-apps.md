@@ -1,6 +1,6 @@
-# Claude Apps, MCP Apps (`SEP-1865`) & Antigravity Studio UI (`v0.15.0`)
+# Claude Apps, MCP Apps (`SEP-1865`) & Antigravity Studio UI (`v0.16.0`)
 
-JouleDB `v0.15.0` ships a built-in, zero-CDN interactive **MCP App (`SEP-1865` / `@modelcontextprotocol/ext-apps`)** directly inside the single `jouledb` binary (`ui://jouledb/studio.html`, MIME `text/html;profile=mcp-app`).
+JouleDB `v0.16.0` ships a built-in, zero-CDN interactive **MCP App (`SEP-1865` / `@modelcontextprotocol/ext-apps`)** directly inside the single `jouledb` binary (`ui://jouledb/studio.html`, MIME `text/html;profile=mcp-app`).
 
 When connected to **Claude** (Claude Desktop, Claude on the web / mobile via remote MCP connectors, Claude Cowork, or Claude Code), **Google Antigravity** (inline chat cards, `aux_pane` side panel, and `global` sidebar view), **ChatGPT**, **VS Code**, **Cursor**, or **Goose**, calling `db.studio`, `db.query`, `db.branch_list`, or `db.schema_inspect` renders a live sandboxed **JouleDB Studio** workbench directly inside the conversation — while simultaneously returning compact token-efficient text + `structuredContent` for hosts without UI rendering.
 
@@ -28,9 +28,9 @@ The built-in Studio UI (`crates/joule-db-server/src/mcp_app_ui.rs`) is served ov
 
 ### Option A: One-Click Claude Desktop Bundle (`.mcpb`, `manifest_version: "0.3"`)
 
-Each GitHub Release (`v0.15.0+`) attaches platform-native `.mcpb` bundles (`jouledb-0.15.0-aarch64-apple-darwin.mcpb`, `jouledb-0.15.0-x86_64-apple-darwin.mcpb`, `jouledb-0.15.0-x86_64-unknown-linux-gnu.mcpb`):
+Each GitHub Release (`v0.16.0+`) attaches platform-native `.mcpb` bundles (`jouledb-0.16.0-aarch64-apple-darwin.mcpb`, `jouledb-0.16.0-x86_64-apple-darwin.mcpb`, `jouledb-0.16.0-x86_64-unknown-linux-gnu.mcpb`):
 
-1. Download the `.mcpb` file for your OS/architecture from [GitHub Releases (`v0.15.0`)](https://github.com/openIE-dev/jouledb/releases/tag/v0.15.0).
+1. Download the `.mcpb` file for your OS/architecture from [GitHub Releases (`v0.16.0`)](https://github.com/openIE-dev/jouledb/releases/tag/v0.16.0).
 2. Double-click the `.mcpb` file (or drag it into **Claude Desktop -> Settings -> Extensions**).
 3. Choose an optional local data directory (defaults to `~/.jouledb/claude-studio`).
 4. Ask Claude: *"Open JouleDB Studio, create a `sensors` table with 5 rows, fork branch `exp-threshold`, and compare aggregates."*
@@ -40,7 +40,7 @@ Each GitHub Release (`v0.15.0+`) attaches platform-native `.mcpb` bundles (`joul
 ### Option B: Claude Code CLI (`claude mcp add`)
 
 ```bash
-# Install jouledb v0.15.0 via cargo-binstall (or GitHub Release tarball)
+# Install jouledb v0.16.0 via cargo-binstall (or GitHub Release tarball)
 cargo binstall -y jouledb
 
 # Register local durable JouleDB MCP server + Studio App in Claude Code

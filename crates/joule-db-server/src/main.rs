@@ -378,7 +378,8 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(
-                    &joule_db_server::distributed_jepsen_consensus::run_v1_global_powerhouse_suite()
+                    &joule_db_server::distributed_jepsen_consensus::run_v1_global_powerhouse_suite(
+                    )
                 )?
             );
             Ok(())
@@ -388,18 +389,18 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let amorphic_path = format!("{}/amorphic", data);
             let amorphic_store = joule_db_amorphic::DurableAmorphicStore::open(&amorphic_path)
                 .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> {
-                    Box::new(std::io::Error::other(format!("Failed to open amorphic store: {e}")))
+                    Box::new(std::io::Error::other(format!(
+                        "Failed to open amorphic store: {e}"
+                    )))
                 })?;
             let amorphic = std::sync::Arc::new(
                 joule_db_server::amorphic_adapter::AmorphicTableStorage::new(amorphic_store),
             );
-            let executor =
-                joule_db_server::query::SimpleQueryExecutor::with_amorphic(amorphic);
-            let handler = std::sync::Arc::new(
-                joule_db_server::mcp_bridge::DatabaseToolHandler::new(std::sync::Arc::new(
-                    executor,
-                )),
-            );
+            let executor = joule_db_server::query::SimpleQueryExecutor::with_amorphic(amorphic);
+            let handler =
+                std::sync::Arc::new(joule_db_server::mcp_bridge::DatabaseToolHandler::new(
+                    std::sync::Arc::new(executor),
+                ));
             joule_db_server::mcp_transport::run_stdio_transport(Some(handler)).await;
             Ok(())
         }

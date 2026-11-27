@@ -25,4 +25,4 @@ jouledb -p 8080 &
 JOULEDB_URL=http://localhost:8080 pytest python/tests
 ```
 
-Not on PyPI yet. CI builds the wheels as artifacts only.
+Pre-built `cp39-abi3` wheels (Linux `x86_64`/`aarch64`, macOS `arm64`/`x86_64`, Windows `x64`) and source distributions are attached to every [GitHub Release](https://github.com/openIE-dev/jouledb/releases) and published via OIDC Trusted Publishing when configured.

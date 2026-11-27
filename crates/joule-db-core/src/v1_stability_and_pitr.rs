@@ -128,7 +128,10 @@ impl core::fmt::Display for AbiContractError {
             Self::TruncatedHeader(n) => write!(f, "truncated v1 header ({n} bytes < 16)"),
             Self::InvalidMagic(m) => write!(f, "invalid v1 magic: {m:?}"),
             Self::IncompatibleMajorVersion { expected, found } => {
-                write!(f, "incompatible major version: expected {expected}, found {found}")
+                write!(
+                    f,
+                    "incompatible major version: expected {expected}, found {found}"
+                )
             }
             Self::UnsupportedCriticalExtension(tag) => {
                 write!(f, "unsupported critical TLV extension 0x{tag:04x}")
@@ -453,7 +456,12 @@ impl ContinuousPitrArchive {
     }
 
     /// Appends a WAL mutation and automatically seals a `JWAL-v1` segment when full.
-    pub fn append(&mut self, tx_id: u64, ts_us: u64, op: PitrOpKind) -> Result<u64, AbiContractError> {
+    pub fn append(
+        &mut self,
+        tx_id: u64,
+        ts_us: u64,
+        op: PitrOpKind,
+    ) -> Result<u64, AbiContractError> {
         let lsn = self.next_lsn;
         self.next_lsn = self.next_lsn.saturating_add(1);
         self.active_buffer.push(PitrWalRecord {
@@ -794,7 +802,8 @@ pub fn certify_v1_abi_stability_and_pitr() -> Result<V1StabilityAndPitrReceipt, 
         let tx = 100 + i;
         let ts_base = 1_000_000 + i * 10_000;
         let key = format!("accounts/acct_{i:03}");
-        let val = format!("{{\"balance_cents\":{},\"currency\":\"USD\"}}", i * 125_000).into_bytes();
+        let val =
+            format!("{{\"balance_cents\":{},\"currency\":\"USD\"}}", i * 125_000).into_bytes();
         archive.append(tx, ts_base, PitrOpKind::Begin)?;
         archive.append(
             tx,

@@ -165,7 +165,10 @@ impl Histogram {
 
     /// The total number of observations.
     pub fn count(&self) -> u64 {
-        self.inner.read().unwrap_or_else(|e| e.into_inner()).total_count
+        self.inner
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .total_count
     }
 
     /// The sum of all observed values.

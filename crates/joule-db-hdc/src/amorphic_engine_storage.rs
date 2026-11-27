@@ -880,9 +880,8 @@ impl AmorphicStorageEngine {
     /// Create with minimal configuration for testing
     pub fn minimal() -> AmorphicEngineResult<Self> {
         let backend = MemoryBackend::new();
-        let engine = Arc::new(
-            Engine::new(backend).map_err(|e| AmorphicEngineError::Other(e.to_string()))?,
-        );
+        let engine =
+            Arc::new(Engine::new(backend).map_err(|e| AmorphicEngineError::Other(e.to_string()))?);
         Ok(Self::new(engine, AmorphicStorageConfig::minimal()))
     }
 

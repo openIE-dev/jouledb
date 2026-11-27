@@ -413,10 +413,20 @@ enum WaiterState {
 
 type GroupWaiterSlot = Arc<(Mutex<WaiterState>, Condvar)>;
 
-#[derive(Default)]
 struct GroupCommitQueue {
     leader_active: bool,
+    target_wave: usize,
     pending: VecDeque<GroupWaiterSlot>,
+}
+
+impl Default for GroupCommitQueue {
+    fn default() -> Self {
+        Self {
+            leader_active: false,
+            target_wave: 1,
+            pending: VecDeque::new(),
+        }
+    }
 }
 
 struct LedgerState {
@@ -435,10 +445,10 @@ struct LedgerState {
 }
 
 /// Thread-safe, strictly serialized Double-Entry Financial Ledger Engine
-/// with pre-allocated binary `JWL1` CRC-32 frames and FIFO group-commit coalescing.
+/// with pre-allocated binary `JWL1` CRC-32 frames and adaptive FIFO group-commit coalescing.
 pub struct FinancialLedger {
     inner: Mutex<LedgerState>,
-    group_commit: Mutex<GroupCommitQueue>,
+    group_commit: (Mutex<GroupCommitQueue>, Condvar),
     persistent: bool,
 }
 
@@ -465,7 +475,7 @@ impl FinancialLedger {
                 wal_alloc_len: 0,
                 wal_path: None,
             }),
-            group_commit: Mutex::new(GroupCommitQueue::default()),
+            group_commit: (Mutex::new(GroupCommitQueue::default()), Condvar::new()),
             persistent: false,
         }
     }
@@ -535,7 +545,7 @@ impl FinancialLedger {
         state.wal_file = Some(file);
         Ok(Self {
             inner: Mutex::new(state),
-            group_commit: Mutex::new(GroupCommitQueue::default()),
+            group_commit: (Mutex::new(GroupCommitQueue::default()), Condvar::new()),
             persistent: true,
         })
     }
@@ -632,6 +642,7 @@ impl FinancialLedger {
         let mut leader_req = {
             let mut q = self
                 .group_commit
+                .0
                 .lock()
                 .map_err(|e| LedgerError::Persistence(e.to_string()))?;
             if !q.leader_active {
@@ -641,7 +652,12 @@ impl FinancialLedger {
                 let slot: GroupWaiterSlot =
                     Arc::new((Mutex::new(WaiterState::Waiting(Some(req))), Condvar::new()));
                 q.pending.push_back(slot.clone());
+                let ready_len = q.pending.len().saturating_add(1);
+                let target = q.target_wave;
                 drop(q);
+                if ready_len >= target {
+                    self.group_commit.1.notify_one();
+                }
 
                 let (lock, cvar) = &*slot;
                 let mut state = lock
@@ -685,11 +701,35 @@ impl FinancialLedger {
             }
         };
 
-        // Drain up to MAX_LEDGER_BATCH_SIZE - 1 followers already queued right now
+        // Adaptive wave re-coalescing: at c=1 (`target_wave == 1`), waits 0 ns.
+        // Under active concurrency (`target_wave >= 2`), prevents convoy splitting across two
+        // NVMe fdatasync calls by waking immediately via `group_commit.1` once returning peers enqueue.
         let mut follower_slots: Vec<GroupWaiterSlot> = Vec::new();
         let mut wave_reqs: Vec<CreateTransferReq> = Vec::new();
         wave_reqs.push(my_req);
-        if let Ok(mut q) = self.group_commit.lock() {
+        if let Ok(mut q) = self.group_commit.0.lock() {
+            if q.target_wave >= 2 && q.pending.len().saturating_add(1) < q.target_wave {
+                let deadline = Instant::now() + std::time::Duration::from_micros(1200);
+                while q.pending.len().saturating_add(1) < q.target_wave {
+                    let now = Instant::now();
+                    if now >= deadline {
+                        break;
+                    }
+                    match self.group_commit.1.wait_timeout(q, deadline - now) {
+                        Ok((guard, timeout_res)) => {
+                            q = guard;
+                            if timeout_res.timed_out() {
+                                break;
+                            }
+                        }
+                        Err(_) => {
+                            return Err(LedgerError::Persistence(
+                                "group commit condvar poisoned".into(),
+                            ));
+                        }
+                    }
+                }
+            }
             while wave_reqs.len() < MAX_LEDGER_BATCH_SIZE {
                 let Some(slot) = q.pending.pop_front() else {
                     break;
@@ -712,10 +752,17 @@ impl FinancialLedger {
             }
         }
 
+        let wave_len = wave_reqs.len();
         let wave_res = match self.inner.lock() {
             Ok(mut st) => execute_transfer_wave_locked(&mut st, wave_reqs, false),
             Err(e) => Err(LedgerError::Persistence(e.to_string())),
         };
+
+        if let Ok(mut q) = self.group_commit.0.lock() {
+            q.target_wave = wave_len
+                .saturating_add(q.pending.len())
+                .clamp(1, MAX_LEDGER_BATCH_SIZE);
+        }
 
         let my_result = match wave_res {
             Ok((outcomes, _, _)) => {
@@ -747,7 +794,7 @@ impl FinancialLedger {
     }
 
     fn handoff_group_leader(&self) {
-        if let Ok(mut q) = self.group_commit.lock() {
+        if let Ok(mut q) = self.group_commit.0.lock() {
             while let Some(next_slot) = q.pending.pop_front() {
                 let promoted = next_slot.0.lock().ok().and_then(|mut g| {
                     let req_opt = match &mut *g {
@@ -1372,34 +1419,24 @@ pub fn execute_ledger_sql(
                 match tokens[i].to_ascii_uppercase().as_str() {
                     "LEDGER" => {
                         i += 1;
-                        ledger_id = tokens
-                            .get(i)
-                            .and_then(|s| s.parse().ok())
-                            .ok_or_else(|| {
+                        ledger_id =
+                            tokens.get(i).and_then(|s| s.parse().ok()).ok_or_else(|| {
                                 QueryErrorResponse::syntax_error("invalid LEDGER u32", 1, 1)
                             })?;
                     }
                     "CODE" => {
                         i += 1;
-                        code = tokens
-                            .get(i)
-                            .and_then(|s| s.parse().ok())
-                            .ok_or_else(|| {
-                                QueryErrorResponse::syntax_error("invalid CODE u16", 1, 1)
-                            })?;
+                        code = tokens.get(i).and_then(|s| s.parse().ok()).ok_or_else(|| {
+                            QueryErrorResponse::syntax_error("invalid CODE u16", 1, 1)
+                        })?;
                     }
                     "SCALE" => {
                         i += 1;
-                        scale = tokens
-                            .get(i)
-                            .and_then(|s| s.parse().ok())
-                            .ok_or_else(|| {
-                                QueryErrorResponse::syntax_error("invalid SCALE u8", 1, 1)
-                            })?;
+                        scale = tokens.get(i).and_then(|s| s.parse().ok()).ok_or_else(|| {
+                            QueryErrorResponse::syntax_error("invalid SCALE u8", 1, 1)
+                        })?;
                     }
-                    "NO_OVERDRAFT"
-                    | "NO_OVERDRAFT_CREDIT"
-                    | "DEBITS_MUST_NOT_EXCEED_CREDITS" => {
+                    "NO_OVERDRAFT" | "NO_OVERDRAFT_CREDIT" | "DEBITS_MUST_NOT_EXCEED_CREDITS" => {
                         flags.debits_must_not_exceed_credits = true;
                     }
                     "NO_OVERDRAFT_DEBIT" | "CREDITS_MUST_NOT_EXCEED_DEBITS" => {
@@ -1590,16 +1627,20 @@ pub fn execute_ledger_sql(
             // LEDGER POST HOLD '<hid>' [AMOUNT <amt>] IDEMPOTENCY KEY '<key>'
             // LEDGER VOID HOLD '<hid>' IDEMPOTENCY KEY '<key>'
             let is_post = sub0 == "POST";
-            if tokens.get(1).is_none_or(|t| !t.eq_ignore_ascii_case("HOLD")) {
+            if tokens
+                .get(1)
+                .is_none_or(|t| !t.eq_ignore_ascii_case("HOLD"))
+            {
                 return Err(QueryErrorResponse::syntax_error(
                     &format!("expected LEDGER {sub0} HOLD <hold_id> ..."),
                     1,
                     1,
                 ));
             }
-            let hid = tokens.get(2).cloned().ok_or_else(|| {
-                QueryErrorResponse::syntax_error("missing hold_id", 1, 1)
-            })?;
+            let hid = tokens
+                .get(2)
+                .cloned()
+                .ok_or_else(|| QueryErrorResponse::syntax_error("missing hold_id", 1, 1))?;
             let mut capture_amt = None;
             let mut idem_key = None;
             let mut memo = None;
@@ -1613,11 +1654,7 @@ pub fn execute_ledger_sql(
                                 .get(i)
                                 .and_then(|s| s.replace('_', "").parse::<i128>().ok())
                                 .ok_or_else(|| {
-                                    QueryErrorResponse::syntax_error(
-                                        "invalid capture AMOUNT",
-                                        1,
-                                        1,
-                                    )
+                                    QueryErrorResponse::syntax_error("invalid capture AMOUNT", 1, 1)
                                 })?,
                         );
                     }
@@ -1660,9 +1697,7 @@ pub fn execute_ledger_sql(
             let mut idx = 1usize;
             let mut atomic = true;
             if let Some(tok) = tokens.get(idx) {
-                if tok.eq_ignore_ascii_case("NON_ATOMIC")
-                    || tok.eq_ignore_ascii_case("CLEARING")
-                {
+                if tok.eq_ignore_ascii_case("NON_ATOMIC") || tok.eq_ignore_ascii_case("CLEARING") {
                     atomic = false;
                     idx += 1;
                 } else if tok.eq_ignore_ascii_case("ATOMIC") {
@@ -1713,7 +1748,10 @@ pub fn execute_ledger_sql(
                         }
                         "IDEMPOTENCY" => {
                             idx += 1;
-                            if tokens.get(idx).is_some_and(|t| t.eq_ignore_ascii_case("KEY")) {
+                            if tokens
+                                .get(idx)
+                                .is_some_and(|t| t.eq_ignore_ascii_case("KEY"))
+                            {
                                 idx += 1;
                             }
                             idem_key = tokens.get(idx).cloned();
@@ -1852,10 +1890,8 @@ fn write_and_fdatasync_wal(
     if needed > *wal_alloc_len {
         let step: u64 = if *wal_alloc_len < 256 * 1024 {
             256 * 1024
-        } else if *wal_alloc_len < 4 * 1024 * 1024 {
-            4 * 1024 * 1024
         } else {
-            16 * 1024 * 1024
+            32 * 1024 * 1024
         };
         let target = needed.max(wal_alloc_len.saturating_add(step));
         file.seek(SeekFrom::Start(*wal_alloc_len))?;
@@ -1932,9 +1968,7 @@ impl WaveUndoSnapshot {
         } else {
             !self.saved_account_set.insert(idx)
         };
-        if !already
-            && let Some(acct) = st.accounts.get(idx)
-        {
+        if !already && let Some(acct) = st.accounts.get(idx) {
             if self.saved_accounts.len() == 7 {
                 for u in &self.saved_accounts {
                     self.saved_account_set.insert(u.idx);
@@ -2468,7 +2502,10 @@ fn crc32_ieee(bytes: &[u8]) -> u32 {
 fn write_len_str(out: &mut Vec<u8>, s: &str) -> Result<(), LedgerError> {
     let bytes = s.as_bytes();
     let len = u16::try_from(bytes.len()).map_err(|_| {
-        LedgerError::Persistence(format!("JWL1 string length {} exceeds u16::MAX", bytes.len()))
+        LedgerError::Persistence(format!(
+            "JWL1 string length {} exceeds u16::MAX",
+            bytes.len()
+        ))
     })?;
     out.extend_from_slice(&len.to_le_bytes());
     out.extend_from_slice(bytes);
@@ -2591,9 +2628,8 @@ fn encode_jwl1_frame(ev: &WalEvent, out: &mut Vec<u8>) -> Result<(), LedgerError
             });
             out.extend_from_slice(&record.ledger_id.to_le_bytes());
             out.push(record.scale);
-            let legs_len = u16::try_from(record.legs.len()).map_err(|_| {
-                LedgerError::Persistence("too many legs for JWL1 u16".into())
-            })?;
+            let legs_len = u16::try_from(record.legs.len())
+                .map_err(|_| LedgerError::Persistence("too many legs for JWL1 u16".into()))?;
             out.extend_from_slice(&legs_len.to_le_bytes());
             for leg in &record.legs {
                 write_len_str(out, &leg.account_id)?;
@@ -2812,9 +2848,9 @@ fn decode_wal_stream(raw: &[u8]) -> Result<(Vec<WalEvent>, usize), LedgerError> 
             let hdr_end = pos
                 .checked_add(13)
                 .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 header offset".into()))?;
-            let hdr = raw.get(pos..hdr_end).ok_or_else(|| {
-                LedgerError::Persistence("truncated JWL1 frame header".into())
-            })?;
+            let hdr = raw
+                .get(pos..hdr_end)
+                .ok_or_else(|| LedgerError::Persistence("truncated JWL1 frame header".into()))?;
             if hdr[..5] != JWL1_MAGIC {
                 return Err(LedgerError::Persistence("invalid JWL1 frame magic".into()));
             }
@@ -2823,9 +2859,9 @@ fn decode_wal_stream(raw: &[u8]) -> Result<(Vec<WalEvent>, usize), LedgerError> 
             let body_end = hdr_end
                 .checked_add(payload_len)
                 .ok_or_else(|| LedgerError::Persistence("corrupt JWL1 frame length".into()))?;
-            let payload = raw.get(hdr_end..body_end).ok_or_else(|| {
-                LedgerError::Persistence("truncated JWL1 frame payload".into())
-            })?;
+            let payload = raw
+                .get(hdr_end..body_end)
+                .ok_or_else(|| LedgerError::Persistence("truncated JWL1 frame payload".into()))?;
             let actual_crc = crc32_ieee(payload);
             if actual_crc != expected_crc {
                 return Err(LedgerError::Persistence(format!(
@@ -3267,7 +3303,10 @@ fn ledger_http_status(err: &LedgerError) -> axum::http::StatusCode {
 async fn http_create_account(
     axum::extract::State(ledger): axum::extract::State<std::sync::Arc<FinancialLedger>>,
     axum::Json(req): axum::Json<CreateLedgerAccountReq>,
-) -> Result<(axum::http::StatusCode, axum::Json<serde_json::Value>), (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+) -> Result<
+    (axum::http::StatusCode, axum::Json<serde_json::Value>),
+    (axum::http::StatusCode, axum::Json<serde_json::Value>),
+> {
     match ledger.create_account(req) {
         Ok(acct) => Ok((
             axum::http::StatusCode::CREATED,
@@ -3289,7 +3328,8 @@ async fn http_list_accounts(
 async fn http_submit_transfer(
     axum::extract::State(ledger): axum::extract::State<std::sync::Arc<FinancialLedger>>,
     axum::Json(req): axum::Json<CreateTransferReq>,
-) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)>
+{
     let res = if ledger.is_persistent() {
         tokio::task::spawn_blocking(move || ledger.submit_transfer(req))
             .await
@@ -3314,7 +3354,8 @@ async fn http_submit_transfer(
 async fn http_submit_transfer_batch(
     axum::extract::State(ledger): axum::extract::State<std::sync::Arc<FinancialLedger>>,
     axum::Json(req): axum::Json<BatchTransferReq>,
-) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)>
+{
     let res = if ledger.is_persistent() {
         tokio::task::spawn_blocking(move || {
             ledger.submit_transfer_batch_with_options(
@@ -3491,12 +3532,7 @@ pub fn try_execute_ledger_function_sql(
         )));
     }
     let mut reqs = Vec::with_capacity(idems.len());
-    for (((ik, d), c), amt) in idems
-        .into_iter()
-        .zip(debits)
-        .zip(credits)
-        .zip(amounts)
-    {
+    for (((ik, d), c), amt) in idems.into_iter().zip(debits).zip(credits).zip(amounts) {
         reqs.push(CreateTransferReq {
             idempotency_key: ik,
             transfer_id: None,
@@ -3679,11 +3715,16 @@ fn resolve_bool_arg(raw: &str, args: &[serde_json::Value]) -> Result<bool, Query
     if let Some(v) = resolve_param_value(raw, args) {
         return match v {
             serde_json::Value::Bool(b) => Ok(*b),
-            serde_json::Value::String(s) => {
-                Ok(matches!(s.trim().to_ascii_lowercase().as_str(), "true" | "t" | "1"))
-            }
+            serde_json::Value::String(s) => Ok(matches!(
+                s.trim().to_ascii_lowercase().as_str(),
+                "true" | "t" | "1"
+            )),
             serde_json::Value::Number(n) => Ok(n.as_i64().unwrap_or(0) != 0),
-            _ => Err(QueryErrorResponse::syntax_error("invalid bool parameter", 1, 1)),
+            _ => Err(QueryErrorResponse::syntax_error(
+                "invalid bool parameter",
+                1,
+                1,
+            )),
         };
     }
     let clean = strip_pg_typecast(raw);
@@ -3691,7 +3732,11 @@ fn resolve_bool_arg(raw: &str, args: &[serde_json::Value]) -> Result<bool, Query
     match s.trim().to_ascii_lowercase().as_str() {
         "true" | "t" | "1" => Ok(true),
         "false" | "f" | "0" => Ok(false),
-        _ => Err(QueryErrorResponse::syntax_error("invalid boolean literal", 1, 1)),
+        _ => Err(QueryErrorResponse::syntax_error(
+            "invalid boolean literal",
+            1,
+            1,
+        )),
     }
 }
 
@@ -3871,7 +3916,8 @@ async fn http_post_hold(
     axum::extract::State(ledger): axum::extract::State<std::sync::Arc<FinancialLedger>>,
     axum::extract::Path(hold_id): axum::extract::Path<String>,
     axum::Json(req): axum::Json<ResolveHoldReq>,
-) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)>
+{
     match ledger.post_hold(&hold_id, req) {
         Ok(receipt) => Ok(axum::Json(serde_json::json!(receipt))),
         Err(e) => Err((
@@ -3885,7 +3931,8 @@ async fn http_void_hold(
     axum::extract::State(ledger): axum::extract::State<std::sync::Arc<FinancialLedger>>,
     axum::extract::Path(hold_id): axum::extract::Path<String>,
     axum::Json(req): axum::Json<ResolveHoldReq>,
-) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)> {
+) -> Result<axum::Json<serde_json::Value>, (axum::http::StatusCode, axum::Json<serde_json::Value>)>
+{
     match ledger.void_hold(&hold_id, req) {
         Ok(receipt) => Ok(axum::Json(serde_json::json!(receipt))),
         Err(e) => Err((
@@ -3987,7 +4034,10 @@ mod tests {
             hold: false,
             memo: None,
         });
-        assert!(matches!(conflict, Err(LedgerError::IdempotencyConflict { .. })));
+        assert!(matches!(
+            conflict,
+            Err(LedgerError::IdempotencyConflict { .. })
+        ));
 
         // Two-phase card authorization hold for $60.00 (6_000 cents)
         ledger

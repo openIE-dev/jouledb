@@ -33,8 +33,8 @@ use joule_db_query::planner::{
 use joule_db_query::sql::SqlColumnDef;
 
 // Re-export public items that external code references
-pub use conversions::{ast_to_amorphic_value, ast_to_json, expression_to_sql};
 pub(crate) use conversions::extract_conjunct_eq_predicate;
+pub use conversions::{ast_to_amorphic_value, ast_to_json, expression_to_sql};
 pub use crud::{AtomicBatchOp, DeferredBatchSync};
 pub(crate) use expressions::evaluate_mvcc_predicate;
 
@@ -219,6 +219,9 @@ pub struct ColumnStatistics {
 /// in bounded steps once writes go idle.
 pub(crate) struct HoloLock {
     inner: std::sync::Arc<RwLock<DurableAmorphicStore>>,
+    wal: std::sync::Arc<std::sync::Mutex<joule_db_local::storage::wal::WalManager>>,
+    tx_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    next_id: std::sync::Arc<std::sync::atomic::AtomicU64>,
     pending: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// When bulk ingest last queued work (ms since `epoch`): the background
     /// catch-up waits for a short write-idle gap so it doesn't take the
@@ -384,9 +387,12 @@ impl HoloLock {
     /// Columnar rows materialized per background step.
     const MATERIALIZE_STEP: usize = 16_384;
     /// Write-idle gap before the background catch-up runs.
-    const IDLE_MS: u64 = 25;
+    const IDLE_MS: u64 = 250;
 
     fn new(store: DurableAmorphicStore) -> Self {
+        let wal = store.wal_handle();
+        let tx_counter = store.tx_counter_handle();
+        let next_id = store.next_id_handle();
         let sync = if sync_commit_enabled() {
             match store.group_sync() {
                 Ok(g) => Some(std::sync::Arc::new(g)),
@@ -501,12 +507,76 @@ impl HoloLock {
             });
         Self {
             inner,
+            wal,
+            tx_counter,
+            next_id,
             pending,
             last_bulk_ms,
             epoch,
             sync,
             writers_waiting,
             cols_pending,
+        }
+    }
+
+    pub(crate) fn settle_if_cols_pending(&self) {
+        self.settle_columns();
+    }
+
+    pub(crate) fn alloc_tx_and_ids(&self, n_inserts: usize) -> (u64, u64) {
+        let tx_id = self
+            .tx_counter
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let first_id = if n_inserts > 0 {
+            self.next_id
+                .fetch_add(n_inserts as u64, std::sync::atomic::Ordering::SeqCst)
+        } else {
+            0
+        };
+        (tx_id, first_id)
+    }
+
+    /// Write and flush an atomic OLTP transaction to `WalManager` WITHOUT acquiring
+    /// the exclusive `RwLock` on `DurableAmorphicStore` (zero SQL reader starvation).
+    pub(crate) fn log_wal_tx_unlocked(
+        &self,
+        tx_id: u64,
+        pages: &[(u64, Vec<u8>)],
+    ) -> Result<
+        (
+            u64,
+            Option<std::sync::Arc<joule_db_local::storage::wal::GroupSync>>,
+        ),
+        String,
+    > {
+        let sync = self.sync.clone();
+        if sync.as_ref().is_some_and(|s| s.has_failed()) {
+            return Err("WAL fsync failed earlier".into());
+        }
+        let mut wal_guard = self.wal.lock().unwrap_or_else(|p| p.into_inner());
+        let commit_lsn = wal_guard
+            .log_atomic_tx_fast(tx_id, pages)
+            .map_err(|e| format!("WAL commit failed: {e}"))?;
+        drop(wal_guard);
+        Ok((commit_lsn, sync))
+    }
+
+    pub(crate) fn write_ram_only(
+        &self,
+    ) -> std::sync::LockResult<std::sync::RwLockWriteGuard<'_, DurableAmorphicStore>> {
+        self.writers_waiting
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let w = self.inner.write();
+        self.writers_waiting
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        match w {
+            Ok(mut g) => {
+                if self.cols_pending.load(std::sync::atomic::Ordering::Acquire) {
+                    self.settle_locked(&mut g);
+                }
+                Ok(g)
+            }
+            Err(p) => Err(p),
         }
     }
 
@@ -1425,9 +1495,9 @@ impl TableStorage for AmorphicTableStorage {
         drop(store);
 
         if let Some(dt) = self.disk_column_table(table) {
-            let disk_rows = dt
-                .scan_rows(&columns)
-                .map_err(|e| QueryError::ExecutionError(format!("disk segment scan failed: {e}")))?;
+            let disk_rows = dt.scan_rows(&columns).map_err(|e| {
+                QueryError::ExecutionError(format!("disk segment scan failed: {e}"))
+            })?;
             if rows.is_empty() {
                 return Ok(disk_rows);
             }

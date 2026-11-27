@@ -74,6 +74,55 @@ pub fn encode_update(id: RecordId, updates: &HashMap<String, Value>) -> Vec<u8> 
     out
 }
 
+/// Encode a single row directly from a borrowed field map into the exact `JWB1` (`nrows = 1`)
+/// binary layout without cloning `fields` or allocating intermediate column vectors.
+pub fn encode_single_row(id: RecordId, fields: &HashMap<String, Value>) -> Vec<u8> {
+    let ncols = fields.len();
+    let mut out = Vec::with_capacity(24 + ncols * 24);
+    out.extend_from_slice(MAGIC);
+    out.extend_from_slice(&1u32.to_le_bytes());
+    out.extend_from_slice(&(ncols as u32).to_le_bytes());
+    out.extend_from_slice(&id.to_le_bytes());
+    for (name, val) in fields {
+        out.extend_from_slice(&(name.len() as u16).to_le_bytes());
+        out.extend_from_slice(name.as_bytes());
+        match val {
+            Value::Int(x) => {
+                out.push(T_INT);
+                out.push(1);
+                out.extend_from_slice(&x.to_le_bytes());
+            }
+            Value::Float(x) => {
+                out.push(T_FLOAT);
+                out.push(1);
+                out.extend_from_slice(&x.to_le_bytes());
+            }
+            Value::Bool(b) => {
+                out.push(T_BOOL);
+                out.push(1);
+                out.push(u8::from(*b));
+            }
+            Value::String(s) => {
+                out.push(T_STR);
+                out.push(1);
+                out.extend_from_slice(&0u32.to_le_bytes());
+                out.extend_from_slice(&(s.len() as u32).to_le_bytes());
+                out.extend_from_slice(s.as_bytes());
+            }
+            other => {
+                out.push(T_MIXED);
+                out.push(1);
+                let j = serde_json::to_vec(other).unwrap_or_default();
+                out.extend_from_slice(&(j.len() as u32).to_le_bytes());
+                out.extend_from_slice(&j);
+            }
+        }
+    }
+    let crc = crc32fast::hash(&out);
+    out.extend_from_slice(&crc.to_le_bytes());
+    out
+}
+
 /// Decode a `JWU1` binary `UpdateFields` WAL frame.
 pub fn decode_update(data: &[u8]) -> Result<(RecordId, HashMap<String, Value>), String> {
     if !is_binary_update(data) || data.len() < 18 {
@@ -421,5 +470,20 @@ mod tests {
         bad[10] ^= 0xff;
         assert!(decode_update(&bad).is_err());
         assert!(decode_update(&enc[..enc.len() - 2]).is_err());
+    }
+
+    #[test]
+    fn roundtrip_single_row_jwb1() {
+        let mut fields = HashMap::new();
+        fields.insert("__table__".into(), Value::String("transfers".into()));
+        fields.insert("from_id".into(), Value::Int(101));
+        fields.insert("to_id".into(), Value::Int(202));
+        fields.insert("amount".into(), Value::Float(99.5));
+        fields.insert("ok".into(), Value::Bool(true));
+        fields.insert("note".into(), Value::Null);
+        let enc = encode_single_row(777, &fields);
+        assert!(is_binary(&enc));
+        let dec = decode_chunk(&enc).unwrap();
+        assert_eq!(dec, vec![(777, fields)]);
     }
 }

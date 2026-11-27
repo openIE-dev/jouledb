@@ -730,12 +730,9 @@ impl ReplicationClient {
             .read_exact(&mut ack_header)
             .await
             .map_err(|e| ReplicationError::IoError(e.to_string()))?;
-        let ack_payload_len = u32::from_le_bytes([
-            ack_header[3],
-            ack_header[4],
-            ack_header[5],
-            ack_header[6],
-        ]) as usize;
+        let ack_payload_len =
+            u32::from_le_bytes([ack_header[3], ack_header[4], ack_header[5], ack_header[6]])
+                as usize;
         if ack_payload_len > 0 {
             let mut ack_payload = vec![0u8; ack_payload_len];
             stream
