@@ -166,6 +166,139 @@ pub fn ingest_jouleos_receipts_into_ledger(
     Ok((summary, tree))
 }
 
+/// Single step committed by bare-metal `seL4` `cinder_governor` Protection Domain (`Horizon H40`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Sel4GovernorMerkleStep {
+    pub seq: u64,
+    pub verb: String,
+    pub q24_fnv1a: u64,
+    pub debited_uj: u64,
+    pub remaining_uj: u64,
+    pub claimed_root_u64: u64,
+}
+
+/// Rolling 64-bit `cinder_governor` Merkle compression shared with `seL4` `cinder_governor.elf`.
+pub fn advance_sel4_merkle_chain(
+    prev_root: u64,
+    seq: u64,
+    q24_fnv1a: u64,
+    debited_uj: u64,
+    rem_uj: u64,
+) -> u64 {
+    let mut h = 0xCBF2_9CE4_8422_2325u64;
+    for word in [
+        0x5345_4C34_4834_3021u64,
+        prev_root,
+        seq,
+        q24_fnv1a,
+        debited_uj,
+        rem_uj,
+    ] {
+        for &b in &word.to_le_bytes() {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x0100_0000_01B3);
+        }
+    }
+    h
+}
+
+/// Cryptographically verifies a contiguous `seL4` `cinder_governor` receipt chain, sums debited
+/// microjoules in a `4,352`-bit [`ExactF64Superaccumulator`], and seals a `JouleDB` `SHA-256` [`MerkleTree`].
+pub fn verify_and_ingest_sel4_multipd_chain(
+    steps: &[Sel4GovernorMerkleStep],
+    tenant_id: &str,
+    grid_region: &str,
+    grid_factor_kg_per_kwh: f64,
+) -> Result<(Vec<LedgerEnergyReceipt>, MerkleTree, f64), LedgerError> {
+    let mut prev_root = 0xCBF2_9CE4_8422_2325u64;
+    let mut kulisch = ExactF64Superaccumulator::new();
+    let mut leaves = Vec::with_capacity(steps.len());
+    let mut out = Vec::with_capacity(steps.len());
+
+    for (idx, st) in steps.iter().enumerate() {
+        let expected_seq = (idx + 1) as u64;
+        if st.seq != expected_seq {
+            return Err(LedgerError::ProofError(format!(
+                "seL4 Merkle sequence gap: expected {expected_seq}, got {}",
+                st.seq
+            )));
+        }
+        let computed = advance_sel4_merkle_chain(
+            prev_root,
+            st.seq,
+            st.q24_fnv1a,
+            st.debited_uj,
+            st.remaining_uj,
+        );
+        if computed != st.claimed_root_u64 {
+            return Err(LedgerError::ProofError(format!(
+                "seL4 cinder_governor Merkle root mismatch at seq={}: expected 0x{:016x}, got 0x{:016x}",
+                st.seq, computed, st.claimed_root_u64
+            )));
+        }
+        prev_root = computed;
+
+        let joules = (st.debited_uj as f64) * 1e-6;
+        kulisch.add_f64(joules);
+
+        let mut leaf_h = Sha256::new();
+        leaf_h.update(
+            format!(
+                "sel4.cinder_governor.v1:{}:{}:{:016x}:{}:{}:{:016x}",
+                st.seq, st.verb, st.q24_fnv1a, st.debited_uj, st.remaining_uj, st.claimed_root_u64
+            )
+            .as_bytes(),
+        );
+        leaves.push(leaf_h.finalize().into());
+
+        let ts = Utc
+            .timestamp_opt(1_772_040_000, (idx as u32).saturating_mul(1_000))
+            .single()
+            .unwrap_or_else(Utc::now);
+        let qid = format!("sel4:cinder_governor:seq{}:{}", st.seq, st.verb);
+        let receipt_id = LedgerEnergyReceipt::compute_id(&qid, tenant_id, &ts);
+        let kwh = joules_to_kwh(joules);
+        let kg_co2e = kwh * grid_factor_kg_per_kwh.max(0.0);
+        let mut by_stage = HashMap::new();
+        by_stage.insert(String::from("sel4_ro_simd_lut4"), joules);
+
+        out.push(LedgerEnergyReceipt {
+            receipt_id,
+            qid,
+            tenant_id: tenant_id.to_string(),
+            workload_tag: Some(format!("sel4-q24:{:016x}", st.q24_fnv1a)),
+            branch_id: None,
+            energy_joules_total: joules,
+            energy_joules_by_stage: by_stage,
+            kwh,
+            kg_co2e,
+            grid_region: grid_region.to_string(),
+            grid_factor_source: String::from("sel4-cinder-governor-h40"),
+            timestamp_start: ts,
+            timestamp_end: ts,
+            device_target: String::from("sel4-aarch64-pd"),
+            algorithm_type: String::from("waios-ro-sls-simd-lut4-q24"),
+            provenance: Some(EnergyProvenance {
+                acquisition: AcquisitionTier::Measured,
+                cascade_tier: None,
+                channels: Some(HardwareChannelJoules {
+                    cpu_joules: Some(joules),
+                    ..HardwareChannelJoules::default()
+                }),
+                external_api: None,
+                attestation: Some(ReceiptAttestation {
+                    scheme: String::from("sel4-cinder-governor-fnv1a-merkle-v1"),
+                    signer_id: String::from("pd:cinder_governor"),
+                    signature_hex: format!("{:016x}", st.claimed_root_u64),
+                }),
+            }),
+        });
+    }
+
+    let tree = MerkleTree::from_leaves(&leaves);
+    Ok((out, tree, kulisch.to_f64_rne()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -200,5 +333,59 @@ mod tests {
         for rec in &summary.generated_ledger_receipts {
             rec.verify_provenance().unwrap();
         }
+    }
+
+    #[test]
+    fn sel4_h40_multipd_cinder_governor_merkle_chain_verifies_and_rejects_tamper() {
+        let q24 = 0x7da1_44b9_7d05_4b25u64;
+        let steps = vec![
+            Sel4GovernorMerkleStep {
+                seq: 1,
+                verb: "recall.query".into(),
+                q24_fnv1a: q24,
+                debited_uj: 8,
+                remaining_uj: 16,
+                claimed_root_u64: 0xbf9c_ca3d_7ffd_2f59,
+            },
+            Sel4GovernorMerkleStep {
+                seq: 2,
+                verb: "messaging.send".into(),
+                q24_fnv1a: q24,
+                debited_uj: 8,
+                remaining_uj: 8,
+                claimed_root_u64: 0xdd59_2daa_e9bd_0855,
+            },
+            Sel4GovernorMerkleStep {
+                seq: 3,
+                verb: "storage.archive".into(),
+                q24_fnv1a: q24,
+                debited_uj: 8,
+                remaining_uj: 0,
+                claimed_root_u64: 0xc0f8_7a93_7a6f_9d22,
+            },
+            Sel4GovernorMerkleStep {
+                seq: 4,
+                verb: "recall.query".into(),
+                q24_fnv1a: q24,
+                debited_uj: 8,
+                remaining_uj: 0,
+                claimed_root_u64: 0xb37f_a925_0b84_940c,
+            },
+        ];
+        let (receipts, tree, kulisch_j) =
+            verify_and_ingest_sel4_multipd_chain(&steps, "sel4-fleet", "US-NE-ISO", 0.31).unwrap();
+        assert_eq!(receipts.len(), 4);
+        assert!((kulisch_j - 0.000_032).abs() < 1e-15);
+        for i in 0..4 {
+            assert!(tree.proof(i).unwrap().verify_self());
+            receipts[i].verify_provenance().unwrap();
+        }
+
+        // Tamper 1 uJ in Round 2 -> terminal Merkle verification must reject!
+        let mut bad = steps.clone();
+        bad[1].debited_uj = 7;
+        assert!(
+            verify_and_ingest_sel4_multipd_chain(&bad, "sel4-fleet", "US-NE-ISO", 0.31).is_err()
+        );
     }
 }

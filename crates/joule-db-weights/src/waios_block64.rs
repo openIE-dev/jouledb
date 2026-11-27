@@ -887,10 +887,58 @@ mod tests {
         assert!(topo.effective_fpu_cache_bytes >= 256 * 1024);
 
         // Verify H36/H37 SIMD-LUT4 matches LUT6 bit-for-bit in Q24:
-        let x_i8: Vec<i8> = (0..64).map(|i| ((i as i8) * 3).wrapping_sub(45)).collect();
+        let x_i8: Vec<i8> = (0..64)
+            .map(|i| (i as i8).wrapping_mul(3).wrapping_sub(45))
+            .collect();
         assert_eq!(
             loaded.forward_simd_lut4_q24(&x_i8).unwrap(),
             loaded.forward_lut6_q24(&x_i8).unwrap()
         );
+    }
+
+    #[test]
+    fn weightdb_jsyn_matches_baremetal_sel4_h40_q24_digest_bit_for_bit() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = WeightDB::open(dir.path().join("sel4_h40.jdb")).unwrap();
+        let tile = WaiOsBlock64Tile {
+            local_rank: 8,
+            b_v_u64: (0..8usize)
+                .map(|k| 0xA5A5_5A5A_F00F_0FF0u64 ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111)))
+                .collect(),
+            b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+            alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
+        };
+        let tensor = WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 2048,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![tile],
+        };
+        db.put_waios_block64_tensor("sel4-h40", "jouarena.sls.0", &tensor)
+            .unwrap();
+        let loaded = db
+            .get_waios_block64_tensor("sel4-h40", "jouarena.sls.0", 1 << 20)
+            .unwrap()
+            .unwrap();
+        let x_i8: Vec<i8> = (0..64).map(|i| ((i * 3) - 90) as i8).collect();
+        let y_q24 = loaded.forward_simd_lut4_q24(&x_i8).unwrap();
+        let y_lut6 = loaded.forward_lut6_q24(&x_i8).unwrap();
+        assert_eq!(y_q24, y_lut6);
+
+        let mut h = 0xCBF2_9CE4_8422_2325u64;
+        for &v in &y_q24 {
+            for &b in &v.to_le_bytes() {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(0x0100_0000_01B3);
+            }
+        }
+        assert_eq!(h, 0x7da1_44b9_7d05_4b25);
     }
 }
