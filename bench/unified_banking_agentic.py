@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import http.client
 import json
 import os
 import statistics
@@ -188,6 +189,20 @@ def main() -> None:
         assert verify["total_posted_debits"] == verify["total_posted_credits"]
 
         # ── 3. Agentic CoW SQL Branching, 3-Way Conflict Check & Guardrails ──
+        # Measure pure O(1) lazy Copy-on-Write CREATE BRANCH latency over HTTP keep-alive
+        ka_conn = http.client.HTTPConnection("127.0.0.1", args.http_port, timeout=15)
+        ka_headers = {"Content-Type": "application/json", "Connection": "keep-alive"}
+        pure_fork_lat_ms = []
+        for f_idx in range(20):
+            body = json.dumps({"sql": f"CREATE BRANCH pure_fork_{f_idx} ENERGY BUDGET 5000000"}).encode("utf-8")
+            tf0 = time.perf_counter()
+            ka_conn.request("POST", "/api/v1/query", body=body, headers=ka_headers)
+            fresp = ka_conn.getresponse()
+            fresp.read()
+            pure_fork_lat_ms.append((time.perf_counter() - tf0) * 1000.0)
+            assert fresp.status == 200
+        ka_conn.close()
+
         branch_lat_ms = []
         for b_idx in range(10):
             t0 = time.perf_counter()
@@ -239,6 +254,19 @@ def main() -> None:
         )
         assert st == 200 and wf1_replay["rows"][0][4] is True
 
+        # Native pgvector SQL + HNSW Index Verification (`VECTOR(3)`, `<=>`, `USING hnsw`)
+        assert sql_exec(base, "CREATE TABLE doc_embeddings (id INT PRIMARY KEY, title TEXT, emb VECTOR(3))")[0] == 200
+        assert sql_exec(
+            base,
+            "INSERT INTO doc_embeddings VALUES (1, 'wire_fraud_policy', '[1.0, 0.0, 0.0]'), (2, 'hr_handbook', '[0.0, 1.0, 0.0]'), (3, 'aml_sanctions_guide', '[0.92, 0.08, 0.0]')",
+        )[0] == 200
+        assert sql_exec(base, "CREATE INDEX ON doc_embeddings USING hnsw (emb vector_cosine_ops)")[0] == 200
+        vst, vres = sql_exec(
+            base,
+            "SELECT id, title FROM doc_embeddings ORDER BY emb <=> '[1.0, 0.0, 0.0]'::vector LIMIT 2",
+        )
+        assert vst == 200 and [r[0] for r in vres["rows"]] == [1, 3], f"pgvector HNSW query failed: {vres}"
+
         # ── 4. Pessimistic Row Locking (`SELECT ... FOR UPDATE NOWAIT` & `SKIP LOCKED`) ──
         _, b1 = sql_exec(base, "BEGIN")
         sid1 = b1["session_id"]
@@ -261,7 +289,7 @@ def main() -> None:
         sql_exec(base, "COMMIT", session_id=sid2)
 
         summary = {
-            "version": "0.14.0",
+            "version": "0.15.0",
             "exact_decimal128_verified": True,
             "double_entry_ledger": {
                 "hot_wallet_attempts": 500,
@@ -274,11 +302,13 @@ def main() -> None:
             },
             "agentic_cow_branches": {
                 "branches_tested": 10,
+                "pure_create_branch_median_ms": round(statistics.median(pure_fork_lat_ms), 3),
                 "median_fork_guardrail_write_ms": round(statistics.median(branch_lat_ms), 2),
                 "destructive_ddl_blocked": True,
                 "unbounded_delete_blocked": True,
                 "three_way_conflict_detected": True,
                 "durable_workflow_memoization_verified": True,
+                "pgvector_hnsw_verified": True,
             },
             "human_row_locking": {
                 "for_update_nowait_verified": True,

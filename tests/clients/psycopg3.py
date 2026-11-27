@@ -45,5 +45,35 @@ with psycopg.connect(host="127.0.0.1", port=port, user="postgres", dbname="postg
             data = b"".join(bytes(b) for b in cp)
         assert data.startswith(b"1\n"), data[:40]
     check("copy_to_stdout", copy_out)
+    def pgvector_hnsw():
+        cur.execute("DROP TABLE IF EXISTS pg3_vec")
+        cur.execute("CREATE TABLE pg3_vec (id INT PRIMARY KEY, emb VECTOR(3))")
+        cur.executemany(
+            "INSERT INTO pg3_vec VALUES (%s, %s)",
+            [(1, "[1.0, 0.0, 0.0]"), (2, "[0.0, 1.0, 0.0]"), (3, "[0.9, 0.1, 0.0]")],
+        )
+        cur.execute("CREATE INDEX ON pg3_vec USING hnsw (emb vector_cosine_ops)")
+        cur.execute(
+            "SELECT id, emb <=> %s::vector AS dist FROM pg3_vec ORDER BY emb <=> %s::vector LIMIT 2",
+            ("[1.0, 0.0, 0.0]", "[1.0, 0.0, 0.0]"),
+        )
+        vrows = cur.fetchall()
+        assert [int(r[0]) for r in vrows] == [1, 3], vrows
+    check("pgvector_hnsw", pgvector_hnsw)
+    def ledger_sql_fn():
+        cur.execute("LEDGER CREATE ACCOUNT pg3_vault LEDGER 1 CODE 1000 SCALE 2")
+        cur.execute("LEDGER CREATE ACCOUNT pg3_w1 LEDGER 1 CODE 2000 SCALE 2 NO_OVERDRAFT")
+        cur.execute("LEDGER CREATE ACCOUNT pg3_w2 LEDGER 1 CODE 2000 SCALE 2")
+        seq = cur.execute(
+            "SELECT ledger_transfer(%s, %s, %s, %s)",
+            ("pg3-seed-1", "pg3_vault", "pg3_w1", 1000),
+        ).fetchone()[0]
+        assert int(seq) >= 1
+        committed = cur.execute(
+            "SELECT ledger_transfer_batch(%s::text[], %s::text[], %s::text[], %s::bigint[])",
+            (["pg3-b1", "pg3-b2"], ["pg3_w1", "pg3_w1"], ["pg3_w2", "pg3_w2"], [300, 400]),
+        ).fetchone()[0]
+        assert int(committed) == 2
+    check("ledger_sql_fn", ledger_sql_fn)
 for k, v in results.items(): print(f"psycopg3 {k}: {v}")
 raise SystemExit(0 if all(v == "ok" for v in results.values()) else 1)

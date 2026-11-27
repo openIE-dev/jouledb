@@ -26,7 +26,7 @@ from ._native import __version__ as _native_version
 from ._native import decode as _decode
 
 __all__ = ["connect", "Connection", "Result", "JouleDBError", "__version__"]
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 
 class JouleDBError(RuntimeError):

@@ -17,14 +17,14 @@
 
 use crate::amorphic_adapter::{AmorphicTableStorage, ColumnDefInfo};
 use crate::query::{QueryErrorResponse, QueryExecutor, QueryRequest, QueryResponse, SimpleQueryExecutor};
-use joule_db_query::TableStorage;
+use joule_db_query::{RowData, TableStorage};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub const WORKFLOW_WAL_FILENAME: &str = "workflow_steps.jwal";
@@ -34,8 +34,19 @@ pub struct TableBaseSnapshot {
     pub columns: Vec<String>,
     pub col_defs: Vec<ColumnDefInfo>,
     pub primary_key_idx: Option<usize>,
-    /// Key -> canonical row JSON values at branch fork point.
-    pub rows_by_key: Arc<BTreeMap<String, Vec<serde_json::Value>>>,
+    /// Raw fork-point rows captured without JSON serialization or SQL re-parsing (`O(1)` Arc share across child branches).
+    pub raw_rows: Arc<Vec<RowData>>,
+    /// Lazily computed `key -> canonical JSON row` map (populated only if `DIFF BRANCH` or `MERGE BRANCH` inspects a mutated table).
+    pub rows_by_key: Arc<OnceLock<BTreeMap<String, Vec<serde_json::Value>>>>,
+}
+
+impl TableBaseSnapshot {
+    pub fn keyed_rows(&self) -> &BTreeMap<String, Vec<serde_json::Value>> {
+        self.rows_by_key.get_or_init(|| {
+            let json_rows = raw_rows_to_json_rows(&self.raw_rows, &self.columns);
+            index_rows_by_key(&json_rows, self.primary_key_idx)
+        })
+    }
 }
 
 pub struct SqlBranchEntry {
@@ -46,7 +57,18 @@ pub struct SqlBranchEntry {
     pub energy_spent_uj: Arc<AtomicU64>,
     pub guardrails_strict: bool,
     pub base_tables: HashMap<String, TableBaseSnapshot>,
-    pub executor: Arc<SimpleQueryExecutor>,
+    /// Tables that have been lazily materialized into `executor` on first SQL reference.
+    pub materialized_tables: Mutex<HashSet<String>>,
+    /// Lazily constructed isolated executor (`CREATE BRANCH` avoids WGPU/HDC init until first query).
+    pub executor: OnceLock<Arc<SimpleQueryExecutor>>,
+}
+
+impl SqlBranchEntry {
+    #[inline]
+    pub fn executor(&self) -> &Arc<SimpleQueryExecutor> {
+        self.executor
+            .get_or_init(|| Arc::new(SimpleQueryExecutor::new()))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,10 +262,28 @@ impl SqlBranchSandboxManager {
     }
 
     pub fn get_branch_executor(&self, name: &str) -> Option<Arc<SimpleQueryExecutor>> {
-        self.branches
+        let entry = self.branches.read().ok().and_then(|m| m.get(name).cloned())?;
+        let _ = materialize_all_branch_tables(&entry);
+        Some(entry.executor().clone())
+    }
+
+    /// Return the isolated branch executor after lazily materializing ONLY the parent tables
+    /// referenced by `sql` (keep `CREATE BRANCH` `< 1 ms` and skip untouched tables on `DIFF`/`MERGE`).
+    pub fn get_branch_executor_for_sql(
+        &self,
+        name: &str,
+        sql: &str,
+    ) -> Result<Arc<SimpleQueryExecutor>, QueryErrorResponse> {
+        let entry = self
+            .branches
             .read()
             .ok()
-            .and_then(|m| m.get(name).map(|b| b.executor.clone()))
+            .and_then(|m| m.get(name).cloned())
+            .ok_or_else(|| {
+                QueryErrorResponse::execution_error(&format!("branch '{name}' not found"))
+            })?;
+        materialize_referenced_branch_tables(&entry, sql)?;
+        Ok(entry.executor().clone())
     }
 
     pub fn has_branch(&self, name: &str) -> bool {
@@ -284,8 +324,8 @@ impl SqlBranchSandboxManager {
             let p = bmap.get(parent).ok_or_else(|| {
                 QueryErrorResponse::execution_error(&format!("parent branch '{parent}' not found"))
             })?;
-            let entry = build_branch_entry_from_storage(
-                p.executor.amorphic(),
+            let entry = build_branch_entry_from_parent_branch(
+                p,
                 clean,
                 parent,
                 energy_budget_uj,
@@ -378,7 +418,10 @@ impl SqlBranchSandboxManager {
             })?)
         };
         let parent_storage: &AmorphicTableStorage = match &parent_entry {
-            Some(pe) => pe.executor.amorphic(),
+            Some(pe) => {
+                materialize_all_branch_tables(pe)?;
+                pe.executor().amorphic()
+            }
             None => main_amorphic,
         };
 
@@ -416,7 +459,8 @@ impl SqlBranchSandboxManager {
                 ))
             })?;
             drop(bmap);
-            let report = apply_three_way_merge(&entry, &pe.executor, delete_after)?;
+            materialize_all_branch_tables(&pe)?;
+            let report = apply_three_way_merge(&entry, pe.executor(), delete_after)?;
             if delete_after {
                 let _ = self.drop_branch(name, true);
             }
@@ -1081,7 +1125,7 @@ pub fn execute_branch_or_workflow_sql(
 }
 
 // ============================================================================
-// Internal Helpers
+// Internal Helpers (Lazy Copy-on-Write Table Materialization)
 // ============================================================================
 
 fn build_branch_entry_from_storage(
@@ -1091,35 +1135,18 @@ fn build_branch_entry_from_storage(
     energy_budget_uj: Option<u64>,
     guardrails_strict: bool,
 ) -> Result<SqlBranchEntry, QueryErrorResponse> {
-    let branch_exec = Arc::new(SimpleQueryExecutor::new());
     let mut base_tables = HashMap::new();
 
     for table in source_amorphic.list_tables() {
         let col_defs = source_amorphic.get_column_defs(&table).unwrap_or_default();
         let columns = source_amorphic.columns(&table).unwrap_or_default();
         let pk_idx = detect_primary_key_idx(&columns, &col_defs);
-        let rows = snapshot_table_rows(source_amorphic, &table, &columns);
-        let keyed = index_rows_by_key(&rows, pk_idx);
-
-        // Materialize table schema + initial rows inside the isolated branch executor
-        if !col_defs.is_empty() {
-            let ddl = render_create_table_sql(&table, &col_defs);
-            let _ = branch_exec.execute(&QueryRequest {
-                sql: ddl,
-                ..Default::default()
-            })?;
-        } else if !columns.is_empty() {
-            let cols_ddl: Vec<String> = columns.iter().map(|c| format!("\"{c}\" TEXT")).collect();
-            let ddl = format!("CREATE TABLE \"{table}\" ({})", cols_ddl.join(", "));
-            let _ = branch_exec.execute(&QueryRequest {
-                sql: ddl,
-                ..Default::default()
-            })?;
-        }
-
-        if !rows.is_empty() && !columns.is_empty() {
-            seed_rows_into_executor(&branch_exec, &table, &columns, &rows)?;
-        }
+        let raw_rows: Vec<RowData> = source_amorphic
+            .scan_with_record_ids(&table)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, row)| row)
+            .collect();
 
         base_tables.insert(
             table,
@@ -1127,7 +1154,8 @@ fn build_branch_entry_from_storage(
                 columns,
                 col_defs,
                 primary_key_idx: pk_idx,
-                rows_by_key: Arc::new(keyed),
+                raw_rows: Arc::new(raw_rows),
+                rows_by_key: Arc::new(OnceLock::new()),
             },
         );
     }
@@ -1140,15 +1168,215 @@ fn build_branch_entry_from_storage(
         energy_spent_uj: Arc::new(AtomicU64::new(0)),
         guardrails_strict,
         base_tables,
-        executor: branch_exec,
+        materialized_tables: Mutex::new(HashSet::new()),
+        executor: OnceLock::new(),
     })
+}
+
+fn build_branch_entry_from_parent_branch(
+    parent_entry: &SqlBranchEntry,
+    name: &str,
+    parent: &str,
+    energy_budget_uj: Option<u64>,
+    guardrails_strict: bool,
+) -> Result<SqlBranchEntry, QueryErrorResponse> {
+    let mut base_tables = HashMap::new();
+    let parent_mat: HashSet<String> = parent_entry
+        .materialized_tables
+        .lock()
+        .map(|g| g.clone())
+        .unwrap_or_default();
+
+    for (table, pbase) in &parent_entry.base_tables {
+        if !parent_mat.contains(table) {
+            base_tables.insert(table.clone(), pbase.clone());
+        }
+    }
+
+    if let Some(parent_exec) = parent_entry.executor.get() {
+        let parent_storage = parent_exec.amorphic();
+        for table in parent_storage.list_tables() {
+            let col_defs = parent_storage.get_column_defs(&table).unwrap_or_default();
+            let columns = parent_storage.columns(&table).unwrap_or_default();
+            let pk_idx = detect_primary_key_idx(&columns, &col_defs);
+            let raw_rows: Vec<RowData> = parent_storage
+                .scan_with_record_ids(&table)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(_, row)| row)
+                .collect();
+            base_tables.insert(
+                table,
+                TableBaseSnapshot {
+                    columns,
+                    col_defs,
+                    primary_key_idx: pk_idx,
+                    raw_rows: Arc::new(raw_rows),
+                    rows_by_key: Arc::new(OnceLock::new()),
+                },
+            );
+        }
+    }
+
+    Ok(SqlBranchEntry {
+        name: name.to_string(),
+        parent: parent.to_string(),
+        created_at_ms: now_ms(),
+        energy_budget_uj,
+        energy_spent_uj: Arc::new(AtomicU64::new(0)),
+        guardrails_strict,
+        base_tables,
+        materialized_tables: Mutex::new(HashSet::new()),
+        executor: OnceLock::new(),
+    })
+}
+
+fn materialize_one_branch_table(
+    entry: &SqlBranchEntry,
+    table: &str,
+    base: &TableBaseSnapshot,
+) -> Result<(), QueryErrorResponse> {
+    let exec = entry.executor();
+    if !base.col_defs.is_empty() {
+        let ddl = render_create_table_sql(table, &base.col_defs);
+        let _ = exec.execute(&QueryRequest {
+            sql: ddl,
+            ..Default::default()
+        })?;
+    } else if !base.columns.is_empty() {
+        let cols_ddl: Vec<String> = base
+            .columns
+            .iter()
+            .map(|c| format!("\"{c}\" TEXT"))
+            .collect();
+        let ddl = format!("CREATE TABLE \"{table}\" ({})", cols_ddl.join(", "));
+        let _ = exec.execute(&QueryRequest {
+            sql: ddl,
+            ..Default::default()
+        })?;
+    }
+
+    if !base.raw_rows.is_empty() && !base.columns.is_empty() {
+        exec.amorphic()
+            .insert_rows(table, &base.raw_rows)
+            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+    }
+    Ok(())
+}
+
+fn materialize_all_branch_tables(entry: &SqlBranchEntry) -> Result<(), QueryErrorResponse> {
+    let mut mat = entry
+        .materialized_tables
+        .lock()
+        .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+    for (table, base) in &entry.base_tables {
+        if !mat.contains(table) {
+            materialize_one_branch_table(entry, table, base)?;
+            mat.insert(table.clone());
+        }
+    }
+    Ok(())
+}
+
+fn sql_mentions_identifier_ci(sql_lower: &str, ident_lower: &str) -> bool {
+    let bytes = sql_lower.as_bytes();
+    let needle = ident_lower.as_bytes();
+    if needle.is_empty() || needle.len() > bytes.len() {
+        return false;
+    }
+    let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut pos = 0usize;
+    while let Some(rel) = sql_lower[pos..].find(ident_lower) {
+        let idx = pos + rel;
+        let end = idx + needle.len();
+        let left_ok = idx == 0 || !is_word(bytes[idx - 1]);
+        let right_ok = end == bytes.len() || !is_word(bytes[end]);
+        if left_ok && right_ok {
+            return true;
+        }
+        pos = idx + 1;
+    }
+    false
+}
+
+fn materialize_referenced_branch_tables(
+    entry: &SqlBranchEntry,
+    sql: &str,
+) -> Result<(), QueryErrorResponse> {
+    if entry.base_tables.is_empty() {
+        return Ok(());
+    }
+    let sql_lower = sql.to_ascii_lowercase();
+    let needs_catalog_all = sql_lower.contains("show tables")
+        || sql_lower.contains("information_schema")
+        || sql_lower.contains("pg_class")
+        || sql_lower.contains("pg_tables");
+    if needs_catalog_all {
+        return materialize_all_branch_tables(entry);
+    }
+    let mut mat = entry
+        .materialized_tables
+        .lock()
+        .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+    for (table, base) in &entry.base_tables {
+        if mat.contains(table) {
+            continue;
+        }
+        let tbl_lower = table.to_ascii_lowercase();
+        if sql_mentions_identifier_ci(&sql_lower, &tbl_lower) {
+            materialize_one_branch_table(entry, table, base)?;
+            mat.insert(table.clone());
+        }
+    }
+    Ok(())
+}
+
+fn raw_rows_to_json_rows(
+    raw_rows: &[RowData],
+    columns: &[String],
+) -> Vec<Vec<serde_json::Value>> {
+    raw_rows
+        .iter()
+        .map(|row_data| {
+            columns
+                .iter()
+                .map(|col_name| {
+                    row_data
+                        .columns
+                        .iter()
+                        .position(|c| c == col_name)
+                        .and_then(|idx| row_data.values.get(idx))
+                        .map(crate::json_ops::ast_value_to_json)
+                        .unwrap_or(serde_json::Value::Null)
+                })
+                .collect()
+        })
+        .collect()
 }
 
 fn compute_three_way_diff(
     entry: &SqlBranchEntry,
     parent_storage: &AmorphicTableStorage,
 ) -> Result<SqlBranchDiffReport, QueryErrorResponse> {
-    let branch_storage = entry.executor.amorphic();
+    let Some(branch_exec) = entry.executor.get() else {
+        return Ok(SqlBranchDiffReport {
+            branch: entry.name.clone(),
+            parent: entry.parent.clone(),
+            energy_spent_uj: entry.energy_spent_uj.load(Ordering::Relaxed),
+            energy_budget_uj: entry.energy_budget_uj,
+            tables: Vec::new(),
+            total_inserted: 0,
+            total_updated: 0,
+            total_deleted: 0,
+            total_conflicts: 0,
+        });
+    };
+    let branch_storage = branch_exec.amorphic();
+    let materialized: HashSet<String> = entry
+        .materialized_tables
+        .lock()
+        .map(|g| g.clone())
+        .unwrap_or_default();
     let mut all_tables: HashSet<String> = entry.base_tables.keys().cloned().collect();
     for t in branch_storage.list_tables() {
         all_tables.insert(t);
@@ -1164,12 +1392,16 @@ fn compute_three_way_diff(
 
     for table in sorted_tables {
         if let Some(base) = entry.base_tables.get(&table) {
+            if !materialized.contains(&table) {
+                continue;
+            }
+            let base_keyed = base.keyed_rows();
             let b_rows = snapshot_table_rows(branch_storage, &table, &base.columns);
             let p_rows = snapshot_table_rows(parent_storage, &table, &base.columns);
             let b_map = index_rows_by_key(&b_rows, base.primary_key_idx);
             let p_map = index_rows_by_key(&p_rows, base.primary_key_idx);
 
-            let mut all_keys: HashSet<&String> = base.rows_by_key.keys().collect();
+            let mut all_keys: HashSet<&String> = base_keyed.keys().collect();
             all_keys.extend(b_map.keys());
 
             let mut ins = 0usize;
@@ -1178,16 +1410,14 @@ fn compute_three_way_diff(
             let mut conflicts = Vec::new();
 
             for k in all_keys {
-                let base_v = base.rows_by_key.get(k);
+                let base_v = base_keyed.get(k);
                 let branch_v = b_map.get(k);
                 let parent_v = p_map.get(k);
 
                 if base_v == branch_v {
-                    continue; // untouched on branch
+                    continue;
                 }
 
-                // Branch modified, inserted, or deleted key `k`!
-                // Check if parent ALSO modified `k` differently since fork:
                 if parent_v != base_v && parent_v != branch_v {
                     conflicts.push(k.clone());
                 }
@@ -1215,7 +1445,6 @@ fn compute_three_way_diff(
                 });
             }
         } else {
-            // Newly created table on the branch
             let cols = branch_storage.columns(&table).unwrap_or_default();
             let b_rows = snapshot_table_rows(branch_storage, &table, &cols);
             let parent_also_created = parent_storage.list_tables().iter().any(|t| t == &table);
@@ -1275,7 +1504,18 @@ fn apply_three_way_merge(
         ));
     }
 
-    let branch_storage = entry.executor.amorphic();
+    if diff.tables.is_empty() {
+        return Ok(SqlBranchMergeReport {
+            branch: entry.name.clone(),
+            target: entry.parent.clone(),
+            tables_merged: 0,
+            rows_inserted: 0,
+            rows_updated: 0,
+            rows_deleted: 0,
+            branch_deleted: delete_after,
+        });
+    }
+    let branch_storage = entry.executor().amorphic();
     let target_storage = target_exec.amorphic();
     let mut rows_inserted = 0usize;
     let mut rows_updated = 0usize;
@@ -1304,6 +1544,7 @@ fn apply_three_way_merge(
         let Some(base) = entry.base_tables.get(&td.table) else {
             continue;
         };
+        let base_keyed = base.keyed_rows();
         let b_rows = snapshot_table_rows(branch_storage, &td.table, &base.columns);
         let b_map = index_rows_by_key(&b_rows, base.primary_key_idx);
         let p_rows = snapshot_table_rows(target_storage, &td.table, &base.columns);
@@ -1314,8 +1555,7 @@ fn apply_three_way_merge(
             .and_then(|idx| base.columns.get(idx))
             .cloned();
 
-        // 1. Deletions & Updates
-        for (k, base_row) in base.rows_by_key.iter() {
+        for (k, base_row) in base_keyed.iter() {
             match b_map.get(k) {
                 None => {
                     if p_map.contains_key(k) {
@@ -1349,10 +1589,9 @@ fn apply_three_way_merge(
             }
         }
 
-        // 2. Insertions
         let mut to_insert = Vec::new();
         for (k, new_row) in &b_map {
-            if !base.rows_by_key.contains_key(k) && !p_map.contains_key(k) {
+            if !base_keyed.contains_key(k) && !p_map.contains_key(k) {
                 to_insert.push(new_row.clone());
             }
         }

@@ -1949,6 +1949,15 @@ impl SimpleQueryExecutor {
         }
 
         // Native Double-Entry Financial Ledger SQL (`LEDGER CREATE ACCOUNT | TRANSFER | HOLD | POST HOLD | VOID HOLD | VERIFY`)
+        // plus `SELECT ledger_transfer(...)` / `SELECT ledger_transfer_batch(...)` pgwire functions
+        if let Some(fn_res) = crate::financial_ledger::try_execute_ledger_function_sql(
+            &self.financial_ledger,
+            &sql,
+            &request.args,
+            start,
+        ) {
+            return fn_res;
+        }
         if crate::financial_ledger::is_ledger_sql(&sql) {
             let effective_sql = if request.args.is_empty() {
                 sql
@@ -2001,10 +2010,7 @@ impl SimpleQueryExecutor {
         if let Some(ref bname) = resolved_branch {
             let branch_exec = self
                 .branch_sandboxes
-                .get_branch_executor(bname)
-                .ok_or_else(|| {
-                    QueryErrorResponse::execution_error(&format!("branch '{bname}' not found"))
-                })?;
+                .get_branch_executor_for_sql(bname, &sql)?;
             let mut sub_req = request.clone();
             sub_req.branch_id = None;
             let res = branch_exec.execute(&sub_req);
@@ -3663,104 +3669,101 @@ impl SimpleQueryExecutor {
             return false;
         }
 
-        // Pattern 1: KNN — ORDER BY dist_func(col, vec) LIMIT k
-        // For distance metrics (L2, cosine_distance): ascending = closest first → KNN works
+        // Pattern 1: KNN — ORDER BY dist_func(col, vec) OR `col <->|<=>|<#> vec` LIMIT k
+        // For distance metrics (L2, cosine_distance, `<->`, `<=>`, `<#>`): ascending = closest first → KNN works
         // For similarity metrics (inner_product, cosine_similarity): descending = most similar → KNN works
         if query.order_by.len() == 1 && query.limit.is_some() && query.joins.is_empty() {
             let order = &query.order_by[0];
-            // Resolve ORDER BY to a distance function expression
-            let distance_expr = match &order.expr {
-                Expression::Function { name, .. } => {
-                    let upper = name.to_uppercase();
-                    let is_distance = matches!(
-                        upper.as_str(),
-                        "L2_DISTANCE" | "COSINE_DISTANCE" | "VECTOR_DISTANCE"
-                    );
-                    let is_similarity =
-                        matches!(upper.as_str(), "INNER_PRODUCT" | "COSINE_SIMILARITY");
-                    // Distance metrics: ascending = closest first
-                    // Similarity metrics: descending = most similar first
-                    if (is_distance && !order.descending) || (is_similarity && order.descending) {
-                        Some(order.expr.clone())
-                    } else {
-                        None
-                    }
-                }
-                Expression::Column(alias) => {
-                    // Only apply for aliases when direction is correct
-                    if let Some(expr) = self.resolve_knn_alias(alias, &query.columns) {
-                        if let Expression::Function { name, .. } = &expr {
-                            let upper = name.to_uppercase();
-                            let is_distance = matches!(
-                                upper.as_str(),
-                                "L2_DISTANCE" | "COSINE_DISTANCE" | "VECTOR_DISTANCE"
-                            );
-                            let is_similarity =
-                                matches!(upper.as_str(), "INNER_PRODUCT" | "COSINE_SIMILARITY");
-                            if (is_distance && !order.descending)
-                                || (is_similarity && order.descending)
-                            {
-                                Some(expr)
-                            } else {
-                                None
-                            }
+            // Resolve ORDER BY to a distance expression (function OR pgvector binary operator)
+            let check_knn_expr = |expr: &Expression, desc: bool| -> Option<Expression> {
+                match expr {
+                    Expression::Function { name, .. } => {
+                        let upper = name.to_uppercase();
+                        let is_distance = matches!(
+                            upper.as_str(),
+                            "L2_DISTANCE" | "COSINE_DISTANCE" | "VECTOR_DISTANCE"
+                        );
+                        let is_similarity =
+                            matches!(upper.as_str(), "INNER_PRODUCT" | "COSINE_SIMILARITY");
+                        if (is_distance && !desc) || (is_similarity && desc) {
+                            Some(expr.clone())
                         } else {
                             None
                         }
-                    } else {
-                        None
                     }
+                    Expression::Binary { op, .. }
+                        if matches!(
+                            op,
+                            Operator::VectorL2Distance
+                                | Operator::VectorCosineDistance
+                                | Operator::VectorIPDistance
+                        ) && !desc =>
+                    {
+                        Some(expr.clone())
+                    }
+                    _ => None,
                 }
-                _ => None,
+            };
+
+            let distance_expr = match &order.expr {
+                Expression::Column(alias) => self
+                    .resolve_knn_alias(alias, &query.columns)
+                    .and_then(|resolved| check_knn_expr(&resolved, order.descending)),
+                other => check_knn_expr(other, order.descending),
             };
 
             if let Some(ref dist_expr) = distance_expr {
-                if let Expression::Function { name, args } = dist_expr {
-                    if let Some((col_name, query_vec)) = extract_knn_column_and_vector(
+                let extracted_col_vec = match dist_expr {
+                    Expression::Function { name, args } => extract_knn_column_and_vector(
                         name,
                         args,
                         result_columns,
                         result_rows,
                         params,
-                    ) {
-                        if let Some(index_name) = self
-                            .vector_index_manager
-                            .find_index_for(table_name, &col_name)
-                        {
-                            let k = match query.limit {
-                                Some(k) => k,
-                                None => return false, // KNN requires LIMIT
-                            };
-                            // Overfetch to account for WHERE filtering.
-                            // If there's no WHERE, k is sufficient. With WHERE, fetch more.
-                            let fetch_k = if query.where_clause.is_some() {
-                                (k * 4).min(result_rows.len())
-                            } else {
-                                k.min(result_rows.len())
-                            };
+                    ),
+                    Expression::Binary { left, right, .. } => extract_knn_binary_column_and_vector(
+                        left,
+                        right,
+                        params,
+                    ),
+                    _ => None,
+                };
+                if let Some((col_name, query_vec)) = extracted_col_vec {
+                    if let Some(index_name) = self
+                        .vector_index_manager
+                        .find_index_for(table_name, &col_name)
+                    {
+                        let k = match query.limit {
+                            Some(k) => k,
+                            None => return false, // KNN requires LIMIT
+                        };
+                        let fetch_k = if query.where_clause.is_some() {
+                            (k * 4).min(result_rows.len())
+                        } else {
+                            k.min(result_rows.len())
+                        };
 
-                            let query_f32: Vec<f32> = query_vec.iter().map(|x| *x as f32).collect();
-                            if let Ok(knn_results) = self.vector_index_manager.knn_search(
-                                &index_name,
-                                &query_f32,
-                                fetch_k,
-                            ) {
-                                if !knn_results.is_empty() {
-                                    let matching_ids: std::collections::HashSet<&str> =
-                                        knn_results.iter().map(|(id, _)| id.as_str()).collect();
-                                    let mut new_rows = Vec::with_capacity(knn_results.len());
-                                    let mut new_ids = Vec::with_capacity(knn_results.len());
-                                    for (i, rec_id) in table_record_ids.iter().enumerate() {
-                                        if matching_ids.contains(rec_id.as_str()) {
-                                            new_rows.push(result_rows[i].clone());
-                                            new_ids.push(rec_id.clone());
-                                        }
+                        let query_f32: Vec<f32> = query_vec.iter().map(|x| *x as f32).collect();
+                        if let Ok(knn_results) = self.vector_index_manager.knn_search(
+                            &index_name,
+                            &query_f32,
+                            fetch_k,
+                        ) {
+                            if !knn_results.is_empty() {
+                                let matching_ids: std::collections::HashSet<&str> =
+                                    knn_results.iter().map(|(id, _)| id.as_str()).collect();
+                                let mut new_rows = Vec::with_capacity(knn_results.len());
+                                let mut new_ids = Vec::with_capacity(knn_results.len());
+                                for (i, rec_id) in table_record_ids.iter().enumerate() {
+                                    if matching_ids.contains(rec_id.as_str()) {
+                                        new_rows.push(result_rows[i].clone());
+                                        new_ids.push(rec_id.clone());
                                     }
-                                    if new_rows.len() < result_rows.len() {
-                                        *result_rows = new_rows;
-                                        *table_record_ids = new_ids;
-                                        return true;
-                                    }
+                                }
+                                if new_rows.len() < result_rows.len() {
+                                    *result_rows = new_rows;
+                                    *table_record_ids = new_ids;
+                                    return true;
                                 }
                             }
                         }
@@ -3852,27 +3855,26 @@ impl SimpleQueryExecutor {
         }
     }
 
-    /// Extract a distance function call, returning (column_name, query_vector).
+    /// Extract a distance function call or pgvector binary operator, returning (column_name, query_vector).
     fn extract_distance_call(expr: &Expression) -> Option<(String, Vec<f64>)> {
-        if let Expression::Function { name, args } = expr {
-            let upper = name.to_uppercase();
-            if matches!(
-                upper.as_str(),
-                "L2_DISTANCE"
-                    | "COSINE_DISTANCE"
-                    | "COSINE_SIMILARITY"
-                    | "INNER_PRODUCT"
-                    | "VECTOR_DISTANCE"
-            ) {
-                if args.len() >= 2 {
-                    // Try (column, vector_literal)
+        match expr {
+            Expression::Function { name, args } => {
+                let upper = name.to_uppercase();
+                if matches!(
+                    upper.as_str(),
+                    "L2_DISTANCE"
+                        | "COSINE_DISTANCE"
+                        | "COSINE_SIMILARITY"
+                        | "INNER_PRODUCT"
+                        | "VECTOR_DISTANCE"
+                ) && args.len() >= 2
+                {
                     if let (Some(col), Some(vec)) = (
                         extract_column_name(&args[0]),
                         extract_vector_literal(&args[1]),
                     ) {
                         return Some((col, vec));
                     }
-                    // Try (vector_literal, column)
                     if let (Some(vec), Some(col)) = (
                         extract_vector_literal(&args[0]),
                         extract_column_name(&args[1]),
@@ -3880,9 +3882,20 @@ impl SimpleQueryExecutor {
                         return Some((col, vec));
                     }
                 }
+                None
             }
+            Expression::Binary { left, op, right }
+                if matches!(
+                    op,
+                    Operator::VectorL2Distance
+                        | Operator::VectorCosineDistance
+                        | Operator::VectorIPDistance
+                ) =>
+            {
+                extract_knn_binary_column_and_vector(left, right, &[])
+            }
+            _ => None,
         }
-        None
     }
 
     /// Extract a numeric literal from an expression.
@@ -6121,9 +6134,21 @@ impl SimpleQueryExecutor {
 
                 // Route through specialized index builders based on method
                 match idx.method.as_deref() {
-                    Some("HNSW") | Some("IVF") | Some("LSH") => {
-                        // Vector index — delegate to VectorIndexManager
+                    Some("HNSW") | Some("IVF") | Some("IVFFLAT") | Some("LSH") => {
+                        // Vector index — register metadata and delegate to VectorIndexManager
                         let column = col_names[0].clone();
+                        let norm_method = match idx.method.as_deref() {
+                            Some("IVFFLAT") => "IVF",
+                            Some(m) => m,
+                            None => "HNSW",
+                        };
+                        let _ = self.amorphic.create_vector_index(
+                            &idx.name,
+                            &idx.table,
+                            &column,
+                            norm_method,
+                            &idx.options,
+                        );
                         let metric = crate::vector_index::parse_metric(
                             &idx.options,
                             joule_db_hdc::manifold::DistanceMetric::Cosine,
@@ -6137,7 +6162,7 @@ impl SimpleQueryExecutor {
                                 &idx.name,
                                 &idx.table,
                                 &column,
-                                idx.method.as_deref().unwrap_or("HNSW"),
+                                norm_method,
                                 metric,
                                 &idx.options,
                                 vector_rows,
@@ -13914,7 +13939,7 @@ fn extract_knn_column_and_vector(
     args: &[Expression],
     _columns: &[String],
     _rows: &[Vec<serde_json::Value>],
-    _params: &[serde_json::Value],
+    params: &[serde_json::Value],
 ) -> Option<(String, Vec<f64>)> {
     if args.len() < 2 {
         return None;
@@ -13923,20 +13948,19 @@ fn extract_knn_column_and_vector(
     // Try (column, literal_vector) pattern
     if let (Some(col), Some(vec)) = (
         extract_column_name(&args[0]),
-        extract_vector_literal(&args[1]),
+        extract_vector_literal_with_params(&args[1], params),
     ) {
         return Some((col, vec));
     }
 
     // Try (literal_vector, column) pattern
     if let (Some(vec), Some(col)) = (
-        extract_vector_literal(&args[0]),
+        extract_vector_literal_with_params(&args[0], params),
         extract_column_name(&args[1]),
     ) {
         return Some((col, vec));
     }
 
-    // For VECTOR_DISTANCE with metric arg, same patterns apply to first two args
     if func_name == "VECTOR_DISTANCE" && args.len() >= 3 {
         // Already tried above — first two args checked
     }
@@ -13944,22 +13968,77 @@ fn extract_knn_column_and_vector(
     None
 }
 
-/// Extract a column name from an expression (handles Column and qualified Table.Column).
+fn extract_knn_binary_column_and_vector(
+    left: &Expression,
+    right: &Expression,
+    params: &[serde_json::Value],
+) -> Option<(String, Vec<f64>)> {
+    if let (Some(col), Some(vec)) = (
+        extract_column_name(left),
+        extract_vector_literal_with_params(right, params),
+    ) {
+        return Some((col, vec));
+    }
+    if let (Some(vec), Some(col)) = (
+        extract_vector_literal_with_params(left, params),
+        extract_column_name(right),
+    ) {
+        return Some((col, vec));
+    }
+    None
+}
+
+/// Extract a column name from an expression (handles Column, QualifiedColumn, and Cast wrappers).
 fn extract_column_name(expr: &Expression) -> Option<String> {
     match expr {
         Expression::Column(name) => {
-            // Strip table prefix if present (e.g., "t.embedding" → "embedding")
             let col = name.rsplit('.').next().unwrap_or(name);
             Some(col.to_string())
         }
+        Expression::QualifiedColumn { column, .. } => Some(column.clone()),
+        Expression::Cast { expr: inner, .. } => extract_column_name(inner),
         _ => None,
     }
 }
 
-/// Extract a vector literal from an expression (string literal that parses as a vector).
+/// Extract a vector literal from an expression (string/array literal, Cast, or bound parameter).
 fn extract_vector_literal(expr: &Expression) -> Option<Vec<f64>> {
+    extract_vector_literal_with_params(expr, &[])
+}
+
+fn extract_vector_literal_with_params(
+    expr: &Expression,
+    params: &[serde_json::Value],
+) -> Option<Vec<f64>> {
     match expr {
         Expression::Literal(AstValue::String(s)) => joule_db_query::vector::parse_vector(s),
+        Expression::Literal(AstValue::Vector(v)) => Some(v.iter().map(|&x| x as f64).collect()),
+        Expression::Literal(AstValue::Array(arr)) => {
+            let mut out = Vec::with_capacity(arr.len());
+            for item in arr {
+                match item {
+                    AstValue::Float(f) => out.push(*f),
+                    AstValue::Int(i) => out.push(*i as f64),
+                    _ => return None,
+                }
+            }
+            Some(out)
+        }
+        Expression::Cast { expr: inner, .. } => extract_vector_literal_with_params(inner, params),
+        Expression::Parameter(idx) => {
+            let v = idx.checked_sub(1).and_then(|i| params.get(i))?;
+            match v {
+                serde_json::Value::String(s) => joule_db_query::vector::parse_vector(s),
+                serde_json::Value::Array(arr) => {
+                    let mut out = Vec::with_capacity(arr.len());
+                    for item in arr {
+                        out.push(item.as_f64()?);
+                    }
+                    Some(out)
+                }
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -14800,6 +14879,35 @@ fn cast_json_value(val: &serde_json::Value, target_type: &str) -> serde_json::Va
         "REGCLASS" | "REGTYPE" | "REGNAMESPACE" | "REGPROC"
     ) {
         return val.clone();
+    }
+    if target_upper == "VECTOR"
+        || target_upper.starts_with("VECTOR(")
+        || target_upper == "HALFVEC"
+        || target_upper.starts_with("HALFVEC(")
+    {
+        return match val {
+            serde_json::Value::Null => serde_json::Value::Null,
+            serde_json::Value::String(s) => {
+                if let Some(v) = joule_db_query::vector::parse_vector(s) {
+                    let parts: Vec<String> = v.into_iter().map(|x| format!("{x}")).collect();
+                    serde_json::Value::String(format!("[{}]", parts.join(",")))
+                } else {
+                    val.clone()
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                let mut parts = Vec::with_capacity(arr.len());
+                for item in arr {
+                    if let Some(f) = item.as_f64() {
+                        parts.push(format!("{f}"));
+                    } else {
+                        return serde_json::Value::Null;
+                    }
+                }
+                serde_json::Value::String(format!("[{}]", parts.join(",")))
+            }
+            _ => serde_json::Value::Null,
+        };
     }
     if target_upper.starts_with("NUMERIC") || target_upper.starts_with("DECIMAL") {
         let explicit_scale: Option<u8> = target_upper

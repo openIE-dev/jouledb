@@ -1595,7 +1595,12 @@ impl Server {
 
         tracing::info!("JouleDB HTTP server listening on {}", http_addr);
 
-        let http_listener = tokio::net::TcpListener::bind(http_addr).await?;
+        let http_listener = axum::serve::ListenerExt::tap_io(
+            tokio::net::TcpListener::bind(http_addr).await?,
+            |tcp_stream| {
+                let _ = tcp_stream.set_nodelay(true);
+            },
+        );
 
         // Collect server futures to run concurrently
         let http_future = axum::serve(http_listener, app);

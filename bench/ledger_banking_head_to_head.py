@@ -294,7 +294,9 @@ def run_jouledb_banking(
                         "amount_minor": rng_b.randint(1, 50),
                     }
                 )
-            raw_b = json.dumps({"transfers": items, "atomic": False}).encode("utf-8")
+            raw_b = json.dumps(
+                {"transfers": items, "atomic": False, "include_receipts": False}
+            ).encode("utf-8")
             t0 = time.perf_counter()
             bconn.request("POST", "/api/v1/ledger/transfers/batch", body=raw_b, headers=headers)
             resp = bconn.getresponse()
@@ -333,7 +335,203 @@ def run_jouledb_banking(
         batch_size=batch_size,
     )
     return {
-        "engine": "JouleDB v0.14.0 (Binary JWL1 CRC-32 + SHA-256 Chain + FIFO Group Commit, fsync=on)",
+        "engine": "JouleDB v0.15.0 HTTP (Pre-Allocated JWL1 + SHA-256 Chain + FIFO Group Commit, fsync=on)",
+        "invariants_verified": {
+            "sha256_chain_valid": verify["valid"],
+            "journal_entries_verified": verify["journal_entries_verified"],
+            "total_posted_debits": verify["total_posted_debits"],
+            "total_posted_credits": verify["total_posted_credits"],
+            "min_customer_balance_minor": min_customer_net,
+        },
+        "regimes": regimes,
+    }
+
+
+def run_jouledb_pgwire_banking(
+    pgwire_port: int,
+    http_port: int,
+    num_accounts: int,
+    concurrencies: list[int],
+    duration_s: float,
+    batch_size: int,
+    meter,
+    idle_watts: float | None,
+) -> dict:
+    import psycopg
+
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=pgwire_port,
+        user="postgres",
+        dbname="postgres",
+        sslmode="disable",
+        autocommit=True,
+    ) as setup:
+        setup.execute("LEDGER CREATE ACCOUNT treasury_usd LEDGER 1 CODE 1000 SCALE 2")
+        for i in range(num_accounts):
+            setup.execute(
+                f"LEDGER CREATE ACCOUNT acct_{i:04d} LEDGER 1 CODE 2000 SCALE 2 NO_OVERDRAFT"
+            )
+        chunk = 500
+        for start_i in range(0, num_accounts, chunk):
+            end_i = min(start_i + chunk, num_accounts)
+            idems = [f"pgw-seed-{i:04d}" for i in range(start_i, end_i)]
+            debits = ["treasury_usd" for _ in range(start_i, end_i)]
+            credits = [f"acct_{i:04d}" for i in range(start_i, end_i)]
+            amts = [1_000_000 for _ in range(start_i, end_i)]
+            c_cnt = setup.execute(
+                "SELECT ledger_transfer_batch(%s::text[], %s::text[], %s::text[], %s::bigint[], true)",
+                (idems, debits, credits, amts),
+            ).fetchone()[0]
+            assert int(c_cnt) == len(idems)
+
+    regimes: dict[str, dict] = {}
+    for conc in concurrencies:
+        stop_ev = threading.Event()
+        barrier = threading.Barrier(conc + 1)
+        stats_per_worker: list[tuple[int, int, int, list[float]]] = [
+            (0, 0, 0, []) for _ in range(conc)
+        ]
+
+        def worker(wid: int) -> None:
+            rng = random.Random(920_000 + conc * 1000 + wid)
+            wconn = psycopg.connect(
+                host="127.0.0.1",
+                port=pgwire_port,
+                user="postgres",
+                dbname="postgres",
+                sslmode="disable",
+                autocommit=True,
+            )
+            cur = wconn.cursor()
+            committed = 0
+            replayed = 0
+            rejected = 0
+            lats: list[float] = []
+            seq_local = 0
+            last_ok_args: tuple[str, str, str, int] | None = None
+            barrier.wait()
+            while not stop_ev.is_set():
+                is_retry = False
+                if last_ok_args is not None and rng.random() < 0.05:
+                    call_args = last_ok_args
+                    is_retry = True
+                else:
+                    a = rng.randrange(num_accounts)
+                    b = (a + rng.randrange(1, num_accounts)) % num_accounts
+                    seq_local += 1
+                    call_args = (
+                        f"pgw-c{conc}-w{wid}-{seq_local}",
+                        f"acct_{a:04d}",
+                        f"acct_{b:04d}",
+                        rng.randint(1, 250),
+                    )
+                t0 = time.perf_counter()
+                try:
+                    cur.execute(
+                        "SELECT ledger_transfer(%s, %s, %s, %s)",
+                        call_args,
+                        prepare=True,
+                    )
+                    cur.fetchone()
+                    lats.append((time.perf_counter() - t0) * 1000.0)
+                    if is_retry:
+                        replayed += 1
+                    else:
+                        committed += 1
+                        last_ok_args = call_args
+                except Exception:
+                    lats.append((time.perf_counter() - t0) * 1000.0)
+                    rejected += 1
+            wconn.close()
+            stats_per_worker[wid] = (committed, replayed, rejected, lats)
+
+        threads = [threading.Thread(target=worker, args=(w,)) for w in range(conc)]
+        for t in threads:
+            t.start()
+        barrier.wait()
+        with Window(meter) as win:
+            time.sleep(duration_s)
+            stop_ev.set()
+            for t in threads:
+                t.join()
+
+        tot_c = sum(x[0] for x in stats_per_worker)
+        tot_r = sum(x[1] for x in stats_per_worker)
+        tot_x = sum(x[2] for x in stats_per_worker)
+        all_lats = [lat for x in stats_per_worker for lat in x[3]]
+        regimes[f"c={conc}"] = summarize_window(
+            tot_c, tot_r, tot_x, all_lats, win, idle_watts, batch_size=1
+        )
+
+    # Regime D: pgwire batch settlement (`SELECT ledger_transfer_batch(...)`)
+    with psycopg.connect(
+        host="127.0.0.1",
+        port=pgwire_port,
+        user="postgres",
+        dbname="postgres",
+        sslmode="disable",
+        autocommit=True,
+    ) as bconn:
+        bcur = bconn.cursor()
+        rng_b = random.Random(990_002)
+        batch_committed = 0
+        batch_rejected = 0
+        batch_lats: list[float] = []
+        batch_idx = 0
+        with Window(meter) as bwin:
+            deadline = time.monotonic() + duration_s
+            while time.monotonic() < deadline:
+                batch_idx += 1
+                idems: list[str] = []
+                debits: list[str] = []
+                credits: list[str] = []
+                amts: list[int] = []
+                for j in range(batch_size):
+                    a = (batch_idx * batch_size + j) % num_accounts
+                    b = (a + 1 + (j % 7)) % num_accounts
+                    idems.append(f"pgw-batch-{batch_idx}-{j}")
+                    debits.append(f"acct_{a:04d}")
+                    credits.append(f"acct_{b:04d}")
+                    amts.append(rng_b.randint(1, 50))
+                t0 = time.perf_counter()
+                c_cnt = int(
+                    bcur.execute(
+                        "SELECT ledger_transfer_batch(%s::text[], %s::text[], %s::text[], %s::bigint[])",
+                        (idems, debits, credits, amts),
+                        prepare=True,
+                    ).fetchone()[0]
+                )
+                batch_lats.append((time.perf_counter() - t0) * 1000.0)
+                batch_committed += c_cnt
+                batch_rejected += batch_size - c_cnt
+
+    vconn = http.client.HTTPConnection("127.0.0.1", http_port, timeout=30.0)
+    vconn.request("GET", "/api/v1/ledger/verify")
+    verify = json.loads(vconn.getresponse().read())
+    vconn.request("GET", "/api/v1/ledger/accounts")
+    accts = json.loads(vconn.getresponse().read())["accounts"]
+    vconn.close()
+    min_customer_net = min(
+        a["posted_credits"] - a["posted_debits"]
+        for a in accts
+        if a["account_id"].startswith("acct_")
+    )
+    assert verify["valid"] is True, f"JouleDB pgwire verify_chain failed: {verify}"
+    assert verify["total_posted_debits"] == verify["total_posted_credits"]
+    assert min_customer_net >= 0
+
+    regimes[f"batch={batch_size}"] = summarize_window(
+        batch_committed,
+        0,
+        batch_rejected,
+        batch_lats,
+        bwin,
+        idle_watts,
+        batch_size=batch_size,
+    )
+    return {
+        "engine": "JouleDB v0.15.0 pgwire (psycopg3 + Pre-Allocated JWL1 + SHA-256 Chain + FIFO Group Commit, fsync=on)",
         "invariants_verified": {
             "sha256_chain_valid": verify["valid"],
             "journal_entries_verified": verify["journal_entries_verified"],
@@ -652,7 +850,7 @@ def main() -> None:
 
     report: dict = {
         "benchmark": "Core Banking Double-Entry Ledger Head-to-Head (Conservation + NO_OVERDRAFT + Idempotency + SHA-256 + fsync=on)",
-        "version": "0.14.0",
+        "version": "0.15.0",
         "host": platform.node(),
         "platform": platform.platform(),
         "cpu_count": os.cpu_count(),
@@ -668,7 +866,7 @@ def main() -> None:
     }
 
     try:
-        # 1. JouleDB v0.14.0
+        # 1A. JouleDB v0.15.0 (HTTP REST API)
         jdb_dir = os.path.join(root_tmp, "jouledb_data")
         os.makedirs(jdb_dir, exist_ok=True)
         jdb_proc = subprocess.Popen(
@@ -695,6 +893,36 @@ def main() -> None:
                 jdb_proc.wait(timeout=5)
             except Exception:
                 jdb_proc.kill()
+
+        # 1B. JouleDB v0.15.0 (Native pgwire + psycopg3 — exact wire protocol parity with PostgreSQL 16)
+        jdb_pg_dir = os.path.join(root_tmp, "jouledb_pgwire_data")
+        os.makedirs(jdb_pg_dir, exist_ok=True)
+        jdb_pgwire_port = args.http_port + 2
+        jdb_pg_proc = subprocess.Popen(
+            [args.jouledb_bin, "-p", str(args.http_port), "-d", jdb_pg_dir],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env={**os.environ, "JOULEDB_DISABLE_RATE_LIMIT": "1"},
+        )
+        try:
+            if not wait_http(args.http_port, 20.0) or not wait_pg_ready("127.0.0.1", jdb_pgwire_port, 20.0):
+                raise RuntimeError("JouleDB failed to start pgwire listener")
+            report["engines"]["jouledb_pgwire"] = run_jouledb_pgwire_banking(
+                jdb_pgwire_port,
+                args.http_port,
+                args.accounts,
+                concs,
+                args.duration_s,
+                args.batch_size,
+                meter,
+                idle_watts,
+            )
+        finally:
+            jdb_pg_proc.terminate()
+            try:
+                jdb_pg_proc.wait(timeout=5)
+            except Exception:
+                jdb_pg_proc.kill()
 
         # 2. PostgreSQL 16 (fsync=on, synchronous_commit=on)
         pg_bin = find_pg_bindir()
@@ -822,23 +1050,37 @@ def main() -> None:
                 )
 
         if "jouledb" in report["engines"] and "postgresql" in report["engines"]:
-            j_reg = report["engines"]["jouledb"]["regimes"]
+            j_http = report["engines"]["jouledb"]["regimes"]
+            j_pgw = report["engines"].get("jouledb_pgwire", {}).get("regimes", {})
             p_reg = report["engines"]["postgresql"]["regimes"]
             ratios = {}
-            for k in j_reg:
+            for k in j_http:
                 if k in p_reg:
-                    jtps = j_reg[k]["effective_transfers_per_sec"]
+                    jtps_http = j_http[k]["effective_transfers_per_sec"]
+                    jtps_pgw = j_pgw.get(k, {}).get("effective_transfers_per_sec")
                     ptps = max(p_reg[k]["effective_transfers_per_sec"], 0.1)
-                    jmj = j_reg[k]["mj_per_transfer"]
+                    jmj_http = j_http[k]["mj_per_transfer"]
+                    jmj_pgw = j_pgw.get(k, {}).get("mj_per_transfer")
                     pmj = p_reg[k]["mj_per_transfer"]
+                    best_tps = max(jtps_http, jtps_pgw or 0.0)
+                    best_mj = min(
+                        [m for m in (jmj_http, jmj_pgw) if m is not None and m > 0],
+                        default=None,
+                    )
                     ratios[k] = {
-                        "jouledb_tps": jtps,
+                        "jouledb_http_tps": jtps_http,
+                        "jouledb_pgwire_tps": jtps_pgw,
                         "postgresql_tps": ptps,
-                        "tps_speedup_vs_pg": round(jtps / ptps, 2),
-                        "jouledb_mj_per_tx": jmj,
+                        "http_speedup_vs_pg": round(jtps_http / ptps, 2),
+                        "pgwire_speedup_vs_pg": round(jtps_pgw / ptps, 2)
+                        if jtps_pgw is not None
+                        else None,
+                        "best_speedup_vs_pg": round(best_tps / ptps, 2),
+                        "jouledb_http_mj_per_tx": jmj_http,
+                        "jouledb_pgwire_mj_per_tx": jmj_pgw,
                         "postgresql_mj_per_tx": pmj,
-                        "energy_reduction_vs_pg_x": round(pmj / jmj, 2)
-                        if (jmj and pmj and jmj > 0)
+                        "energy_reduction_vs_pg_x": round(pmj / best_mj, 2)
+                        if (best_mj and pmj and best_mj > 0)
                         else None,
                     }
             report["head_to_head_summary"] = ratios

@@ -1,9 +1,9 @@
 # Hello, JouleDB & `.jsyn`
 
-Start a local JouleDB `v0.14.0` node, create a table, pull the verified `all-MiniLM-L6-v2-LittleBit` `.jsyn` sentence-embedding model (`cos = 0.9441` vs upstream `FP32`) from Hugging Face, and inspect both SQL rows and nanojoule receipts:
+Start a local JouleDB `v0.15.0` node, create a table, pull the verified `all-MiniLM-L6-v2-LittleBit` `.jsyn` sentence-embedding model (`cos = 0.9441` vs upstream `FP32`) from Hugging Face, and inspect both SQL rows and nanojoule receipts:
 
 ```bash
-# 1. Start JouleDB v0.14.0 on port 8080 (HTTP :8080, PgWire :8082)
+# 1. Start JouleDB v0.15.0 on port 8080 (HTTP :8080, PgWire :8082)
 jouledb --port 8080 --data ./hello-jdb &
 
 # 2. Run SQL with joule telemetry (`reported_j` on bare metal RAPL/SMC, `est_j` modeled fallback)

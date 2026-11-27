@@ -4720,7 +4720,138 @@ impl GKeyElem {
     }
 }
 
-/// Build a Snowflake branch tree rooted at `root_ri` (`root_ri != probe_ri`) post-order!
+/// Zero-allocation borrowed group key element for `Fast Path B` (`Q10`).
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum BorrowKeyElem<'a> {
+    Null,
+    Bool(bool),
+    Int(i64),
+    FloatBits(u64),
+    Str(&'a str),
+}
+
+impl<'a> BorrowKeyElem<'a> {
+    #[inline]
+    fn from_bval(v: BVal<'a>) -> Self {
+        match v {
+            BVal::Null => BorrowKeyElem::Null,
+            BVal::Bool(b) => BorrowKeyElem::Bool(b),
+            BVal::Int(i) => BorrowKeyElem::Int(i),
+            BVal::Float(f) => {
+                BorrowKeyElem::FloatBits(if f == 0.0 { 0.0f64.to_bits() } else { f.to_bits() })
+            }
+            BVal::Str(s) => BorrowKeyElem::Str(s),
+        }
+    }
+
+    #[inline]
+    fn to_owned_val(self) -> OwnedVal {
+        match self {
+            BorrowKeyElem::Null => OwnedVal::Null,
+            BorrowKeyElem::Bool(b) => OwnedVal::Bool(b),
+            BorrowKeyElem::Int(i) => OwnedVal::Int(i),
+            BorrowKeyElem::FloatBits(bits) => OwnedVal::Float(f64::from_bits(bits)),
+            BorrowKeyElem::Str(s) => OwnedVal::Str(Arc::from(s)),
+        }
+    }
+}
+
+/// Compact 48-byte `Copy` numeric accumulator (`0` `Drop` glue, `4.3x` smaller than `[AggState; 2]`)
+/// for high-cardinality single-integer `GROUP BY` (`Q18` `15M` groups at `SF=10`).
+#[derive(Clone, Copy, Default)]
+struct CompactNumAgg {
+    isum: i128,
+    fsum: f64,
+    fcomp: f64,
+    cnt: u64,
+    saw_float: bool,
+}
+
+impl CompactNumAgg {
+    #[inline]
+    fn add_f64(&mut self, v: f64) {
+        let t = self.fsum + v;
+        if self.fsum.abs() >= v.abs() {
+            self.fcomp += (self.fsum - t) + v;
+        } else {
+            self.fcomp += (v - t) + self.fsum;
+        }
+        self.fsum = t;
+    }
+
+    #[inline]
+    fn update(&mut self, op: AggOp, val: BVal<'_>) {
+        match op {
+            AggOp::CountStar => self.cnt += 1,
+            AggOp::Count => {
+                if !matches!(val, BVal::Null) {
+                    self.cnt += 1;
+                }
+            }
+            AggOp::Sum | AggOp::Avg => match val {
+                BVal::Int(i) => {
+                    self.cnt += 1;
+                    self.isum += i as i128;
+                }
+                BVal::Float(f) => {
+                    self.cnt += 1;
+                    self.saw_float = true;
+                    self.add_f64(f);
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    #[inline]
+    fn merge(&mut self, other: Self) {
+        self.cnt += other.cnt;
+        self.isum += other.isum;
+        self.add_f64(other.fsum);
+        self.add_f64(other.fcomp);
+        self.saw_float |= other.saw_float;
+    }
+
+    #[inline]
+    fn finalize(&self, op: AggOp) -> OwnedVal {
+        let total_f = (self.fsum + self.fcomp) + (self.isum as f64);
+        match op {
+            AggOp::CountStar | AggOp::Count => OwnedVal::Int(self.cnt as i64),
+            AggOp::Sum => {
+                if self.cnt == 0 {
+                    OwnedVal::Null
+                } else if self.saw_float {
+                    OwnedVal::Float(total_f)
+                } else if let Ok(i) = i64::try_from(self.isum) {
+                    OwnedVal::Int(i)
+                } else {
+                    OwnedVal::Float(self.isum as f64)
+                }
+            }
+            AggOp::Avg => {
+                if self.cnt == 0 {
+                    OwnedVal::Null
+                } else {
+                    OwnedVal::Float(total_f / (self.cnt as f64))
+                }
+            }
+            _ => OwnedVal::Null,
+        }
+    }
+}
+
+fn post_agg_uses_any_group(pe: &PostAggExpr) -> bool {
+    match pe {
+        PostAggExpr::Group(_) => true,
+        PostAggExpr::Agg(_) | PostAggExpr::Lit(_) => false,
+        PostAggExpr::Neg(inner) => post_agg_uses_any_group(inner),
+        PostAggExpr::Binary(l, _, r) => post_agg_uses_any_group(l) || post_agg_uses_any_group(r),
+    }
+}
+
+/// Build a Snowflake branch tree rooted at `root_ri` (`root_ri != probe_ri`) post-order,
+/// with top-down FK semi-join pushdown when `node` is filtered and `child` is large & unfiltered!
 #[allow(clippy::too_many_arguments)]
 fn build_snowflake_branch(
     root_ri: usize,
@@ -4731,6 +4862,50 @@ fn build_snowflake_branch(
     local_filters: &mut [Vec<LocalFilter>],
     needed_cols_by_rel: &[HashSet<String>],
 ) -> Option<BuiltBranch> {
+    fn collect_surviving_fk_set(
+        node: usize,
+        fk_col_name: &str,
+        rels: &[RelEntry],
+        filters: &[LocalFilter],
+        child_total_rows: usize,
+    ) -> Option<IntKeySet> {
+        let resolved_fk = rels[node].rel.resolve_col_name(fk_col_name)?;
+        if !rels[node].rel.col_is_int(&resolved_fk) {
+            return None;
+        }
+        let n_segs = rels[node].rel.num_segments();
+        let fk_refs = [resolved_fk.as_str()];
+        let seg_keys: Vec<Vec<i64>> = (0..n_segs)
+            .into_par_iter()
+            .map(|si| {
+                let Some((seg, sel)) = rels[node].rel.load_filtered_segment(si, &fk_refs, filters)?
+                else {
+                    return Some(Vec::new());
+                };
+                let Col::Int(ref ints, ref nulls) = *seg.tc().cols.get(&resolved_fk)? else {
+                    return None;
+                };
+                let mut out = Vec::with_capacity(sel.len());
+                for &r_u32 in &sel {
+                    let ri = r_u32 as usize;
+                    if !nl(nulls, ri) {
+                        out.push(ints.at(ri));
+                    }
+                }
+                Some(out)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let total_fk: usize = seg_keys.iter().map(Vec::len).sum();
+        if total_fk > 4_000_000 || total_fk.saturating_mul(2) > child_total_rows {
+            return None;
+        }
+        let mut all_fk = Vec::with_capacity(total_fk);
+        for sk in seg_keys {
+            all_fk.extend(sk);
+        }
+        Some(IntKeySet::from_vec(all_fk))
+    }
+
     // Post-order build: build every child of `node` first so its surviving PK set pushes into `node`!
     fn materialize_node(
         node: usize,
@@ -4743,6 +4918,26 @@ fn build_snowflake_branch(
         let children = tree_children.get(&node).cloned().unwrap_or_default();
         let mut built_children: Vec<(String, BuiltBranch)> = Vec::with_capacity(children.len());
         for (child_ri, parent_col, child_col) in &children {
+            // Top-down semi-join pushdown (`Q10`: filtered `orders` -> unfiltered `1.5M` `customer`)
+            let child_rows = rels[*child_ri].rel.total_rows();
+            if !local_filters[node].is_empty()
+                && local_filters[*child_ri].is_empty()
+                && child_rows >= 10_000
+                && let Some(fk_set) = collect_surviving_fk_set(
+                    node,
+                    parent_col,
+                    rels,
+                    &local_filters[node],
+                    child_rows,
+                )
+            {
+                local_filters[*child_ri].push(LocalFilter::KeyIn {
+                    col: child_col.clone(),
+                    set: fk_set,
+                    negated: false,
+                });
+            }
+
             let child_cols = materialize_node(
                 *child_ri,
                 std::slice::from_ref(child_col),
@@ -5309,14 +5504,27 @@ fn exec_bushy_plan(
         needed_cols_by_rel[*ri].insert(cn.clone());
     }
 
-    // 6. Build all Snowflake branches (`root_attachments`) and sort by selectivity (smallest `num_rows` FIRST!)
+    // 6. Build all Snowflake branches (`root_attachments`) — build selective 1-key branches FIRST
+    // so they push `KeyIn` semi-join filters into sibling multi-key branches (`Q09`: `part -> partsupp`)!
+    root_attachments.sort_by_key(|(r_ri, attach)| {
+        let priority = if !local_filters[*r_ri].is_empty() && attach.len() == 1 {
+            0usize
+        } else if attach.len() == 1 {
+            1usize
+        } else {
+            2usize
+        };
+        (priority, rels[*r_ri].rel.total_rows())
+    });
+
     let mut branches: Vec<BuiltBranch> = Vec::with_capacity(root_attachments.len());
-    for (root_ri, attach) in &root_attachments {
+    for idx_ra in 0..root_attachments.len() {
+        let (root_ri, ref attach) = root_attachments[idx_ra];
         let b_nodes: Vec<usize> = (0..k)
-            .filter(|&ri| branch_owner[ri] == Some(*root_ri))
+            .filter(|&ri| branch_owner[ri] == Some(root_ri))
             .collect();
         let built = build_snowflake_branch(
-            *root_ri,
+            root_ri,
             attach,
             &b_nodes,
             &tree_children,
@@ -5339,6 +5547,26 @@ fn exec_bushy_plan(
                 return Some((out_names, vec![row]));
             }
             return Some((out_names, Vec::new()));
+        }
+        // Push selective 1-key branch keyset into any not-yet-built sibling branch sharing `probe_col` (`Q09`)
+        if built.probe_key_cols.len() == 1
+            && built.num_rows <= 2_000_000
+            && let Some(ks) = built.key_set_1()
+        {
+            let pcol = &built.probe_key_cols[0];
+            for &(other_root, ref other_attach) in &root_attachments[idx_ra + 1..] {
+                if built.num_rows.saturating_mul(3) <= rels[other_root].rel.total_rows() {
+                    for (other_pcol, other_rcol) in other_attach {
+                        if other_pcol.eq_ignore_ascii_case(pcol) {
+                            local_filters[other_root].push(LocalFilter::KeyIn {
+                                col: other_rcol.clone(),
+                                set: ks.clone(),
+                                negated: false,
+                            });
+                        }
+                    }
+                }
+            }
         }
         branches.push(built);
     }
@@ -5511,6 +5739,149 @@ fn exec_bushy_plan(
                 const RADIX_SHARDS: usize = 64;
                 let op0 = agg_specs.first().map_or(AggOp::CountStar, |s| s.op);
                 let op1 = agg_specs.get(1).map_or(AggOp::CountStar, |s| s.op);
+
+                // Ultra-lean single-agg worker-folded path (`Q18`: 60M rows / 15M groups -> ~3.5 GB instead of 15.6 GB!)
+                if agg_specs.len() <= 1 {
+                    let any_err = std::sync::atomic::AtomicBool::new(false);
+                    let mut worker_shards: Vec<Vec<FxMap<Option<i64>, CompactNumAgg>>> =
+                        (0..n_probe_segs)
+                            .into_par_iter()
+                            .fold(
+                                || {
+                                    (0..RADIX_SHARDS)
+                                        .map(|_| FxMap::<Option<i64>, CompactNumAgg>::default())
+                                        .collect::<Vec<_>>()
+                                },
+                                |mut shards: Vec<FxMap<Option<i64>, CompactNumAgg>>, si| {
+                                    if any_err.load(std::sync::atomic::Ordering::Relaxed) {
+                                        return shards;
+                                    }
+                                    let Some(loaded) = rels[probe_ri].rel.load_filtered_segment(
+                                        si,
+                                        &probe_col_refs,
+                                        &local_filters[probe_ri],
+                                    ) else {
+                                        any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                                        return shards;
+                                    };
+                                    let Some((seg, sel)) = loaded else {
+                                        return shards;
+                                    };
+                                    let tc = seg.tc();
+                                    let pcols: Vec<&Col> = probe_col_vec
+                                        .iter()
+                                        .filter_map(|c| tc.cols.get(c))
+                                        .collect();
+                                    if pcols.len() != probe_col_vec.len() {
+                                        any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                                        return shards;
+                                    }
+                                    let mut tuple = vec![BVal::Null; n_slots];
+                                    for &r_u32 in &sel {
+                                        let r_idx = r_u32 as usize;
+                                        for (si_slot, src) in slot_srcs.iter().enumerate() {
+                                            if let SlotSource::Probe(pci) = *src {
+                                                tuple[si_slot] = read_col_bval(pcols[pci], r_idx);
+                                            }
+                                        }
+                                        let gk = match compiled_groups[0].eval(&tuple) {
+                                            BVal::Int(k) => Some(k),
+                                            BVal::Null => None,
+                                            _ => {
+                                                any_err.store(
+                                                    true,
+                                                    std::sync::atomic::Ordering::Relaxed,
+                                                );
+                                                return shards;
+                                            }
+                                        };
+                                        let sh = match gk {
+                                            Some(k) => {
+                                                (((k as u64).wrapping_mul(0x517cc1b727220a95))
+                                                    >> 58)
+                                                    as usize
+                                            }
+                                            None => 0,
+                                        };
+                                        let v0 = agg_specs.first().map_or(BVal::Null, |sp| {
+                                            sp.arg
+                                                .as_ref()
+                                                .map_or(BVal::Int(1), |je| je.eval(&tuple))
+                                        });
+                                        let acc = shards[sh].entry(gk).or_default();
+                                        if !agg_specs.is_empty() {
+                                            acc.update(op0, v0);
+                                        }
+                                    }
+                                    shards
+                                },
+                            )
+                            .collect();
+                    if any_err.load(std::sync::atomic::Ordering::Relaxed) {
+                        return None;
+                    }
+                    // Transpose `[worker][shard]` -> `[shard][worker]` via `mem::take` so each shard drops worker maps immediately after merge!
+                    let mut by_shard: Vec<Vec<FxMap<Option<i64>, CompactNumAgg>>> = (0..RADIX_SHARDS)
+                        .map(|_| Vec::with_capacity(worker_shards.len()))
+                        .collect();
+                    for wvec in &mut worker_shards {
+                        for (sh, m) in wvec.iter_mut().enumerate() {
+                            by_shard[sh].push(std::mem::take(m));
+                        }
+                    }
+                    drop(worker_shards);
+
+                    let shard_rows: Vec<Vec<Vec<OwnedVal>>> = by_shard
+                        .into_par_iter()
+                        .map(|mut part_maps| {
+                            let mut merged: FxMap<Option<i64>, CompactNumAgg> =
+                                part_maps.pop().unwrap_or_default();
+                            for pm in part_maps {
+                                for (gk, part) in pm {
+                                    merged.entry(gk).or_default().merge(part);
+                                }
+                            }
+                            let mut out_sh: Vec<Vec<OwnedVal>> = Vec::new();
+                            let mut gvals = vec![OwnedVal::Null; 1];
+                            let mut avals = vec![OwnedVal::Null; agg_specs.len()];
+                            for (gk, st0) in merged {
+                                gvals[0] = gk.map_or(OwnedVal::Null, OwnedVal::Int);
+                                if !agg_specs.is_empty() {
+                                    avals[0] = st0.finalize(op0);
+                                }
+                                if let Some(ref hc) = having_compiled
+                                    && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                                {
+                                    continue;
+                                }
+                                let row: Vec<OwnedVal> = post_selects
+                                    .iter()
+                                    .map(|pe| pe.eval(&gvals, &avals))
+                                    .collect();
+                                out_sh.push(row);
+                            }
+                            out_sh
+                        })
+                        .collect();
+
+                    let total_out: usize = shard_rows.iter().map(Vec::len).sum();
+                    let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(total_out);
+                    for sr in shard_rows {
+                        out_owned.extend(sr);
+                    }
+                    sort_and_slice_owned(&mut out_owned, &order_specs, query.offset, query.limit);
+                    let final_rows: Vec<Vec<serde_json::Value>> = out_owned
+                        .into_iter()
+                        .map(|r| {
+                            r.into_iter()
+                                .take(visible_cols)
+                                .map(|v| v.to_json())
+                                .collect()
+                        })
+                        .collect();
+                    return Some((out_names, final_rows));
+                }
+
                 let seg_shards: Option<Vec<Vec<FxMap<Option<i64>, [AggState; 2]>>>> =
                     (0..n_probe_segs)
                         .into_par_iter()
@@ -5648,7 +6019,8 @@ fn exec_bushy_plan(
                     .iter()
                     .all(|&si| matches!(slot_srcs[si], SlotSource::Branch(0, _)));
 
-            let merged: FxMap<Vec<GKeyElem>, Vec<AggState>> = if can_branch_preagg {
+            if can_branch_preagg {
+                const B_SHARDS: usize = 64;
                 let mut agg_slots_set = HashSet::new();
                 for sp in &agg_specs {
                     if let Some(ref je) = sp.arg {
@@ -5658,108 +6030,305 @@ fn exec_bushy_plan(
                 let agg_slots: Vec<usize> = agg_slots_set.into_iter().collect();
                 let grp_slots: Vec<usize> = grp_slots_set.into_iter().collect();
 
-                let seg_bmaps: Option<Vec<FxMap<u32, Vec<AggState>>>> = (0..n_probe_segs)
+                // 1. Worker-folded 64-shard `b_row` pre-aggregation during `probe_ri` scan
+                let any_b_err = std::sync::atomic::AtomicBool::new(false);
+                let mut worker_bmaps: Vec<Vec<FxMap<u32, Vec<AggState>>>> = (0..n_probe_segs)
                     .into_par_iter()
-                    .map(|si| {
-                        let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
-                            si,
-                            &probe_col_refs,
-                            &local_filters[probe_ri],
-                        )?
-                        else {
-                            return Some(FxMap::default());
-                        };
-                        let tc = seg.tc();
-                        let pcols: Vec<&Col> = probe_col_vec
-                            .iter()
-                            .filter_map(|c| tc.cols.get(c))
-                            .collect();
-                        if pcols.len() != probe_col_vec.len() {
-                            return None;
-                        }
-                        let mut bmap: FxMap<u32, Vec<AggState>> = FxMap::default();
-                        let mut chosen_b = [0usize; 1];
-                        let mut tuple = vec![BVal::Null; n_slots];
+                    .fold(
+                        || {
+                            (0..B_SHARDS)
+                                .map(|_| FxMap::<u32, Vec<AggState>>::default())
+                                .collect::<Vec<_>>()
+                        },
+                        |mut bshards: Vec<FxMap<u32, Vec<AggState>>>, si| {
+                            if any_b_err.load(std::sync::atomic::Ordering::Relaxed) {
+                                return bshards;
+                            }
+                            let Some(loaded) = rels[probe_ri].rel.load_filtered_segment(
+                                si,
+                                &probe_col_refs,
+                                &local_filters[probe_ri],
+                            ) else {
+                                any_b_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                                return bshards;
+                            };
+                            let Some((seg, sel)) = loaded else {
+                                return bshards;
+                            };
+                            let tc = seg.tc();
+                            let pcols: Vec<&Col> = probe_col_vec
+                                .iter()
+                                .filter_map(|c| tc.cols.get(c))
+                                .collect();
+                            if pcols.len() != probe_col_vec.len() {
+                                any_b_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                                return bshards;
+                            }
+                            let mut chosen_b = [0usize; 1];
+                            let mut tuple = vec![BVal::Null; n_slots];
 
-                        for &r_u32 in &sel {
-                            let r_idx = r_u32 as usize;
-                            probe_row_recursive_sparse(
-                                0,
-                                r_idx,
-                                &pcols,
-                                &branches,
-                                &branch_probe_key_idxs,
-                                &slot_srcs,
-                                &agg_slots,
-                                &mut chosen_b,
-                                &mut tuple,
-                                &mut |cb, tup| {
-                                    let b_row = cb[0] as u32;
-                                    if let Some(accs) = bmap.get_mut(&b_row) {
-                                        for (ai, spec) in agg_specs.iter().enumerate() {
-                                            let v = spec
-                                                .arg
-                                                .as_ref()
-                                                .map_or(BVal::Int(1), |je| je.eval(tup));
-                                            accs[ai].update(spec.op, v);
+                            for &r_u32 in &sel {
+                                let r_idx = r_u32 as usize;
+                                probe_row_recursive_sparse(
+                                    0,
+                                    r_idx,
+                                    &pcols,
+                                    &branches,
+                                    &branch_probe_key_idxs,
+                                    &slot_srcs,
+                                    &agg_slots,
+                                    &mut chosen_b,
+                                    &mut tuple,
+                                    &mut |cb, tup| {
+                                        let b_row = cb[0] as u32;
+                                        let sh = (((b_row as u64)
+                                            .wrapping_mul(0x9E37_79B9_7F4A_7C15))
+                                            >> 58)
+                                            as usize;
+                                        if let Some(accs) = bshards[sh].get_mut(&b_row) {
+                                            for (ai, spec) in agg_specs.iter().enumerate() {
+                                                let v = spec
+                                                    .arg
+                                                    .as_ref()
+                                                    .map_or(BVal::Int(1), |je| je.eval(tup));
+                                                accs[ai].update(spec.op, v);
+                                            }
+                                        } else {
+                                            let mut accs: Vec<AggState> = agg_specs
+                                                .iter()
+                                                .map(|s| AggState::new(s.op))
+                                                .collect();
+                                            for (ai, spec) in agg_specs.iter().enumerate() {
+                                                let v = spec
+                                                    .arg
+                                                    .as_ref()
+                                                    .map_or(BVal::Int(1), |je| je.eval(tup));
+                                                accs[ai].update(spec.op, v);
+                                            }
+                                            bshards[sh].insert(b_row, accs);
                                         }
-                                    } else {
-                                        let mut accs: Vec<AggState> =
-                                            agg_specs.iter().map(|s| AggState::new(s.op)).collect();
-                                        for (ai, spec) in agg_specs.iter().enumerate() {
-                                            let v = spec
-                                                .arg
-                                                .as_ref()
-                                                .map_or(BVal::Int(1), |je| je.eval(tup));
-                                            accs[ai].update(spec.op, v);
-                                        }
-                                        bmap.insert(b_row, accs);
+                                    },
+                                );
+                            }
+                            bshards
+                        },
+                    )
+                    .collect();
+                if any_b_err.load(std::sync::atomic::Ordering::Relaxed) {
+                    return None;
+                }
+
+                // 2. Parallel 64-shard `b_row` merge + re-partition by `compiled_groups[0]` hash!
+                let mut b_by_shard: Vec<Vec<FxMap<u32, Vec<AggState>>>> = (0..B_SHARDS)
+                    .map(|_| Vec::with_capacity(worker_bmaps.len()))
+                    .collect();
+                for wv in &mut worker_bmaps {
+                    for (sh, m) in wv.iter_mut().enumerate() {
+                        b_by_shard[sh].push(std::mem::take(m));
+                    }
+                }
+                drop(worker_bmaps);
+
+                let g_repart: Vec<Vec<Vec<(u32, Vec<AggState>)>>> = b_by_shard
+                    .into_par_iter()
+                    .map(|mut parts| {
+                        use std::hash::{Hash, Hasher};
+                        let mut merged_b: FxMap<u32, Vec<AggState>> =
+                            parts.pop().unwrap_or_default();
+                        for pm in parts {
+                            for (b_row, saccs) in pm {
+                                if let Some(dst) = merged_b.get_mut(&b_row) {
+                                    for (ai, part) in saccs.into_iter().enumerate() {
+                                        dst[ai].merge(agg_specs[ai].op, part);
                                     }
-                                },
-                            );
+                                } else {
+                                    merged_b.insert(b_row, saccs);
+                                }
+                            }
                         }
-                        Some(bmap)
+                        let mut buckets: Vec<Vec<(u32, Vec<AggState>)>> =
+                            (0..B_SHARDS).map(|_| Vec::new()).collect();
+                        let mut tuple = vec![BVal::Null; n_slots];
+                        for (b_row, baccs) in merged_b {
+                            let br = b_row as usize;
+                            for &si_slot in &grp_slots {
+                                if let SlotSource::Branch(0, ci) = slot_srcs[si_slot] {
+                                    tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
+                                }
+                            }
+                            let g0 = BorrowKeyElem::from_bval(compiled_groups[0].eval(&tuple));
+                            let mut hasher = rustc_hash::FxHasher::default();
+                            g0.hash(&mut hasher);
+                            let gsh = ((hasher.finish().wrapping_mul(0x517c_c1b7_2722_0a95)) >> 58)
+                                as usize;
+                            buckets[gsh].push((b_row, baccs));
+                        }
+                        buckets
                     })
                     .collect();
 
-                let mut merged_b: FxMap<u32, Vec<AggState>> = FxMap::default();
-                for bm in seg_bmaps? {
-                    for (b_row, saccs) in bm {
-                        if let Some(dst) = merged_b.get_mut(&b_row) {
-                            for (ai, part) in saccs.into_iter().enumerate() {
-                                dst[ai].merge(agg_specs[ai].op, part);
-                            }
-                        } else {
-                            merged_b.insert(b_row, saccs);
-                        }
+                let mut g_by_shard: Vec<Vec<(u32, Vec<AggState>)>> =
+                    (0..B_SHARDS).map(|_| Vec::new()).collect();
+                for mut bvecs in g_repart {
+                    for (gsh, chunk) in bvecs.iter_mut().enumerate() {
+                        g_by_shard[gsh].append(chunk);
                     }
                 }
 
-                let mut final_merged: FxMap<Vec<GKeyElem>, Vec<AggState>> =
-                    FxMap::with_capacity_and_hasher(merged_b.len(), Default::default());
-                let mut tuple = vec![BVal::Null; n_slots];
-                let mut key_buf: Vec<GKeyElem> = Vec::with_capacity(compiled_groups.len());
-                for (b_row, baccs) in merged_b {
-                    let br = b_row as usize;
-                    for &si_slot in &grp_slots {
-                        if let SlotSource::Branch(0, ci) = slot_srcs[si_slot] {
-                            tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
+                // 3. Parallel 64-shard zero-String-allocation grouping (`BorrowKeyElem<'b>`)
+                //    + per-shard Top-K selection BEFORE `Arc<str>` allocation when `ORDER BY` is on aggregates (`Q10`)!
+                let order_is_agg_only = !order_specs.is_empty()
+                    && order_specs
+                        .iter()
+                        .all(|&(col_idx, _, _)| !post_agg_uses_any_group(&post_selects[col_idx]));
+                let shard_top_k: Option<usize> = query
+                    .limit
+                    .map(|lim| query.offset.unwrap_or(0).saturating_add(lim))
+                    .filter(|&k_lim| k_lim > 0 && k_lim <= 4096 && !order_specs.is_empty());
+
+                let shard_outputs: Vec<Vec<Vec<OwnedVal>>> = g_by_shard
+                    .into_par_iter()
+                    .map(|items| {
+                        let mut gmap: FxMap<Vec<BorrowKeyElem<'_>>, (u32, Vec<AggState>)> =
+                            FxMap::with_capacity_and_hasher(items.len(), Default::default());
+                        let mut tuple = vec![BVal::Null; n_slots];
+                        let mut key_buf: Vec<BorrowKeyElem<'_>> =
+                            Vec::with_capacity(compiled_groups.len());
+
+                        for (b_row, baccs) in items {
+                            let br = b_row as usize;
+                            for &si_slot in &grp_slots {
+                                if let SlotSource::Branch(0, ci) = slot_srcs[si_slot] {
+                                    tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
+                                }
+                            }
+                            key_buf.clear();
+                            for ge in &compiled_groups {
+                                key_buf.push(BorrowKeyElem::from_bval(ge.eval(&tuple)));
+                            }
+                            if let Some((_, dst)) = gmap.get_mut(&key_buf) {
+                                for (ai, part) in baccs.into_iter().enumerate() {
+                                    dst[ai].merge(agg_specs[ai].op, part);
+                                }
+                            } else {
+                                gmap.insert(key_buf.clone(), (b_row, baccs));
+                            }
                         }
-                    }
-                    key_buf.clear();
-                    for ge in &compiled_groups {
-                        key_buf.push(GKeyElem::from_bval(ge.eval(&tuple)));
-                    }
-                    if let Some(dst) = final_merged.get_mut(&key_buf) {
-                        for (ai, part) in baccs.into_iter().enumerate() {
-                            dst[ai].merge(agg_specs[ai].op, part);
+
+                        if order_is_agg_only
+                            && having_compiled.is_none()
+                            && let Some(keep_k) = shard_top_k
+                            && gmap.len() > keep_k
+                        {
+                            // Deferred String Materialization (`Q10`): evaluate ONLY aggregate sort columns,
+                            // select top `keep_k` per shard, and allocate `Arc<str>` ONLY for those `keep_k` winners!
+                            let dummy_gvals = vec![OwnedVal::Null; compiled_groups.len()];
+                            let mut cands: Vec<(Vec<BorrowKeyElem<'_>>, Vec<OwnedVal>, Vec<OwnedVal>)> =
+                                Vec::with_capacity(gmap.len());
+                            for (bk, (_, st_vec)) in gmap {
+                                let avals: Vec<OwnedVal> = st_vec
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(ai, st)| st.finalize(agg_specs[ai].op))
+                                    .collect();
+                                let sort_keys: Vec<OwnedVal> = order_specs
+                                    .iter()
+                                    .map(|&(ci, _, _)| post_selects[ci].eval(&dummy_gvals, &avals))
+                                    .collect();
+                                cands.push((bk, avals, sort_keys));
+                            }
+                            let cmp_cand = |a: &(Vec<BorrowKeyElem<'_>>, Vec<OwnedVal>, Vec<OwnedVal>),
+                                            b: &(Vec<BorrowKeyElem<'_>>, Vec<OwnedVal>, Vec<OwnedVal>)|
+                             -> Ordering {
+                                for (oi, &(_, desc, nulls_first)) in order_specs.iter().enumerate()
+                                {
+                                    let av = &a.2[oi];
+                                    let bv = &b.2[oi];
+                                    let a_null = matches!(av, OwnedVal::Null);
+                                    let b_null = matches!(bv, OwnedVal::Null);
+                                    if a_null || b_null {
+                                        if a_null && b_null {
+                                            continue;
+                                        }
+                                        let nf = nulls_first.unwrap_or(desc);
+                                        return if a_null {
+                                            if nf { Ordering::Less } else { Ordering::Greater }
+                                        } else if nf {
+                                            Ordering::Greater
+                                        } else {
+                                            Ordering::Less
+                                        };
+                                    }
+                                    let ord = cmp_owned_vals(av, bv);
+                                    if ord != Ordering::Equal {
+                                        return if desc { ord.reverse() } else { ord };
+                                    }
+                                }
+                                Ordering::Equal
+                            };
+                            cands.select_nth_unstable_by(keep_k - 1, cmp_cand);
+                            cands.truncate(keep_k);
+                            let mut out_sh = Vec::with_capacity(cands.len());
+                            for (bk, avals, _) in cands {
+                                let gvals: Vec<OwnedVal> =
+                                    bk.into_iter().map(BorrowKeyElem::to_owned_val).collect();
+                                let row: Vec<OwnedVal> = post_selects
+                                    .iter()
+                                    .map(|pe| pe.eval(&gvals, &avals))
+                                    .collect();
+                                out_sh.push(row);
+                            }
+                            return out_sh;
                         }
-                    } else {
-                        final_merged.insert(key_buf.clone(), baccs);
-                    }
+
+                        let mut out_sh = Vec::with_capacity(gmap.len());
+                        for (bk, (_, st_vec)) in gmap {
+                            let gvals: Vec<OwnedVal> =
+                                bk.into_iter().map(BorrowKeyElem::to_owned_val).collect();
+                            let avals: Vec<OwnedVal> = st_vec
+                                .iter()
+                                .enumerate()
+                                .map(|(ai, st)| st.finalize(agg_specs[ai].op))
+                                .collect();
+                            if let Some(ref hc) = having_compiled
+                                && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                            {
+                                continue;
+                            }
+                            let row: Vec<OwnedVal> = post_selects
+                                .iter()
+                                .map(|pe| pe.eval(&gvals, &avals))
+                                .collect();
+                            out_sh.push(row);
+                        }
+                        if let Some(keep_k) = shard_top_k
+                            && out_sh.len() > keep_k
+                        {
+                            sort_and_slice_owned(&mut out_sh, &order_specs, None, Some(keep_k));
+                        }
+                        out_sh
+                    })
+                    .collect();
+
+                let total_out: usize = shard_outputs.iter().map(Vec::len).sum();
+                let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(total_out);
+                for sh_vec in shard_outputs {
+                    out_owned.extend(sh_vec);
                 }
-                final_merged
-            } else {
+                sort_and_slice_owned(&mut out_owned, &order_specs, query.offset, query.limit);
+                let final_rows: Vec<Vec<serde_json::Value>> = out_owned
+                    .into_iter()
+                    .map(|r| {
+                        r.into_iter()
+                            .take(visible_cols)
+                            .map(|v| v.to_json())
+                            .collect()
+                    })
+                    .collect();
+                return Some((out_names, final_rows));
+            }
+
+            let merged: FxMap<Vec<GKeyElem>, Vec<AggState>> = {
                 // General grouped aggregate (`Q03, Q04, Q05, Q07, Q08, Q09, Q11, Q12, Q16, Q21, Q22`)
                 let seg_maps: Option<Vec<FxMap<Vec<GKeyElem>, Vec<AggState>>>> = (0..n_probe_segs)
                     .into_par_iter()

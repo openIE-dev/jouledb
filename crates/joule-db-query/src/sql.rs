@@ -4790,13 +4790,28 @@ impl SqlParser {
                     false
                 };
 
-                let name = self.parse_identifier()?;
+                let name_opt = if *self.peek() == Token::On {
+                    None
+                } else {
+                    Some(self.parse_identifier()?)
+                };
                 self.expect(Token::On)?;
                 let table = self.parse_identifier()?;
+
+                // PostgreSQL allows `USING hnsw | ivfflat | btree | gin` BEFORE `(col opclass)`
+                let mut method = if *self.peek() == Token::Using {
+                    self.advance(); // consume USING
+                    let m = self.parse_identifier()?.to_uppercase();
+                    Some(if m == "IVFFLAT" { "IVF".to_string() } else { m })
+                } else {
+                    None
+                };
+
                 self.expect(Token::LParen)?;
 
-                // Parse index columns (names or expressions)
+                // Parse index columns (names or expressions) + optional pgvector operator class / sort dir
                 let mut columns = Vec::new();
+                let mut inferred_metric: Option<&'static str> = None;
                 loop {
                     let col = if *self.peek() == Token::LParen {
                         // Expression index: CREATE INDEX ON t ((col1 + col2))
@@ -4807,6 +4822,32 @@ impl SqlParser {
                     } else {
                         IndexColumn::Name(self.parse_identifier()?)
                     };
+                    // Optional PostgreSQL operator class (e.g., `vector_cosine_ops`, `vector_l2_ops`, `vector_ip_ops`, `jsonb_path_ops`)
+                    if let Token::Identifier(opclass) = self.peek().clone() {
+                        let oc_lower = opclass.to_ascii_lowercase();
+                        match oc_lower.as_str() {
+                            "vector_cosine_ops" | "halfvec_cosine_ops" => {
+                                inferred_metric = Some("cosine");
+                                self.advance();
+                            }
+                            "vector_l2_ops" | "halfvec_l2_ops" => {
+                                inferred_metric = Some("l2");
+                                self.advance();
+                            }
+                            "vector_ip_ops" | "halfvec_ip_ops" => {
+                                inferred_metric = Some("ip");
+                                self.advance();
+                            }
+                            other if other.ends_with("_ops") => {
+                                self.advance();
+                            }
+                            _ => {}
+                        }
+                    }
+                    // Optional ASC / DESC inside index column spec
+                    if matches!(self.peek(), Token::Asc | Token::Desc) {
+                        self.advance();
+                    }
                     columns.push(col);
                     if *self.peek() != Token::Comma {
                         break;
@@ -4815,16 +4856,26 @@ impl SqlParser {
                 }
                 self.expect(Token::RParen)?;
 
-                // Optional USING clause: USING BTREE | HNSW | IVF | LSH | GIN | GIST
-                let method = if *self.peek() == Token::Using {
+                // Optional trailing USING clause: USING BTREE | HNSW | IVF | LSH | GIN | GIST
+                if method.is_none() && *self.peek() == Token::Using {
                     self.advance(); // consume USING
-                    Some(self.parse_identifier()?.to_uppercase())
-                } else {
-                    None
-                };
+                    let m = self.parse_identifier()?.to_uppercase();
+                    method = Some(if m == "IVFFLAT" { "IVF".to_string() } else { m });
+                }
+
+                let name = name_opt.unwrap_or_else(|| {
+                    let first_col = columns
+                        .first()
+                        .map(|c| c.to_column_name())
+                        .unwrap_or_else(|| "col".to_string());
+                    format!("idx_{}_{}", table, first_col)
+                });
 
                 // Optional WITH (key=val, ...) clause
                 let mut options = std::collections::HashMap::new();
+                if let Some(m_str) = inferred_metric {
+                    options.insert("metric".to_string(), m_str.to_string());
+                }
                 if *self.peek() == Token::With {
                     self.advance(); // consume WITH
                     self.expect(Token::LParen)?;

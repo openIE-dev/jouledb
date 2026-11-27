@@ -431,7 +431,7 @@ pub fn eval_binary_op(
     }
 }
 
-/// Extract a Vec<f32> from a Value (Vector or Array of floats).
+/// Extract a Vec<f32> from a Value (Vector, Array of numbers, or pgvector `"[1.0, 2.0]"` String).
 fn extract_f32_vec(v: &Value) -> Option<Vec<f32>> {
     match v {
         Value::Vector(vec) => Some(vec.clone()),
@@ -446,6 +446,8 @@ fn extract_f32_vec(v: &Value) -> Option<Vec<f32>> {
             }
             Some(out)
         }
+        Value::String(s) => crate::vector::parse_vector(s)
+            .map(|v64| v64.into_iter().map(|x| x as f32).collect()),
         _ => None,
     }
 }

@@ -1,0 +1,278 @@
+{
+  "benchmark": "Core Banking Double-Entry Ledger Head-to-Head (Conservation + NO_OVERDRAFT + Idempotency + SHA-256 + fsync=on)",
+  "version": "0.15.0",
+  "host": "framework-128gb-0000",
+  "platform": "Linux-7.0.0-43-generic-x86_64-with-glibc2.43",
+  "cpu_count": 32,
+  "storage_dir": "/var/tmp/jdb_v015_nvme_scratch",
+  "accounts": 1000,
+  "concurrencies": [
+    1,
+    4,
+    16
+  ],
+  "batch_size": 500,
+  "duration_per_regime_s": 5.0,
+  "energy_source": "rapl-package",
+  "energy_evidence": "reported_j",
+  "idle_watts": 107.06,
+  "engines": {
+    "jouledb": {
+      "engine": "JouleDB v0.15.0 HTTP (Pre-Allocated JWL1 + SHA-256 Chain + FIFO Group Commit, fsync=on)",
+      "invariants_verified": {
+        "sha256_chain_valid": true,
+        "journal_entries_verified": 550418,
+        "total_posted_debits": 1017684764,
+        "total_posted_credits": 1017684764,
+        "min_customer_balance_minor": 985201
+      },
+      "regimes": {
+        "c=1": {
+          "batch_size": 1,
+          "elapsed_s": 5.0033,
+          "committed_transfers": 16841,
+          "idempotent_replays": 894,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 3544.6,
+          "p50_ms": 0.245,
+          "p95_ms": 0.32,
+          "p99_ms": 0.369,
+          "reported_j": 445.111,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 25.0979
+        },
+        "c=4": {
+          "batch_size": 1,
+          "elapsed_s": 5.005,
+          "committed_transfers": 3566,
+          "idempotent_replays": 185,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 749.4,
+          "p50_ms": 5.179,
+          "p95_ms": 6.135,
+          "p99_ms": 9.53,
+          "reported_j": 386.6147,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 103.0698
+        },
+        "c=16": {
+          "batch_size": 1,
+          "elapsed_s": 5.0059,
+          "committed_transfers": 16510,
+          "idempotent_replays": 817,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 3461.3,
+          "p50_ms": 4.572,
+          "p95_ms": 5.23,
+          "p99_ms": 5.836,
+          "reported_j": 385.8799,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 22.2704
+        },
+        "batch=500": {
+          "batch_size": 500,
+          "elapsed_s": 5.0012,
+          "committed_transfers": 511500,
+          "idempotent_replays": 0,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 102276.0,
+          "p50_ms": 4.124,
+          "p95_ms": 5.247,
+          "p99_ms": 9.76,
+          "reported_j": 354.2394,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 0.6926
+        }
+      }
+    },
+    "jouledb_pgwire": {
+      "engine": "JouleDB v0.15.0 pgwire (psycopg3 + Pre-Allocated JWL1 + SHA-256 Chain + FIFO Group Commit, fsync=on)",
+      "invariants_verified": {
+        "sha256_chain_valid": true,
+        "journal_entries_verified": 542954,
+        "total_posted_debits": 1015500894,
+        "total_posted_credits": 1015500894,
+        "min_customer_balance_minor": 985829
+      },
+      "regimes": {
+        "c=1": {
+          "batch_size": 1,
+          "elapsed_s": 5.0028,
+          "committed_transfers": 2109,
+          "idempotent_replays": 108,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 443.1,
+          "p50_ms": 2.334,
+          "p95_ms": 2.657,
+          "p99_ms": 2.994,
+          "reported_j": 335.7725,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 151.4536
+        },
+        "c=4": {
+          "batch_size": 1,
+          "elapsed_s": 5.0096,
+          "committed_transfers": 3274,
+          "idempotent_replays": 152,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 683.9,
+          "p50_ms": 5.242,
+          "p95_ms": 7.711,
+          "p99_ms": 8.215,
+          "reported_j": 342.6503,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 100.0147
+        },
+        "c=16": {
+          "batch_size": 1,
+          "elapsed_s": 5.0194,
+          "committed_transfers": 11570,
+          "idempotent_replays": 630,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 2430.6,
+          "p50_ms": 6.957,
+          "p95_ms": 7.669,
+          "p99_ms": 10.58,
+          "reported_j": 334.5484,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 27.422
+        },
+        "batch=500": {
+          "batch_size": 500,
+          "elapsed_s": 5.0038,
+          "committed_transfers": 524000,
+          "idempotent_replays": 0,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 104721.1,
+          "p50_ms": 4.236,
+          "p95_ms": 5.083,
+          "p99_ms": 9.252,
+          "reported_j": 282.0784,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 0.5383
+        }
+      }
+    },
+    "postgresql": {
+      "engine": "PostgreSQL 16.16 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+      "durability": {
+        "fsync": "on",
+        "synchronous_commit": "on"
+      },
+      "invariants_verified": {
+        "debits_equal_credits": true,
+        "total_posted_minor": "1009741312",
+        "min_customer_balance_minor": 0,
+        "journal_rows_persisted": 293877
+      },
+      "regimes": {
+        "c=1": {
+          "batch_size": 1,
+          "elapsed_s": 5.0027,
+          "committed_transfers": 1846,
+          "idempotent_replays": 91,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 387.2,
+          "p50_ms": 2.634,
+          "p95_ms": 3.082,
+          "p99_ms": 3.35,
+          "reported_j": 362.4519,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 187.1203
+        },
+        "c=4": {
+          "batch_size": 1,
+          "elapsed_s": 5.0028,
+          "committed_transfers": 4058,
+          "idempotent_replays": 214,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 853.9,
+          "p50_ms": 4.932,
+          "p95_ms": 5.446,
+          "p99_ms": 8.35,
+          "reported_j": 349.3355,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 81.7733
+        },
+        "c=16": {
+          "batch_size": 1,
+          "elapsed_s": 5.0051,
+          "committed_transfers": 16473,
+          "idempotent_replays": 815,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 3454.1,
+          "p50_ms": 4.351,
+          "p95_ms": 5.691,
+          "p99_ms": 9.005,
+          "reported_j": 335.7283,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 19.4197
+        },
+        "batch=500": {
+          "batch_size": 500,
+          "elapsed_s": 5.0081,
+          "committed_transfers": 271500,
+          "idempotent_replays": 0,
+          "overdraft_or_conflict_rejections": 0,
+          "effective_transfers_per_sec": 54212.3,
+          "p50_ms": 8.511,
+          "p95_ms": 9.705,
+          "p99_ms": 29.545,
+          "reported_j": 264.4797,
+          "incremental_j": 0.0,
+          "mj_per_transfer": 0.9741
+        }
+      }
+    }
+  },
+  "head_to_head_summary": {
+    "c=1": {
+      "jouledb_http_tps": 3544.6,
+      "jouledb_pgwire_tps": 443.1,
+      "postgresql_tps": 387.2,
+      "http_speedup_vs_pg": 9.15,
+      "pgwire_speedup_vs_pg": 1.14,
+      "best_speedup_vs_pg": 9.15,
+      "jouledb_http_mj_per_tx": 25.0979,
+      "jouledb_pgwire_mj_per_tx": 151.4536,
+      "postgresql_mj_per_tx": 187.1203,
+      "energy_reduction_vs_pg_x": 7.46
+    },
+    "c=4": {
+      "jouledb_http_tps": 749.4,
+      "jouledb_pgwire_tps": 683.9,
+      "postgresql_tps": 853.9,
+      "http_speedup_vs_pg": 0.88,
+      "pgwire_speedup_vs_pg": 0.8,
+      "best_speedup_vs_pg": 0.88,
+      "jouledb_http_mj_per_tx": 103.0698,
+      "jouledb_pgwire_mj_per_tx": 100.0147,
+      "postgresql_mj_per_tx": 81.7733,
+      "energy_reduction_vs_pg_x": 0.82
+    },
+    "c=16": {
+      "jouledb_http_tps": 3461.3,
+      "jouledb_pgwire_tps": 2430.6,
+      "postgresql_tps": 3454.1,
+      "http_speedup_vs_pg": 1.0,
+      "pgwire_speedup_vs_pg": 0.7,
+      "best_speedup_vs_pg": 1.0,
+      "jouledb_http_mj_per_tx": 22.2704,
+      "jouledb_pgwire_mj_per_tx": 27.422,
+      "postgresql_mj_per_tx": 19.4197,
+      "energy_reduction_vs_pg_x": 0.87
+    },
+    "batch=500": {
+      "jouledb_http_tps": 102276.0,
+      "jouledb_pgwire_tps": 104721.1,
+      "postgresql_tps": 54212.3,
+      "http_speedup_vs_pg": 1.89,
+      "pgwire_speedup_vs_pg": 1.93,
+      "best_speedup_vs_pg": 1.93,
+      "jouledb_http_mj_per_tx": 0.6926,
+      "jouledb_pgwire_mj_per_tx": 0.5383,
+      "postgresql_mj_per_tx": 0.9741,
+      "energy_reduction_vs_pg_x": 1.81
+    }
+  }
+}

@@ -325,8 +325,10 @@ pub struct WalManager {
     current_lsn: AtomicU64,
     /// Last checkpoint LSN
     last_checkpoint_lsn: AtomicU64,
-    /// Current file position
+    /// Current file position (end of valid WAL frames)
     file_position: AtomicU64,
+    /// Pre-allocated initialized file length on disk
+    allocated_len: AtomicU64,
     /// Active transactions (tx_id -> first LSN)
     active_transactions: std::sync::RwLock<HashMap<u64, u64>>,
     /// LSN of the last commit record handed to the OS (see `GroupSync`)
@@ -477,24 +479,18 @@ impl WalManager {
             .map_err(|e| StorageError::Backend(format!("Failed to get WAL metadata: {}", e)))?
             .len();
 
-        // Find last LSN by scanning file
-        let last_lsn = if file_len > 0 {
-            Self::find_last_lsn(&path)?
+        // Scan valid WAL entries in a single pass, stopping cleanly at EOF or
+        // zero-initialized pre-allocated extent bytes (`0x00 != WAL_MAGIC`).
+        let (last_lsn, last_checkpoint, valid_end_pos) = if file_len > 0 {
+            Self::scan_wal_tail(&path)?
         } else {
-            0
+            (0, 0, 0)
         };
 
-        // Find last checkpoint
-        let last_checkpoint = if file_len > 0 {
-            Self::find_last_checkpoint(&path)?
-        } else {
-            0
-        };
-
-        // Seek to end of file before wrapping in BufWriter for append semantics
+        // Seek to end of valid records (within pre-allocated extents if present)
         let mut file = file;
-        file.seek(SeekFrom::End(0))
-            .map_err(|e| StorageError::Backend(format!("Failed to seek to end of WAL: {}", e)))?;
+        file.seek(SeekFrom::Start(valid_end_pos))
+            .map_err(|e| StorageError::Backend(format!("Failed to seek to WAL write pos: {}", e)))?;
 
         let writer = BufWriter::new(file);
 
@@ -503,7 +499,8 @@ impl WalManager {
             writer,
             current_lsn: AtomicU64::new(last_lsn + 1),
             last_checkpoint_lsn: AtomicU64::new(last_checkpoint),
-            file_position: AtomicU64::new(file_len),
+            file_position: AtomicU64::new(valid_end_pos),
+            allocated_len: AtomicU64::new(file_len),
             active_transactions: std::sync::RwLock::new(HashMap::new()),
             committed_lsn: std::sync::Arc::new(AtomicU64::new(0)),
         })
@@ -526,91 +523,86 @@ impl WalManager {
         })
     }
 
-    /// Find the last LSN in the WAL file
-    fn find_last_lsn(path: &Path) -> Result<u64, StorageError> {
+    /// Single-pass scan returning `(last_lsn, last_checkpoint_lsn, valid_end_offset)`.
+    fn scan_wal_tail(path: &Path) -> Result<(u64, u64, u64), StorageError> {
         let file = File::open(path)
             .map_err(|e| StorageError::Backend(format!("Failed to open WAL: {}", e)))?;
 
         let mut reader = BufReader::new(file);
         let mut last_lsn = 0u64;
-        let mut buf = [0u8; WAL_HEADER_SIZE];
-
-        loop {
-            match reader.read_exact(&mut buf) {
-                Ok(_) => {
-                    // Verify magic
-                    if &buf[0..4] != &WAL_MAGIC {
-                        break;
-                    }
-
-                    let lsn = u64::from_le_bytes([
-                        buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
-                    ]);
-
-                    let payload_len =
-                        u32::from_le_bytes([buf[17], buf[18], buf[19], buf[20]]) as usize;
-
-                    if payload_len > MAX_WAL_PAYLOAD {
-                        break;
-                    }
-
-                    last_lsn = lsn;
-
-                    // Skip payload
-                    if reader.seek(SeekFrom::Current(payload_len as i64)).is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-
-        Ok(last_lsn)
-    }
-
-    /// Find the last checkpoint LSN
-    fn find_last_checkpoint(path: &Path) -> Result<u64, StorageError> {
-        let file = File::open(path)
-            .map_err(|e| StorageError::Backend(format!("Failed to open WAL: {}", e)))?;
-
-        let mut reader = BufReader::new(file);
         let mut last_checkpoint = 0u64;
+        let mut valid_pos = 0u64;
         let mut buf = [0u8; WAL_HEADER_SIZE];
 
         loop {
             match reader.read_exact(&mut buf) {
                 Ok(_) => {
-                    // Verify magic
-                    if &buf[0..4] != &WAL_MAGIC {
+                    if buf[0..4] != WAL_MAGIC {
                         break;
                     }
-
                     let lsn = u64::from_le_bytes([
                         buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
                     ]);
-
                     let entry_type = buf[16];
                     let payload_len =
                         u32::from_le_bytes([buf[17], buf[18], buf[19], buf[20]]) as usize;
-
                     if payload_len > MAX_WAL_PAYLOAD {
                         break;
                     }
-
-                    if entry_type == WalEntryType::Checkpoint as u8 {
-                        last_checkpoint = lsn;
-                    }
-
-                    // Skip payload
                     if reader.seek(SeekFrom::Current(payload_len as i64)).is_err() {
                         break;
                     }
+                    last_lsn = lsn;
+                    if entry_type == WalEntryType::Checkpoint as u8 {
+                        last_checkpoint = lsn;
+                    }
+                    valid_pos += (WAL_HEADER_SIZE + payload_len) as u64;
                 }
                 Err(_) => break,
             }
         }
 
-        Ok(last_checkpoint)
+        Ok((last_lsn, last_checkpoint, valid_pos))
+    }
+
+    /// Pre-initialize disk extents ahead of `file_position + add_bytes` so subsequent
+    /// commits overwrite initialized blocks without growing `i_size` (eliminating
+    /// Linux `ext4` `jbd2` metadata journal transactions on `fdatasync`).
+    fn ensure_wal_capacity(&mut self, add_bytes: u64) -> Result<(), StorageError> {
+        const ZERO_CHUNK: [u8; 65_536] = [0u8; 65_536];
+        let pos = self.file_position.load(Ordering::SeqCst);
+        let needed = pos.saturating_add(add_bytes);
+        let alloc = self.allocated_len.load(Ordering::SeqCst);
+        if needed <= alloc {
+            return Ok(());
+        }
+        let step: u64 = if alloc < 256 * 1024 {
+            256 * 1024
+        } else if alloc < 4 * 1024 * 1024 {
+            4 * 1024 * 1024
+        } else {
+            16 * 1024 * 1024
+        };
+        let target = needed.max(alloc.saturating_add(step));
+        self.writer
+            .flush()
+            .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
+        let file = self.writer.get_mut();
+        file.seek(SeekFrom::Start(alloc))
+            .map_err(|e| StorageError::Backend(format!("WAL prealloc seek error: {}", e)))?;
+        let mut cur = alloc;
+        while cur < target {
+            let n = ((target - cur) as usize).min(ZERO_CHUNK.len());
+            file.write_all(&ZERO_CHUNK[..n])
+                .map_err(|e| StorageError::Backend(format!("WAL prealloc write error: {}", e)))?;
+            cur += n as u64;
+        }
+        file.sync_all()
+            .map_err(|e| StorageError::Backend(format!("WAL prealloc sync error: {}", e)))?;
+        file.seek(SeekFrom::Start(pos))
+            .map_err(|e| StorageError::Backend(format!("WAL restore seek error: {}", e)))?;
+        self.allocated_len.store(target, Ordering::SeqCst);
+        Ok(())
     }
 
     /// Get next LSN
@@ -646,6 +638,7 @@ impl WalManager {
         for e in &encoded {
             buf.extend_from_slice(e);
         }
+        self.ensure_wal_capacity(total as u64)?;
         self.writer
             .write_all(&buf)
             .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
@@ -691,6 +684,8 @@ impl WalManager {
                 Ok(buf)
             })
             .collect::<Result<_, _>>()?;
+        let total_bytes: usize = chunks.iter().map(Vec::len).sum();
+        self.ensure_wal_capacity(total_bytes as u64)?;
         let mut total = 0usize;
         for c in &chunks {
             self.writer
@@ -864,6 +859,7 @@ impl WalManager {
     /// Append entry to WAL
     fn append_entry(&mut self, entry: &WalEntry) -> Result<(), StorageError> {
         let encoded = entry.encode()?;
+        self.ensure_wal_capacity(encoded.len() as u64)?;
 
         self.writer
             .write_all(&encoded)
@@ -881,9 +877,7 @@ impl WalManager {
             .flush()
             .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
 
-        self.writer
-            .get_ref()
-            .sync_all()
+        sync_file(self.writer.get_ref())
             .map_err(|e| StorageError::Backend(format!("WAL sync error: {}", e)))?;
 
         Ok(())
@@ -920,6 +914,7 @@ impl WalManager {
 
         self.writer = BufWriter::new(file);
         self.file_position.store(0, Ordering::SeqCst);
+        self.allocated_len.store(0, Ordering::SeqCst);
 
         Ok(())
     }

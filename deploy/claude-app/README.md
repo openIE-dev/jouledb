@@ -1,4 +1,4 @@
-# JouleDB Claude App & MCP Bundle (`.mcpb`, `v0.14.0`)
+# JouleDB Claude App & MCP Bundle (`.mcpb`, `v0.15.0`)
 
 This directory packages **JouleDB** as both:
 1. A one-click **Claude Desktop `.mcpb` Bundle** (`manifest_version: "0.3"`), and
@@ -7,7 +7,7 @@ This directory packages **JouleDB** as both:
 ## Quick Install Options
 
 ### Option A — One-Click `.mcpb` Bundle in Claude Desktop
-Download `jouledb-0.14.0-aarch64-apple-darwin.mcpb` (or `x86_64`) from [GitHub Releases](https://github.com/openIE-dev/jouledb/releases/tag/v0.14.0) and double-click or drag it into **Claude Desktop -> Settings -> Extensions**.
+Download `jouledb-0.15.0-aarch64-apple-darwin.mcpb` (or `x86_64`) from [GitHub Releases](https://github.com/openIE-dev/jouledb/releases/tag/v0.15.0) and double-click or drag it into **Claude Desktop -> Settings -> Extensions**.
 
 ### Option B — Claude Code CLI (`claude mcp add`)
 ```bash

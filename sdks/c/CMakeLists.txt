@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(jouledb_c_sdk VERSION 0.14.0 LANGUAGES C)
+project(jouledb_c_sdk VERSION 0.15.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 add_executable(jouledb_smoke_c99 smoke_test.c)
 if(WIN32)

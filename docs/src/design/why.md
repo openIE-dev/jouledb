@@ -5,7 +5,7 @@ vector index, property-graph engine, container daemon, and external LLM weight s
 orders of magnitude more joules and tail latency than arithmetic inside an ALU. JouleDB
 consolidates transactional storage, hybrid retrieval, and sub-1-bit `.jsyn` neural execution
 onto a single Copy-on-Write Serializable Snapshot Isolation (`SSI`) substrate written in
-Rust (`41` workspace member crates / `746,915` LOC in [`crates/`](https://github.com/openIE-dev/jouledb/tree/main/crates), `v0.14.0` pre-1.0 preview, `41 / 41` `deny(clippy::unwrap_used)`).
+Rust (`41` workspace member crates / `758,378` LOC in [`crates/`](https://github.com/openIE-dev/jouledb/tree/main/crates), `v0.15.0` pre-1.0 preview, `41 / 41` `deny(clippy::unwrap_used)`).
 
 This chapter states the prior art JouleDB builds on, where established systems outperform
 JouleDB, the exact `1..15` hyperdimensional computing (`HDC`) primitives, benchmark protocols
