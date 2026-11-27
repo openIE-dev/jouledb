@@ -299,6 +299,27 @@ pub fn verify_and_ingest_sel4_multipd_chain(
     Ok((out, tree, kulisch.to_f64_rne()))
 }
 
+/// Verifies that a hardware-timer `CinderTap` replenishment window (`replenished_uj` over `window_us`)
+/// obeys the declared physical microwatt ceiling (`replenished_uj * 1_000_000 / window_us <= max_power_uw`).
+pub fn verify_sel4_timer_window_power_bound(
+    replenished_uj: u64,
+    window_us: u64,
+    max_power_uw: u64,
+) -> Result<u64, LedgerError> {
+    if window_us == 0 {
+        return Err(LedgerError::ProofError(
+            "zero-duration seL4 hardware timer window".into(),
+        ));
+    }
+    let implied_uw = replenished_uj.saturating_mul(1_000_000) / window_us;
+    if implied_uw > max_power_uw {
+        return Err(LedgerError::ProofError(format!(
+            "seL4 CinderTap implied power ({implied_uw} uW) exceeds ceiling ({max_power_uw} uW)"
+        )));
+    }
+    Ok(implied_uw)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,5 +408,44 @@ mod tests {
         assert!(
             verify_and_ingest_sel4_multipd_chain(&bad, "sel4-fleet", "US-NE-ISO", 0.31).is_err()
         );
+    }
+
+    #[test]
+    fn sel4_h41_6pd_preclassifier_timer_ceiling_and_hotswap_merkle_seq5_verify() {
+        // 8 uJ over 10,000 us = 800 uW <= 1,000 uW (OK), while 8 uJ over 1,000 us = 8,000 uW > 1,000 uW (ERR):
+        assert_eq!(verify_sel4_timer_window_power_bound(8, 10_000, 1_000).unwrap(), 800);
+        assert!(verify_sel4_timer_window_power_bound(8, 1_000, 1_000).is_err());
+
+        let raw_events: [(&str, u64, u64, u64); 5] = [
+            ("status.ping", 0x5049_4E47_5F4F_4B30, 0, 24),
+            ("recall.query", 0x7da1_44b9_7d05_4b25, 8, 16),
+            ("storage.archive", 0x8e87_79ca_5143_87db, 8, 8),
+            ("messaging.send", 0x7da1_44b9_7d05_4b25, 8, 0),
+            ("recall.query", 0x3a73_db51_3921_afe7, 8, 0),
+        ];
+        let mut prev = 0xCBF2_9CE4_8422_2325u64;
+        let mut steps = Vec::with_capacity(5);
+        for (idx, &(verb, dig, deb, rem)) in raw_events.iter().enumerate() {
+            let seq = (idx + 1) as u64;
+            prev = advance_sel4_merkle_chain(prev, seq, dig, deb, rem);
+            steps.push(Sel4GovernorMerkleStep {
+                seq,
+                verb: verb.into(),
+                q24_fnv1a: dig,
+                debited_uj: deb,
+                remaining_uj: rem,
+                claimed_root_u64: prev,
+            });
+        }
+        assert_eq!(steps[4].claimed_root_u64, 0x5370_8a96_fbde_a22e);
+        let (receipts, tree, kulisch_j) =
+            verify_and_ingest_sel4_multipd_chain(&steps, "sel4-h41-fleet", "US-NE-ISO", 0.31)
+                .unwrap();
+        assert_eq!(receipts.len(), 5);
+        assert_eq!(receipts[0].energy_joules_total, 0.0); // 0-uJ PreClassifier!
+        assert!((kulisch_j - 0.000_032).abs() < 1e-15);
+        for i in 0..5 {
+            assert!(tree.proof(i).unwrap().verify_self());
+        }
     }
 }

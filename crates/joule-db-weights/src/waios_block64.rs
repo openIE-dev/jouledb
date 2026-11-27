@@ -941,4 +941,50 @@ mod tests {
         }
         assert_eq!(h, 0x7da1_44b9_7d05_4b25);
     }
+
+    #[test]
+    fn weightdb_double_buffer_slot_b_hotswap_matches_baremetal_sel4_h41_exact() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = WeightDB::open(dir.path().join("sel4_h41_hotswap.jdb")).unwrap();
+        let tile_b = WaiOsBlock64Tile {
+            local_rank: 8,
+            b_v_u64: (0..8usize)
+                .map(|k| {
+                    (0xA5A5_5A5A_F00F_0FF0u64 ^ 0x3C3C_3C3C_3C3C_3C3C)
+                        ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                })
+                .collect(),
+            b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+            alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
+        };
+        let tensor_b = WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 3072,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![tile_b],
+        };
+        db.put_waios_block64_tensor("sel4-h41", "jouarena.slot_b", &tensor_b)
+            .unwrap();
+        let loaded_b = db
+            .get_waios_block64_tensor("sel4-h41", "jouarena.slot_b", 1 << 20)
+            .unwrap()
+            .unwrap();
+        let x_i8: Vec<i8> = (0..64).map(|i| ((i * 3) - 90) as i8).collect();
+        let y_b = loaded_b.forward_simd_lut4_q24(&x_i8).unwrap();
+        let mut h = 0xCBF2_9CE4_8422_2325u64;
+        for &v in &y_b {
+            for &b in &v.to_le_bytes() {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(0x0100_0000_01B3);
+            }
+        }
+        assert_eq!(h, 0x3a73_db51_3921_afe7);
+    }
 }
