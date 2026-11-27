@@ -534,4 +534,62 @@ mod tests {
         assert_ne!(a_tree.root_hex(), b_tree.root_hex());
         assert!(((a_j + b_j) - 0.000_044).abs() < 1e-15);
     }
+
+    #[test]
+    fn sel4_h43_9pd_virtio_sector4_waiosrec_and_kv_merkle_chains_verify() {
+        let raw_alpha: [(&str, u64, u64, u64); 5] = [
+            ("status.ping", 0x5049_4E47_5F4F_4B30, 0, 40),
+            ("recall.query", 0x7da1_44b9_7d05_4b25, 8, 32),
+            ("storage.archive", 0xd6d7_3f68_e7eb_f7a6, 12, 20),
+            ("recall.query", 0xa9f1_ecbb_e09e_ef08, 12, 8),
+            ("recall.query", 0xa9f1_ecbb_e09e_ef08, 8, 0),
+        ];
+        let mut prev_a = 0xCBF2_9CE4_8422_2325u64;
+        let mut a_steps = Vec::with_capacity(5);
+        for (idx, &(verb, dig, deb, rem)) in raw_alpha.iter().enumerate() {
+            let seq = (idx + 1) as u64;
+            prev_a = advance_sel4_merkle_chain(prev_a, seq, dig, deb, rem);
+            a_steps.push(Sel4GovernorMerkleStep {
+                seq,
+                verb: verb.into(),
+                q24_fnv1a: dig,
+                debited_uj: deb,
+                remaining_uj: rem,
+                claimed_root_u64: prev_a,
+            });
+        }
+        assert_eq!(prev_a, 0x5f7c_cef1_5514_23d7);
+
+        let raw_beta: [(&str, u64, u64, u64); 3] = [
+            ("recall.query", 0x7da1_44b9_7d05_4b25, 8, 16),
+            ("recall.query", 0xa9f1_ecbb_e09e_ef08, 12, 4),
+            ("recall.query", 0x6fdf_a70a_f313_9c94, 8, 4),
+        ];
+        let mut prev_b = 0xCBF2_9CE4_8422_2325u64;
+        let mut b_steps = Vec::with_capacity(3);
+        for (idx, &(verb, dig, deb, rem)) in raw_beta.iter().enumerate() {
+            let seq = (idx + 1) as u64;
+            prev_b = advance_sel4_merkle_chain(prev_b, seq, dig, deb, rem);
+            b_steps.push(Sel4GovernorMerkleStep {
+                seq,
+                verb: verb.into(),
+                q24_fnv1a: dig,
+                debited_uj: deb,
+                remaining_uj: rem,
+                claimed_root_u64: prev_b,
+            });
+        }
+        assert_eq!(prev_b, 0x5e0d_f9c0_3038_c6d9);
+
+        let (a_rec, a_tree, a_j) =
+            verify_and_ingest_sel4_multipd_chain(&a_steps, "h43-alpha", "US-NE-ISO", 0.31)
+                .unwrap();
+        let (b_rec, b_tree, b_j) =
+            verify_and_ingest_sel4_multipd_chain(&b_steps, "h43-beta", "US-NE-ISO", 0.31)
+                .unwrap();
+        assert_eq!((a_rec.len(), b_rec.len()), (5, 3));
+        assert!(a_tree.proof(4).unwrap().verify_self());
+        assert!(b_tree.proof(2).unwrap().verify_self());
+        assert!(((a_j + b_j) - 0.000_068).abs() < 1e-15);
+    }
 }

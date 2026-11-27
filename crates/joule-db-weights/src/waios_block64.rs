@@ -987,4 +987,95 @@ mod tests {
         }
         assert_eq!(h, 0x3a73_db51_3921_afe7);
     }
+
+    #[test]
+    fn weightdb_2layer_slot_c_kv_prefix_attention_matches_baremetal_sel4_h43_exact() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = WeightDB::open(dir.path().join("sel4_h43_slot_c.jdb")).unwrap();
+
+        let make_tensor = |scale_q12: i64, bv_xor: u64| WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: scale_q12,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![WaiOsBlock64Tile {
+                local_rank: 8,
+                b_v_u64: (0..8usize)
+                    .map(|k| {
+                        (0xA5A5_5A5A_F00F_0FF0u64 ^ bv_xor)
+                            ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                    })
+                    .collect(),
+                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
+            }],
+        };
+
+        let t_l0 = make_tensor(2560, 0x5555_AAAA_5555_AAAA);
+        let t_l1 = make_tensor(1536, 0x0F0F_F0F0_0F0F_F0F0);
+        db.put_waios_block64_tensor("sel4-h43", "slot_c.layer0", &t_l0)
+            .unwrap();
+        db.put_waios_block64_tensor("sel4-h43", "slot_c.layer1", &t_l1)
+            .unwrap();
+
+        let l0 = db
+            .get_waios_block64_tensor("sel4-h43", "slot_c.layer0", 1 << 20)
+            .unwrap()
+            .unwrap();
+        let l1 = db
+            .get_waios_block64_tensor("sel4-h43", "slot_c.layer1", 1 << 20)
+            .unwrap()
+            .unwrap();
+
+        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
+        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
+        let query_2: Vec<i8> = (0..64i32).map(|i| (((i * 9 + 23) & 0x7F) - 64) as i8).collect();
+
+        // Populate cached (K, V) from prefix_A once, then evaluate query_1 and query_2:
+        let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
+        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let v_q7: Vec<i8> = y0_p
+            .iter()
+            .zip(prefix_a.iter())
+            .map(|(&y, &px)| ((y >> 17) + i64::from(px)).clamp(-127, 127) as i8)
+            .collect();
+
+        let eval_q = |qx: &[i8]| -> u64 {
+            let y0_q = l0.forward_simd_lut4_q24(qx).unwrap();
+            let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+            let mut x1 = vec![0i8; 64];
+            for h in 0..4usize {
+                let base = h * 16;
+                let mut score = 0i32;
+                for d in 0..16usize {
+                    score += i32::from(q_q7[base + d]) * i32::from(k_q7[base + d]);
+                }
+                let gate_q8 = ((score >> 10) + 128).clamp(16, 240);
+                for d in 0..16usize {
+                    let idx = base + d;
+                    x1[idx] =
+                        (i32::from(qx[idx]) + ((gate_q8 * i32::from(v_q7[idx])) >> 8)).clamp(-127, 127)
+                            as i8;
+                }
+            }
+            let y1 = l1.forward_simd_lut4_q24(&x1).unwrap();
+            let mut fnv = 0xCBF2_9CE4_8422_2325u64;
+            for (&a, &b) in y1.iter().zip(y0_q.iter()) {
+                for &byte in &a.wrapping_add(b).to_le_bytes() {
+                    fnv ^= u64::from(byte);
+                    fnv = fnv.wrapping_mul(0x0100_0000_01B3);
+                }
+            }
+            fnv
+        };
+
+        assert_eq!(eval_q(&query_1), 0xa9f1_ecbb_e09e_ef08);
+        assert_eq!(eval_q(&query_2), 0x6fdf_a70a_f313_9c94);
+    }
 }
