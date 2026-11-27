@@ -1364,4 +1364,148 @@ mod tests {
         }
         assert_eq!(d_fnv, 0xe27c_b32c_817e_82ca);
     }
+
+    #[test]
+    fn weightdb_speculative_3tok_and_byzantine_krum_slot_d_match_sel4_h46_exact() {
+        // 1. Coordinate-wise median filters compromised-insider `[4096, 8, ...]` -> `[320, 272, 256, 272, 256, 240, 224, 256]`
+        let s1 = [320u16, 288, 256, 272, 240, 240, 208, 224];
+        let s2 = [304u16, 272, 256, 288, 256, 256, 224, 256];
+        let s3_byz = [4096u16, 8, 4096, 4, 4096, 0, 4096, 8192];
+        let mut fed_med = [0u16; 8];
+        for k in 0..8 {
+            let mut a = [s1[k], s2[k], s3_byz[k]];
+            a.sort_unstable();
+            fed_med[k] = a[1];
+        }
+        assert_eq!(fed_med, [320, 272, 256, 272, 256, 240, 224, 256]);
+
+        let l0 = WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 2560,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![WaiOsBlock64Tile {
+                local_rank: 8,
+                b_v_u64: (0..8usize)
+                    .map(|k| {
+                        (0xA5A5_5A5A_F00F_0FF0u64 ^ 0x5555_AAAA_5555_AAAA)
+                            ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                    })
+                    .collect(),
+                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                alpha_q12: vec![512, 384, 256, 192, 128, 96, 64, 32],
+            }],
+        };
+
+        let slot_d = WaiOsBlock64WeightTensor {
+            rows: 64,
+            cols: 64,
+            tile_rows: 1,
+            tile_cols: 1,
+            local_rank: 8,
+            use_internal_walsh_rotation: false,
+            qat_sweeps: 0,
+            global_scale_q12: 1536,
+            row_gain_u8: vec![64u8; 64],
+            col_gain_u8: vec![64u8; 64],
+            tiles: vec![WaiOsBlock64Tile {
+                local_rank: 8,
+                b_v_u64: (0..8usize)
+                    .map(|k| {
+                        (0xA5A5_5A5A_F00F_0FF0u64 ^ 0x0F0F_F0F0_0F0F_F0F0)
+                            ^ ((k as u64).wrapping_mul(0x1111_1111_1111_1111))
+                    })
+                    .collect(),
+                b_u_u64: (0..64usize).map(|r| ((r * 37 + 13) as u64) & 0xFF).collect(),
+                alpha_q12: vec![544, 390, 256, 198, 130, 93, 60, 33],
+            }],
+        };
+
+        let prefix_a: Vec<i8> = (0..64i32).map(|i| (((i * 7 + 19) & 0x7F) - 64) as i8).collect();
+        let query_1: Vec<i8> = (0..64i32).map(|i| (((i * 5 + 11) & 0x7F) - 64) as i8).collect();
+
+        let y0_p = l0.forward_simd_lut4_q24(&prefix_a).unwrap();
+        let k_q7: Vec<i8> = y0_p.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+        let v_q7: Vec<i8> = y0_p
+            .iter()
+            .zip(prefix_a.iter())
+            .map(|(&y, &px)| ((y >> 17) + i64::from(px)).clamp(-127, 127) as i8)
+            .collect();
+
+        let legal_mask = 0x0000_05A5_0000_03CFu64;
+        let eval_step = |qx: &[i8]| -> (u32, u64) {
+            let y0_q = l0.forward_simd_lut4_q24(qx).unwrap();
+            let q_q7: Vec<i8> = y0_q.iter().map(|&y| (y >> 18).clamp(-127, 127) as i8).collect();
+            let mut x1 = vec![0i8; 64];
+            for h in 0..4usize {
+                let base = h * 16;
+                let mut score = 0i32;
+                for d in 0..16usize {
+                    score += i32::from(q_q7[base + d]) * i32::from(k_q7[base + d]);
+                }
+                let gate_q8 = ((score >> 10) + 128).clamp(16, 240);
+                for d in 0..16usize {
+                    let idx = base + d;
+                    x1[idx] = (i32::from(qx[idx]) + ((gate_q8 * i32::from(v_q7[idx])) >> 8))
+                        .clamp(-127, 127) as i8;
+                }
+            }
+            let y1 = slot_d.forward_simd_lut4_q24(&x1).unwrap();
+            let mut best_tok = 0u32;
+            let mut best_val = i64::MIN;
+            let mut fnv = 0xCBF2_9CE4_8422_2325u64;
+            for (i, (&a, &b)) in y1.iter().zip(y0_q.iter()).enumerate() {
+                let s = a.wrapping_add(b);
+                if ((legal_mask >> i) & 1) == 1 && s > best_val {
+                    best_val = s;
+                    best_tok = i as u32;
+                }
+                for &byte in &s.to_le_bytes() {
+                    fnv ^= u64::from(byte);
+                    fnv = fnv.wrapping_mul(0x0100_0000_01B3);
+                }
+            }
+            (best_tok, fnv)
+        };
+
+        let (t0, td0) = eval_step(&query_1);
+        assert_eq!((t0, td0), (42, 0xfef7_8cac_002e_30b3));
+
+        let q1: Vec<i8> = (0..64i32)
+            .map(|i| {
+                let delta = (((t0 as i32) * 13 + i * 3) & 0x3F) - 32;
+                (i32::from(query_1[i as usize]) ^ delta).clamp(-127, 127) as i8
+            })
+            .collect();
+        let (t1, td1) = eval_step(&q1);
+        let q2: Vec<i8> = (0..64i32)
+            .map(|i| {
+                let delta = (((t1 as i32) * 13 + i * 3) & 0x3F) - 32;
+                (i32::from(query_1[i as usize]) ^ delta).clamp(-127, 127) as i8
+            })
+            .collect();
+        let (t2, td2) = eval_step(&q2);
+        let ptoks = (t0 & 0xFF) | ((t1 & 0xFF) << 8) | ((t2 & 0xFF) << 16);
+        assert_eq!(ptoks, 0x002a_2a2a);
+
+        let mut sp = [0u8; 40];
+        sp[0..8].copy_from_slice(b"WAIOSSPC");
+        sp[8..12].copy_from_slice(&ptoks.to_le_bytes());
+        sp[12..16].copy_from_slice(&3u32.to_le_bytes());
+        sp[16..24].copy_from_slice(&td0.to_le_bytes());
+        sp[24..32].copy_from_slice(&td1.to_le_bytes());
+        sp[32..40].copy_from_slice(&td2.to_le_bytes());
+        let mut s_fnv = 0xCBF2_9CE4_8422_2325u64;
+        for &b in &sp {
+            s_fnv ^= u64::from(b);
+            s_fnv = s_fnv.wrapping_mul(0x0100_0000_01B3);
+        }
+        assert_eq!(s_fnv, 0x6cb9_6681_66f1_482b);
+    }
 }
