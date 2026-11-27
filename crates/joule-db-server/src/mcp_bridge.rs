@@ -99,10 +99,23 @@ impl DatabaseToolHandler {
                 .get("limit")
                 .and_then(|v| v.as_u64())
                 .map(|v| v as usize),
-            session_id: None,
+            session_id: request
+                .arguments
+                .get("session_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             query_timeout_ms: None,
-            branch_id: None,
-            tenant_id: None,
+            branch_id: request
+                .arguments
+                .get("branch")
+                .or_else(|| request.arguments.get("branch_id"))
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            tenant_id: request
+                .arguments
+                .get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         };
 
         match self.query_executor.execute(&query_req) {
@@ -159,10 +172,23 @@ impl DatabaseToolHandler {
             args: vec![],
             explain: false,
             limit: Some(1),
-            session_id: None,
+            session_id: request
+                .arguments
+                .get("session_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             query_timeout_ms: None,
-            branch_id: None,
-            tenant_id: None,
+            branch_id: request
+                .arguments
+                .get("branch")
+                .or_else(|| request.arguments.get("branch_id"))
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            tenant_id: request
+                .arguments
+                .get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         };
 
         match self.query_executor.execute(&query_req) {
@@ -241,10 +267,23 @@ impl DatabaseToolHandler {
             args: vec![],
             explain: false,
             limit: None,
-            session_id: None,
+            session_id: request
+                .arguments
+                .get("session_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             query_timeout_ms: None,
-            branch_id: None,
-            tenant_id: None,
+            branch_id: request
+                .arguments
+                .get("branch")
+                .or_else(|| request.arguments.get("branch_id"))
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            tenant_id: request
+                .arguments
+                .get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         };
 
         match self.query_executor.execute(&query_req) {
@@ -302,10 +341,23 @@ impl DatabaseToolHandler {
             args: vec![],
             explain: false,
             limit: None,
-            session_id: None,
+            session_id: request
+                .arguments
+                .get("session_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             query_timeout_ms: None,
-            branch_id: None,
-            tenant_id: None,
+            branch_id: request
+                .arguments
+                .get("branch")
+                .or_else(|| request.arguments.get("branch_id"))
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            tenant_id: request
+                .arguments
+                .get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         };
 
         match self.query_executor.execute(&query_req) {
@@ -368,10 +420,23 @@ impl DatabaseToolHandler {
             args: vec![],
             explain: false,
             limit: None,
-            session_id: None,
+            session_id: request
+                .arguments
+                .get("session_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             query_timeout_ms: None,
-            branch_id: None,
-            tenant_id: None,
+            branch_id: request
+                .arguments
+                .get("branch")
+                .or_else(|| request.arguments.get("branch_id"))
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            tenant_id: request
+                .arguments
+                .get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         };
 
         match self.query_executor.execute(&query_req) {
@@ -403,10 +468,23 @@ impl DatabaseToolHandler {
             args: vec![],
             explain: false,
             limit: Some(1),
-            session_id: None,
+            session_id: request
+                .arguments
+                .get("session_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
             query_timeout_ms: None,
-            branch_id: None,
-            tenant_id: None,
+            branch_id: request
+                .arguments
+                .get("branch")
+                .or_else(|| request.arguments.get("branch_id"))
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            tenant_id: request
+                .arguments
+                .get("tenant_id")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         };
 
         match self.query_executor.execute(&query_req) {
@@ -641,6 +719,15 @@ impl DatabaseToolHandler {
             "db.branch_list" => self.handle_branch_list(&request),
             "db.branch_merge" => self.handle_branch_merge(&request),
             "db.branch_delete" => self.handle_branch_delete(&request),
+            "db.branch_diff" => self.handle_branch_diff(&request),
+            "db.workflow_checkpoint" => self.handle_workflow_checkpoint(&request),
+            "db.workflow_resume" => self.handle_workflow_resume(&request),
+            "ledger.create_account" => self.handle_ledger_create_account(&request),
+            "ledger.transfer" => self.handle_ledger_transfer(&request, false),
+            "ledger.hold" => self.handle_ledger_transfer(&request, true),
+            "ledger.post_hold" => self.handle_ledger_resolve_hold(&request, true),
+            "ledger.void_hold" => self.handle_ledger_resolve_hold(&request, false),
+            "ledger.verify" => self.query_sql(&request.id, "LEDGER VERIFY".into()),
             "db.tenant_create" => self.handle_tenant_create(&request),
             "db.tenant_list" => self.handle_tenant_list(&request),
             "db.memory_store" => self.handle_memory_store(&request),
@@ -695,6 +782,15 @@ impl DatabaseToolHandler {
             .arguments
             .get("energy_budget_uj")
             .and_then(|v| v.as_u64());
+        // Also materialize the isolated SQL CoW branch in the query executor
+        let sql = match energy_budget_uj {
+            Some(uj) => format!("CREATE BRANCH \"{name}\" ENERGY BUDGET {uj}"),
+            None => format!("CREATE BRANCH \"{name}\""),
+        };
+        let _ = self.query_executor.execute(&QueryRequest {
+            sql,
+            ..Default::default()
+        });
         match self.branches.create_branch(CreateBranchRequest {
             name: name.to_string(),
             parent: None,
@@ -719,6 +815,12 @@ impl DatabaseToolHandler {
         let Some(name) = request.arguments.get("name").and_then(|v| v.as_str()) else {
             return Self::missing(&request.id, "missing required parameter: name");
         };
+        if let Err(sql_err) = self.query_executor.execute(&QueryRequest {
+            sql: format!("MERGE BRANCH \"{name}\""),
+            ..Default::default()
+        }) {
+            return Self::type_error(&request.id, sql_err.message);
+        }
         // delete_after stays false so the branch remains queryable after the merge.
         match self.branches.merge_branch(name, false) {
             Ok(result) => Self::json_ok(&request.id, result),
@@ -730,10 +832,185 @@ impl DatabaseToolHandler {
         let Some(name) = request.arguments.get("name").and_then(|v| v.as_str()) else {
             return Self::missing(&request.id, "missing required parameter: name");
         };
+        let _ = self.query_executor.execute(&QueryRequest {
+            sql: format!("DROP BRANCH IF EXISTS \"{name}\""),
+            ..Default::default()
+        });
         match self.branches.delete_branch(name) {
             Ok(info) => Self::json_ok(&request.id, info),
             Err(err) => Self::type_error(&request.id, err),
         }
+    }
+
+    fn handle_branch_diff(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(name) = request.arguments.get("name").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: name");
+        };
+        self.query_sql(&request.id, format!("DIFF BRANCH \"{name}\""))
+    }
+
+    fn handle_workflow_checkpoint(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(wf_id) = request.arguments.get("workflow_id").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: workflow_id");
+        };
+        let Some(step_id) = request.arguments.get("step_id").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: step_id");
+        };
+        let status = request
+            .arguments
+            .get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("completed");
+        let output = request
+            .arguments
+            .get("output")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
+        let out_escaped = output.to_string().replace('\'', "''");
+        let sql = format!(
+            "WORKFLOW CHECKPOINT '{}' STEP '{}' STATUS '{}' OUTPUT '{}'",
+            wf_id.replace('\'', "''"),
+            step_id.replace('\'', "''"),
+            status.replace('\'', "''"),
+            out_escaped
+        );
+        self.query_sql(&request.id, sql)
+    }
+
+    fn handle_workflow_resume(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(wf_id) = request.arguments.get("workflow_id").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: workflow_id");
+        };
+        self.query_sql(
+            &request.id,
+            format!("WORKFLOW RESUME '{}'", wf_id.replace('\'', "''")),
+        )
+    }
+
+    fn handle_ledger_create_account(&self, request: &ToolCallRequest) -> ToolCallResponse {
+        let Some(acct) = request.arguments.get("account_id").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: account_id");
+        };
+        let ledger_id = request
+            .arguments
+            .get("ledger_id")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(1);
+        let code = request
+            .arguments
+            .get("code")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(2000);
+        let scale = request
+            .arguments
+            .get("scale")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(2);
+        let no_overdraft = request
+            .arguments
+            .get("no_overdraft")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let flag_sql = if no_overdraft { " NO_OVERDRAFT" } else { "" };
+        self.query_sql(
+            &request.id,
+            format!(
+                "LEDGER CREATE ACCOUNT '{}' LEDGER {} CODE {} SCALE {}{}",
+                acct.replace('\'', "''"),
+                ledger_id,
+                code,
+                scale,
+                flag_sql
+            ),
+        )
+    }
+
+    fn handle_ledger_transfer(&self, request: &ToolCallRequest, is_hold: bool) -> ToolCallResponse {
+        let Some(from_acct) = request
+            .arguments
+            .get("debit_account_id")
+            .and_then(|v| v.as_str())
+        else {
+            return Self::missing(&request.id, "missing required parameter: debit_account_id");
+        };
+        let Some(to_acct) = request
+            .arguments
+            .get("credit_account_id")
+            .and_then(|v| v.as_str())
+        else {
+            return Self::missing(&request.id, "missing required parameter: credit_account_id");
+        };
+        let Some(amt) = request
+            .arguments
+            .get("amount_minor")
+            .and_then(|v| v.as_i64())
+        else {
+            return Self::missing(&request.id, "missing required parameter: amount_minor");
+        };
+        let Some(idem) = request
+            .arguments
+            .get("idempotency_key")
+            .and_then(|v| v.as_str())
+        else {
+            return Self::missing(&request.id, "missing required parameter: idempotency_key");
+        };
+        let verb = if is_hold { "HOLD" } else { "TRANSFER" };
+        let hid_clause = request
+            .arguments
+            .get("hold_id")
+            .and_then(|v| v.as_str())
+            .map(|h| format!(" HOLD_ID '{}'", h.replace('\'', "''")))
+            .unwrap_or_default();
+        self.query_sql(
+            &request.id,
+            format!(
+                "LEDGER {} {} FROM '{}' TO '{}' IDEMPOTENCY KEY '{}'{}",
+                verb,
+                amt,
+                from_acct.replace('\'', "''"),
+                to_acct.replace('\'', "''"),
+                idem.replace('\'', "''"),
+                hid_clause
+            ),
+        )
+    }
+
+    fn handle_ledger_resolve_hold(
+        &self,
+        request: &ToolCallRequest,
+        is_post: bool,
+    ) -> ToolCallResponse {
+        let Some(hold_id) = request.arguments.get("hold_id").and_then(|v| v.as_str()) else {
+            return Self::missing(&request.id, "missing required parameter: hold_id");
+        };
+        let Some(idem) = request
+            .arguments
+            .get("idempotency_key")
+            .and_then(|v| v.as_str())
+        else {
+            return Self::missing(&request.id, "missing required parameter: idempotency_key");
+        };
+        let verb = if is_post { "POST" } else { "VOID" };
+        let amt_clause = if is_post {
+            request
+                .arguments
+                .get("capture_amount_minor")
+                .and_then(|v| v.as_i64())
+                .map(|a| format!(" AMOUNT {a}"))
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
+        self.query_sql(
+            &request.id,
+            format!(
+                "LEDGER {} HOLD '{}'{} IDEMPOTENCY KEY '{}'",
+                verb,
+                hold_id.replace('\'', "''"),
+                amt_clause,
+                idem.replace('\'', "''")
+            ),
+        )
     }
 
     fn handle_tenant_create(&self, request: &ToolCallRequest) -> ToolCallResponse {

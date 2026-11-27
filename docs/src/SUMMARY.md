@@ -9,7 +9,7 @@
 - [Hello, JouleDB & .jsyn](./hello.md)
 - [Multi-Format Import & Reconciliation (`jouledb migrate`)](./migration.md)
 
-# Core Architecture (`v0.12.0` Preview)
+# Core Architecture (`v0.13.0` Preview)
 
 - [Amorphous Continuum, MorphRules & Visual Lenses](./amorphic.md)
 - [.jsyn Experimental Bitplanes & Fidelity Boundaries](./jsyn.md)
@@ -25,7 +25,7 @@
 # Guide, Reference & Benchmarks
 
 - [Guided Tour](./tutorial/index.md)
-- [API, Query & 50-Tool MCP Reference](./reference/index.md)
+- [API, Query & 58-Tool MCP Reference](./reference/index.md)
 - [Cookbook Recipes](./cookbook/index.md)
 - [Empirical Benchmarks: ClickBench, TPC-H, OLTP & WAN Raft](./benchmarks.md)
 

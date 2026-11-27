@@ -4753,6 +4753,7 @@ mod bulk_ingest_tests {
         for id in &gone {
             a.delete(*id).unwrap();
         }
+        a.catch_up_holograms(usize::MAX);
         assert_eq!(b.delete_batch(&gone), gone.len());
         assert_ne!(b.generation(), g, "delete must invalidate data caches");
         b.catch_up_holograms(usize::MAX);

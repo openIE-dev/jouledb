@@ -2387,6 +2387,85 @@ impl SqlParser {
             None
         };
 
+        // Optional PostgreSQL row-level locking clause:
+        // FOR UPDATE | FOR NO KEY UPDATE | FOR SHARE | FOR KEY SHARE
+        //   [OF table_name [, ...]] [NOWAIT | SKIP LOCKED]
+        if matches!(self.peek(), Token::Identifier(s) if s.eq_ignore_ascii_case("FOR"))
+            || format!("{:?}", self.peek()).eq_ignore_ascii_case("For")
+        {
+            let save_for = self.pos;
+            self.advance();
+            let lock_kw = match self.peek() {
+                Token::Update => {
+                    self.advance();
+                    true
+                }
+                Token::Identifier(w)
+                    if w.eq_ignore_ascii_case("UPDATE") || w.eq_ignore_ascii_case("SHARE") =>
+                {
+                    self.advance();
+                    true
+                }
+                Token::Identifier(w) if w.eq_ignore_ascii_case("KEY") => {
+                    self.advance();
+                    if matches!(self.peek(), Token::Identifier(s) if s.eq_ignore_ascii_case("SHARE"))
+                    {
+                        self.advance();
+                        true
+                    } else {
+                        false
+                    }
+                }
+                Token::Not => {
+                    // Token::Not isn't "NO", check Identifier("NO") below
+                    false
+                }
+                Token::Identifier(w) if w.eq_ignore_ascii_case("NO") => {
+                    self.advance();
+                    if matches!(self.peek(), Token::Identifier(k) if k.eq_ignore_ascii_case("KEY"))
+                    {
+                        self.advance();
+                        if matches!(self.peek(), Token::Update)
+                            || matches!(self.peek(), Token::Identifier(u) if u.eq_ignore_ascii_case("UPDATE"))
+                        {
+                            self.advance();
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            };
+            if lock_kw {
+                if matches!(self.peek(), Token::Identifier(o) if o.eq_ignore_ascii_case("OF")) {
+                    self.advance();
+                    loop {
+                        let _ = self.parse_identifier()?;
+                        if *self.peek() == Token::Comma {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                if matches!(self.peek(), Token::Identifier(n) if n.eq_ignore_ascii_case("NOWAIT")) {
+                    self.advance();
+                } else if matches!(self.peek(), Token::Identifier(sk) if sk.eq_ignore_ascii_case("SKIP"))
+                {
+                    self.advance();
+                    if matches!(self.peek(), Token::Identifier(lk) if lk.eq_ignore_ascii_case("LOCKED"))
+                    {
+                        self.advance();
+                    }
+                }
+            } else {
+                self.pos = save_for;
+            }
+        }
+
         // Parse UNION / UNION ALL / EXCEPT / EXCEPT ALL / INTERSECT / INTERSECT ALL
         let mut set_op = match self.peek() {
             Token::Union => {

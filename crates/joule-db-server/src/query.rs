@@ -466,6 +466,14 @@ pub struct SimpleQueryExecutor {
     /// GPU dispatcher for accelerating batch HDC operations (similarity, bind, bundle)
     /// when candidate counts exceed threshold. None = CPU-only path.
     gpu_dispatcher: Option<Arc<joule_db_hdc::gpu_dispatch::GpuDispatcher>>,
+    /// SQL-native double-entry financial ledger engine (`i128` minor units, SHA-256 chain)
+    financial_ledger: Arc<crate::financial_ledger::FinancialLedger>,
+    /// Session-isolated Copy-on-Write SQL branches & agent blast-radius guardrails
+    branch_sandboxes: Arc<crate::sql_branch_sandbox::SqlBranchSandboxManager>,
+    /// DBOS-style durable agentic workflow step checkpoint store
+    workflow_checkpoints: Arc<crate::sql_branch_sandbox::DurableWorkflowCheckpointStore>,
+    /// Row-level pessimistic lock manager (`SELECT ... FOR UPDATE [NOWAIT | SKIP LOCKED]`)
+    row_lock_manager: Arc<crate::sql_branch_sandbox::RowLockManager>,
 }
 
 impl SimpleQueryExecutor {
@@ -495,6 +503,12 @@ impl SimpleQueryExecutor {
             max_result_rows: 0,
             feature_stores: Arc::new(crate::features_bridge::FeatureStores::new()),
             gpu_dispatcher: None,
+            financial_ledger: Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory()),
+            branch_sandboxes: Arc::new(crate::sql_branch_sandbox::SqlBranchSandboxManager::new()),
+            workflow_checkpoints: Arc::new(
+                crate::sql_branch_sandbox::DurableWorkflowCheckpointStore::new_in_memory(),
+            ),
+            row_lock_manager: Arc::new(crate::sql_branch_sandbox::RowLockManager::new()),
         }
     }
 
@@ -517,7 +531,41 @@ impl SimpleQueryExecutor {
         if let Err(e) = exec.attach_timeseries_store(path.join(TIMESERIES_FILE)) {
             tracing::warn!("time series stay in memory only: {e}");
         }
+        exec.attach_durable_ledger_and_workflows(path);
         exec
+    }
+
+    /// Attach durable append-only WAL persistence for the financial ledger (`financial_ledger.jwal`)
+    /// and durable agentic workflow step checkpoints (`workflow_steps.jwal`).
+    pub fn attach_durable_ledger_and_workflows(&mut self, dir: impl AsRef<std::path::Path>) {
+        let p = dir.as_ref();
+        match crate::financial_ledger::FinancialLedger::open(p) {
+            Ok(ledger) => self.financial_ledger = Arc::new(ledger),
+            Err(e) => tracing::warn!("financial ledger stays in memory only: {e}"),
+        }
+        match crate::sql_branch_sandbox::DurableWorkflowCheckpointStore::open(p) {
+            Ok(wf) => self.workflow_checkpoints = Arc::new(wf),
+            Err(e) => tracing::warn!("workflow checkpoints stay in memory only: {e}"),
+        }
+    }
+
+    /// Shared handle to the SQL-native double-entry financial ledger.
+    pub fn financial_ledger_handle(&self) -> Arc<crate::financial_ledger::FinancialLedger> {
+        self.financial_ledger.clone()
+    }
+
+    /// Shared handle to the CoW SQL branch & guardrail manager.
+    pub fn branch_sandboxes_handle(
+        &self,
+    ) -> Arc<crate::sql_branch_sandbox::SqlBranchSandboxManager> {
+        self.branch_sandboxes.clone()
+    }
+
+    /// Shared handle to the durable workflow step checkpoint store.
+    pub fn workflow_checkpoints_handle(
+        &self,
+    ) -> Arc<crate::sql_branch_sandbox::DurableWorkflowCheckpointStore> {
+        self.workflow_checkpoints.clone()
     }
 
     /// Back the feature stores' time series with a durable B-tree file.
@@ -595,6 +643,12 @@ impl SimpleQueryExecutor {
             max_result_rows: 0,
             feature_stores: Arc::new(crate::features_bridge::FeatureStores::new()),
             gpu_dispatcher: None,
+            financial_ledger: Arc::new(crate::financial_ledger::FinancialLedger::new_in_memory()),
+            branch_sandboxes: Arc::new(crate::sql_branch_sandbox::SqlBranchSandboxManager::new()),
+            workflow_checkpoints: Arc::new(
+                crate::sql_branch_sandbox::DurableWorkflowCheckpointStore::new_in_memory(),
+            ),
+            row_lock_manager: Arc::new(crate::sql_branch_sandbox::RowLockManager::new()),
         }
     }
 
@@ -1097,12 +1151,121 @@ impl QueryExecutor for SimpleQueryExecutor {
 /// Check if a SQL string is a read-only query (eligible for energy routing).
 fn is_read_only_query(sql: &str) -> bool {
     let t = sql.trim_start();
-    t.get(..7).is_some_and(|p| p.eq_ignore_ascii_case("SELECT "))
+    (t.get(..7).is_some_and(|p| p.eq_ignore_ascii_case("SELECT "))
+        && parse_trailing_row_lock(t).is_none())
         || t.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("SHOW "))
         || t.get(..9)
             .is_some_and(|p| p.eq_ignore_ascii_case("DESCRIBE "))
         || t.get(..8)
             .is_some_and(|p| p.eq_ignore_ascii_case("EXPLAIN "))
+}
+
+/// Detect trailing `FOR UPDATE` / `FOR NO KEY UPDATE` / `FOR SHARE` / `FOR KEY SHARE`
+/// (`[OF tbl] [NOWAIT | SKIP LOCKED]`) on a `SELECT` statement and return
+/// `(table_name, exclusive, wait_policy)`.
+fn parse_trailing_row_lock(
+    sql: &str,
+) -> Option<(String, bool, crate::sql_branch_sandbox::RowLockWaitPolicy)> {
+    use crate::sql_branch_sandbox::RowLockWaitPolicy;
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let upper = trimmed.to_ascii_uppercase();
+    if !upper.starts_with("SELECT ") {
+        return None;
+    }
+    let (exclusive, tail) = if let Some(idx) = upper.rfind(" FOR NO KEY UPDATE") {
+        (true, &upper[idx + 18..])
+    } else if let Some(idx) = upper.rfind(" FOR UPDATE") {
+        (true, &upper[idx + 11..])
+    } else if let Some(idx) = upper.rfind(" FOR KEY SHARE") {
+        (false, &upper[idx + 14..])
+    } else if let Some(idx) = upper.rfind(" FOR SHARE") {
+        (false, &upper[idx + 10..])
+    } else {
+        return None;
+    };
+    if !tail.is_empty() && !tail.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let policy = if tail.contains("SKIP LOCKED") {
+        RowLockWaitPolicy::SkipLocked
+    } else if tail.contains("NOWAIT") {
+        RowLockWaitPolicy::NoWait
+    } else {
+        RowLockWaitPolicy::Wait
+    };
+    let table = extract_primary_from_table_name(trimmed).unwrap_or_else(|| "unknown".into());
+    Some((table, exclusive, policy))
+}
+
+fn extract_primary_from_table_name(sql: &str) -> Option<String> {
+    let toks: Vec<&str> = sql.split_whitespace().collect();
+    for (i, t) in toks.iter().enumerate() {
+        if t.eq_ignore_ascii_case("FROM") {
+            return toks
+                .get(i + 1)
+                .map(|s| s.trim_matches('"').trim_end_matches(';').to_string());
+        }
+    }
+    None
+}
+
+/// Evaluate exact 128-bit fixed-point `DECIMAL_*` SQL functions without IEEE-754 float conversion.
+fn eval_exact_decimal_function(
+    func_name: &str,
+    args: &[serde_json::Value],
+) -> Option<serde_json::Value> {
+    use crate::decimal128::Decimal128;
+    match func_name {
+        "DECIMAL_ADD" => {
+            let a = Decimal128::from_json_value(args.first()?)?;
+            let b = Decimal128::from_json_value(args.get(1)?)?;
+            Some(serde_json::Value::String(a.checked_add(b)?.format_fixed()))
+        }
+        "DECIMAL_SUB" => {
+            let a = Decimal128::from_json_value(args.first()?)?;
+            let b = Decimal128::from_json_value(args.get(1)?)?;
+            Some(serde_json::Value::String(a.checked_sub(b)?.format_fixed()))
+        }
+        "DECIMAL_MUL" => {
+            let a = Decimal128::from_json_value(args.first()?)?;
+            let b = Decimal128::from_json_value(args.get(1)?)?;
+            Some(serde_json::Value::String(a.checked_mul(b)?.format_fixed()))
+        }
+        "DECIMAL_DIV" => {
+            let a = Decimal128::from_json_value(args.first()?)?;
+            let b = Decimal128::from_json_value(args.get(1)?)?;
+            let scale = args
+                .get(2)
+                .and_then(|v| v.as_u64())
+                .map(|u| u as u8)
+                .unwrap_or(8);
+            Some(serde_json::Value::String(
+                a.checked_div_round_even(b, scale)?.format_fixed(),
+            ))
+        }
+        "DECIMAL_ROUND" => {
+            let a = Decimal128::from_json_value(args.first()?)?;
+            let scale = args
+                .get(1)
+                .and_then(|v| v.as_u64())
+                .map(|u| u as u8)
+                .unwrap_or(2);
+            Some(serde_json::Value::String(
+                a.rescale_half_up(scale)?.format_fixed(),
+            ))
+        }
+        "DECIMAL_CMP" => {
+            let a = Decimal128::from_json_value(args.first()?)?;
+            let b = Decimal128::from_json_value(args.get(1)?)?;
+            let c = match a.cmp(&b) {
+                std::cmp::Ordering::Less => -1i64,
+                std::cmp::Ordering::Equal => 0i64,
+                std::cmp::Ordering::Greater => 1i64,
+            };
+            Some(serde_json::Value::Number(c.into()))
+        }
+        _ => None,
+    }
 }
 
 /// Thread-local bounded SQL AST cache (`<= 512` statements per worker thread) so
@@ -1636,6 +1799,145 @@ impl SimpleQueryExecutor {
         // is a legacy API-level toggle that forces EXPLAIN mode for any statement.
         let (sql, explain) = (request.sql.clone(), request.explain);
 
+        // Session / connection guardrail & active branch resolution
+        let trimmed_upper = sql.trim().trim_end_matches(';').trim().to_ascii_uppercase();
+        if trimmed_upper.starts_with("SET JOULEDB.")
+            && let Some(sid) = request.session_id.as_deref()
+            && let Some((lhs, rhs)) = sql.trim().trim_end_matches(';').split_once('=')
+        {
+            let key = lhs
+                .split_whitespace()
+                .last()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            let val = rhs.trim().trim_matches('\'').trim_matches('"');
+            match key.as_str() {
+                "jouledb.branch" => {
+                    self.branch_sandboxes
+                        .set_session_branch(sid, Some(val.to_string()));
+                }
+                "jouledb.agent_guardrails" => {
+                    let strict = val.eq_ignore_ascii_case("strict")
+                        || val.eq_ignore_ascii_case("on")
+                        || val.eq_ignore_ascii_case("true");
+                    self.branch_sandboxes.update_session_guardrail(sid, |p| {
+                        p.strict = strict;
+                        if strict {
+                            p.allow_destructive_ddl = false;
+                            p.require_where_on_write = true;
+                        }
+                    });
+                }
+                "jouledb.allow_destructive_ddl" => {
+                    let allow = val.eq_ignore_ascii_case("true") || val.eq_ignore_ascii_case("on");
+                    self.branch_sandboxes.update_session_guardrail(sid, |p| {
+                        p.allow_destructive_ddl = allow;
+                    });
+                }
+                "jouledb.require_where_on_write" => {
+                    let req_w = val.eq_ignore_ascii_case("true") || val.eq_ignore_ascii_case("on");
+                    self.branch_sandboxes.update_session_guardrail(sid, |p| {
+                        p.require_where_on_write = req_w;
+                    });
+                }
+                "jouledb.max_joules_uj" => {
+                    let max_uj = val.replace('_', "").parse::<u64>().ok();
+                    self.branch_sandboxes.update_session_guardrail(sid, |p| {
+                        p.max_joules_uj = max_uj;
+                        p.spent_joules_uj = 0;
+                    });
+                }
+                _ => {}
+            }
+            return Ok(QueryResponse {
+                columns: vec!["status".into()],
+                rows: vec![vec![serde_json::json!("SET")]],
+                affected_rows: Some(0),
+                execution_time_ms: start.elapsed().as_millis() as u64,
+                truncated: false,
+                warnings: Vec::new(),
+                energy_joules: None,
+                power_watts: None,
+                device_target: None,
+                algorithm_type: None,
+                session_id: request.session_id.clone(),
+                viz_hint: None,
+                energy_receipt: None,
+            });
+        }
+
+        // Native Double-Entry Financial Ledger SQL (`LEDGER CREATE ACCOUNT | TRANSFER | HOLD | POST HOLD | VOID HOLD | VERIFY`)
+        if crate::financial_ledger::is_ledger_sql(&sql) {
+            let effective_sql = if request.args.is_empty() {
+                sql
+            } else {
+                substitute_sql_args_fallback(&sql, &request.args)
+            };
+            return crate::financial_ledger::execute_ledger_sql(
+                &self.financial_ledger,
+                &effective_sql,
+                start,
+            );
+        }
+
+        // Native CoW SQL Branching (`CREATE/USE/SHOW/DIFF/MERGE/DROP BRANCH`) & Durable Workflows (`WORKFLOW CHECKPOINT/RESUME`)
+        if crate::sql_branch_sandbox::is_branch_or_workflow_sql(&sql) {
+            let effective_sql = if request.args.is_empty() {
+                sql
+            } else {
+                substitute_sql_args_fallback(&sql, &request.args)
+            };
+            return crate::sql_branch_sandbox::execute_branch_or_workflow_sql(
+                self,
+                &self.branch_sandboxes,
+                &self.workflow_checkpoints,
+                &effective_sql,
+                request.session_id.as_deref(),
+                start,
+            );
+        }
+
+        let resolved_branch = request
+            .branch_id
+            .clone()
+            .or_else(|| {
+                request
+                    .session_id
+                    .as_deref()
+                    .and_then(|sid| self.branch_sandboxes.get_session_branch(sid))
+            })
+            .filter(|b| !b.eq_ignore_ascii_case("main") && !b.is_empty());
+
+        // Enforce agent session & branch blast-radius guardrails and energy budgets BEFORE execution
+        self.branch_sandboxes.check_session_guardrails(
+            request.session_id.as_deref(),
+            resolved_branch.as_deref(),
+            &sql,
+        )?;
+
+        // Route query to isolated Copy-on-Write branch sandbox when active
+        if let Some(ref bname) = resolved_branch {
+            let branch_exec = self
+                .branch_sandboxes
+                .get_branch_executor(bname)
+                .ok_or_else(|| {
+                    QueryErrorResponse::execution_error(&format!("branch '{bname}' not found"))
+                })?;
+            let mut sub_req = request.clone();
+            sub_req.branch_id = None;
+            let res = branch_exec.execute(&sub_req);
+            if let Ok(ref ok_resp) = res {
+                self.branch_sandboxes.record_energy_uj(
+                    request.session_id.as_deref(),
+                    Some(bname.as_str()),
+                    ok_resp.energy_joules,
+                );
+            }
+            return res;
+        }
+
+        let parsed_row_lock = parse_trailing_row_lock(&sql);
+
         // Detect query language and dispatch accordingly
         if crate::cypher_executor::is_cypher_query(&sql) {
             let cypher_sql = {
@@ -1820,7 +2122,7 @@ impl SimpleQueryExecutor {
                     }
                 }
                 crate::energy_executor::begin_stage(joule_db_ledger::ExecutionStage::Execute);
-                let result = self.execute_statement(
+                let mut result = self.execute_statement(
                     effective_stmt,
                     &request.args,
                     request.limit,
@@ -1829,6 +2131,39 @@ impl SimpleQueryExecutor {
                     request.query_timeout_ms,
                 );
                 crate::energy_executor::end_stage();
+                if let (Some((lock_table, exclusive, wait_policy)), Ok(resp)) =
+                    (parsed_row_lock, &mut result)
+                {
+                    let pk_pos = resp
+                        .columns
+                        .iter()
+                        .position(|c| c.eq_ignore_ascii_case("id"))
+                        .unwrap_or(0);
+                    let mut kept_rows = Vec::with_capacity(resp.rows.len());
+                    for r in resp.rows.drain(..) {
+                        let key_str = r
+                            .get(pk_pos)
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| serde_json::to_string(&r).unwrap_or_default());
+                        if self.row_lock_manager.acquire_row(
+                            request.session_id.as_deref(),
+                            &lock_table,
+                            &key_str,
+                            exclusive,
+                            wait_policy,
+                        )? {
+                            kept_rows.push(r);
+                        }
+                    }
+                    resp.rows = kept_rows;
+                }
+                if let Ok(ref ok_resp) = result {
+                    self.branch_sandboxes.record_energy_uj(
+                        request.session_id.as_deref(),
+                        None,
+                        ok_resp.energy_joules,
+                    );
+                }
                 result
             }
             Err(e) => Err(QueryErrorResponse::syntax_error(&e.to_string(), 1, 1)),
@@ -2775,38 +3110,43 @@ impl SimpleQueryExecutor {
                     "typtype".into(),
                     "typrelid".into(),
                     "typbasetype".into(),
+                    "typarray".into(),
+                    "typelem".into(),
+                    "typdelim".into(),
+                    "typisdefined".into(),
+                    "typcategory".into(),
                 ];
-                // Standard PostgreSQL type OIDs
-                let types: &[(i64, &str, i16, &str)] = &[
-                    (16, "bool", 1, "b"),
-                    (17, "bytea", -1, "b"),
-                    (18, "char", 1, "b"),
-                    (20, "int8", 8, "b"),
-                    (21, "int2", 2, "b"),
-                    (23, "int4", 4, "b"),
-                    (25, "text", -1, "b"),
-                    (26, "oid", 4, "b"),
-                    (114, "json", -1, "b"),
-                    (142, "xml", -1, "b"),
-                    (700, "float4", 4, "b"),
-                    (701, "float8", 8, "b"),
-                    (1042, "bpchar", -1, "b"),
-                    (1043, "varchar", -1, "b"),
-                    (1082, "date", 4, "b"),
-                    (1083, "time", 8, "b"),
-                    (1114, "timestamp", 8, "b"),
-                    (1184, "timestamptz", 8, "b"),
-                    (1700, "numeric", -1, "b"),
-                    (2950, "uuid", 16, "b"),
-                    (3802, "jsonb", -1, "b"),
-                    (16385, "vector", -1, "b"),
-                    (2249, "record", -1, "p"),
-                    (2278, "void", 4, "p"),
-                    (2276, "any", 4, "p"),
+                // Standard PostgreSQL type OIDs + array OIDs
+                let types: &[(i64, &str, i16, &str, i64, &str)] = &[
+                    (16, "bool", 1, "b", 1000, "B"),
+                    (17, "bytea", -1, "b", 1001, "U"),
+                    (18, "char", 1, "b", 1002, "Z"),
+                    (20, "int8", 8, "b", 1016, "N"),
+                    (21, "int2", 2, "b", 1005, "N"),
+                    (23, "int4", 4, "b", 1007, "N"),
+                    (25, "text", -1, "b", 1009, "S"),
+                    (26, "oid", 4, "b", 1028, "N"),
+                    (114, "json", -1, "b", 199, "U"),
+                    (142, "xml", -1, "b", 143, "U"),
+                    (700, "float4", 4, "b", 1021, "N"),
+                    (701, "float8", 8, "b", 1022, "N"),
+                    (1042, "bpchar", -1, "b", 1014, "S"),
+                    (1043, "varchar", -1, "b", 1015, "S"),
+                    (1082, "date", 4, "b", 1182, "D"),
+                    (1083, "time", 8, "b", 1183, "D"),
+                    (1114, "timestamp", 8, "b", 1115, "D"),
+                    (1184, "timestamptz", 8, "b", 1185, "D"),
+                    (1700, "numeric", -1, "b", 1231, "N"),
+                    (2950, "uuid", 16, "b", 2951, "U"),
+                    (3802, "jsonb", -1, "b", 3807, "U"),
+                    (16385, "vector", -1, "b", 0, "U"),
+                    (2249, "record", -1, "p", 2287, "P"),
+                    (2278, "void", 4, "p", 0, "P"),
+                    (2276, "any", 4, "p", 0, "P"),
                 ];
                 let rows: Vec<Vec<serde_json::Value>> = types
                     .iter()
-                    .map(|(oid, name, len, kind)| {
+                    .map(|(oid, name, len, kind, arr_oid, cat)| {
                         vec![
                             serde_json::json!(oid),
                             serde_json::json!(name),
@@ -2815,10 +3155,23 @@ impl SimpleQueryExecutor {
                             serde_json::json!(kind),
                             serde_json::json!(0i64),
                             serde_json::json!(0i64),
+                            serde_json::json!(arr_oid),
+                            serde_json::json!(0i64),
+                            serde_json::json!(","),
+                            serde_json::json!(true),
+                            serde_json::json!(cat),
                         ]
                     })
                     .collect();
                 Ok(Some((columns, rows)))
+            }
+            "pg_range" => {
+                let columns = vec![
+                    "rngtypid".into(),
+                    "rngsubtype".into(),
+                    "rngmultitypid".into(),
+                ];
+                Ok(Some((columns, Vec::new())))
             }
             "pg_namespace" => {
                 let columns = vec!["oid".into(), "nspname".into(), "nspowner".into()];
@@ -2940,7 +3293,18 @@ impl SimpleQueryExecutor {
                 ];
                 Ok(Some((columns, rows)))
             }
-            _ => Ok(None),
+            "jouledb_branches" | "public.jouledb_branches" => {
+                Ok(Some(self.branch_sandboxes.list_branches_rows()))
+            }
+            "jouledb_workflow_steps" | "public.jouledb_workflow_steps" => {
+                Ok(Some(self.workflow_checkpoints.all_steps_virtual_table()))
+            }
+            other => {
+                if let Some(ledger_tbl) = self.financial_ledger.try_virtual_table(other) {
+                    return Ok(Some(ledger_tbl));
+                }
+                Ok(None)
+            }
         }
     }
 
@@ -5592,9 +5956,12 @@ impl SimpleQueryExecutor {
                         energy_receipt: None,
                     });
                 };
-                self.mvcc
+                let commit_res = self
+                    .mvcc
                     .commit_transaction(sid)
-                    .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+                    .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()));
+                self.row_lock_manager.release_session(sid);
+                commit_res?;
                 Ok(QueryResponse {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -5631,9 +5998,12 @@ impl SimpleQueryExecutor {
                         energy_receipt: None,
                     });
                 };
-                self.mvcc
+                let rb_res = self
+                    .mvcc
                     .rollback_transaction(sid)
-                    .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
+                    .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()));
+                self.row_lock_manager.release_session(sid);
+                rb_res?;
                 Ok(QueryResponse {
                     columns: Vec::new(),
                     rows: Vec::new(),
@@ -7500,6 +7870,17 @@ impl SimpleQueryExecutor {
         if self.amorphic.has_computed_columns(table) {
             return None;
         }
+        // Tables with exact DECIMAL / NUMERIC columns bypass the `f64` `.jcol` / `col_cache`
+        // paths so `SUM`, `+`, `-`, `*`, and `=` execute via exact 128-bit fixed-point
+        // `Decimal128` without IEEE-754 penny drift (even after bulk segmented inserts).
+        if let Ok(defs) = self.amorphic.get_column_defs(table)
+            && defs.iter().any(|d| {
+                let u = d.data_type.to_ascii_uppercase();
+                u.starts_with("NUMERIC") || u.starts_with("DECIMAL")
+            })
+        {
+            return None;
+        }
         let t0 = Instant::now();
         if let Some(dt) = self.amorphic.disk_column_table(table) {
             let t1 = Instant::now();
@@ -8138,6 +8519,10 @@ impl SimpleQueryExecutor {
                     .or_else(|| cte_tables.get(join_table))
                 {
                     (cols.clone(), cte_rows.clone())
+                } else if let Some(is_result) = self.try_information_schema(join_table)? {
+                    is_result
+                } else if let Some(pg_result) = self.try_pg_catalog(join_table)? {
+                    pg_result
                 } else if let Some(view_result) =
                     self.try_expand_view(join_table, params, start, session_id, None)?
                 {
@@ -12772,6 +13157,8 @@ fn evaluate_aggregate(
                     let is_distinct = func_name == "SUM_DISTINCT";
                     let mut sum_i64 = 0i64;
                     let mut sum_f64 = 0.0f64;
+                    let mut dec_acc = crate::decimal128::Decimal128Accumulator::new();
+                    let mut dec_ok = true;
                     let mut has_value = false;
                     let mut all_int = true;
                     for row in rows {
@@ -12789,15 +13176,48 @@ fn evaluate_aggregate(
                             if let Some(i) = n.as_i64() {
                                 sum_i64 = sum_i64.wrapping_add(i);
                                 sum_f64 += i as f64;
+                                if dec_ok
+                                    && !dec_acc.push(crate::decimal128::Decimal128::from_i64(i))
+                                {
+                                    dec_ok = false;
+                                }
                             } else if let Some(f) = n.as_f64() {
                                 if f.fract() == 0.0 && f >= i64::MIN as f64 && f <= i64::MAX as f64
                                 {
                                     sum_i64 = sum_i64.wrapping_add(f as i64);
                                     sum_f64 += f;
+                                    if dec_ok
+                                        && !dec_acc
+                                            .push(crate::decimal128::Decimal128::from_i64(f as i64))
+                                    {
+                                        dec_ok = false;
+                                    }
                                 } else {
                                     all_int = false;
                                     sum_f64 += f;
+                                    if dec_ok {
+                                        if let Some(d) =
+                                            crate::decimal128::Decimal128::from_json_number(n)
+                                        {
+                                            if !dec_acc.push(d) {
+                                                dec_ok = false;
+                                            }
+                                        } else {
+                                            dec_ok = false;
+                                        }
+                                    }
                                 }
+                            }
+                            has_value = true;
+                        } else if let Some(s) = val.as_str()
+                            && let Some(d) = crate::decimal128::Decimal128::parse_str(s)
+                        {
+                            all_int = false;
+                            if let Ok(f) = s.trim().parse::<f64>() {
+                                sum_f64 += f;
+                            }
+                            if dec_ok && !dec_acc.push(d) {
+                                dec_ok = false;
                             }
                             has_value = true;
                         }
@@ -12806,6 +13226,8 @@ fn evaluate_aggregate(
                         serde_json::Value::Null
                     } else if all_int {
                         serde_json::Value::Number(sum_i64.into())
+                    } else if dec_ok && let Some(exact_sum) = dec_acc.sum() {
+                        exact_sum.to_json_number_or_exact()
                     } else {
                         serde_json::Number::from_f64(sum_f64)
                             .map(serde_json::Value::Number)
@@ -13926,6 +14348,9 @@ fn evaluate_expression_with_context(expr: &Expression, ctx: &EvalContext) -> ser
                 .iter()
                 .map(|a| evaluate_expression_with_context(a, ctx))
                 .collect();
+            if let Some(exact_dec) = eval_exact_decimal_function(&func_name, &json_args) {
+                return exact_dec;
+            }
             let ast_args: Vec<joule_db_query::ast::Value> =
                 json_args.iter().map(json_to_ast_value).collect();
             let scanner = |table: &str| -> joule_db_query::QueryResult<(
@@ -14250,7 +14675,51 @@ fn iso_date_vs_epoch_cmp(a: &serde_json::Value, b: &serde_json::Value) -> Option
 }
 
 fn cast_json_value(val: &serde_json::Value, target_type: &str) -> serde_json::Value {
-    match target_type {
+    let target_upper = target_type.trim().to_ascii_uppercase();
+    if target_upper.starts_with("NUMERIC") || target_upper.starts_with("DECIMAL") {
+        let explicit_scale: Option<u8> = target_upper
+            .split_once('(')
+            .and_then(|(_, inner)| inner.strip_suffix(')'))
+            .and_then(|spec| {
+                if let Some((_, sc)) = spec.split_once(',') {
+                    sc.trim().parse::<u8>().ok()
+                } else {
+                    Some(0)
+                }
+            });
+        match val {
+            serde_json::Value::Null => return serde_json::Value::Null,
+            serde_json::Value::Bool(b) => {
+                let d = crate::decimal128::Decimal128::from_i64(i64::from(*b));
+                let out = explicit_scale
+                    .and_then(|s| d.rescale_half_up(s))
+                    .unwrap_or(d);
+                return out.to_json_number_or_exact();
+            }
+            serde_json::Value::Number(n) => {
+                if let Some(d) = crate::decimal128::Decimal128::from_json_number(n) {
+                    let out = explicit_scale
+                        .and_then(|s| d.rescale_half_up(s))
+                        .unwrap_or(d);
+                    return out.to_json_number_or_exact();
+                }
+            }
+            serde_json::Value::String(s) => {
+                let trimmed = s.trim();
+                if trimmed.is_empty() {
+                    return serde_json::Value::Null;
+                }
+                if let Some(d) = crate::decimal128::Decimal128::parse_str(trimmed) {
+                    let out = explicit_scale
+                        .and_then(|sc| d.rescale_half_up(sc))
+                        .unwrap_or(d);
+                    return out.to_json_number_or_exact();
+                }
+            }
+            _ => {}
+        }
+    }
+    match target_upper.as_str() {
         "INT" | "INTEGER" | "BIGINT" | "SMALLINT" | "INT2" | "INT4" | "INT8" | "SERIAL" => {
             match val {
                 serde_json::Value::Number(n) => {

@@ -682,6 +682,10 @@ where
                 };
                 if let Some(stmt) = conn_state.prepared_statements.get(&lookup_name) {
                     let sql = stmt.sql.clone();
+                    let stmt_oids = conn_state
+                        .select_cols
+                        .get(&lookup_name)
+                        .and_then(|opt| opt.as_ref().map(|v| v.iter().map(|(_, o)| *o).collect()));
                     conn_state.portals.insert(
                         portal_name,
                         Portal {
@@ -690,6 +694,7 @@ where
                             params,
                             result_formats,
                             described: None,
+                            described_oids: stmt_oids,
                         },
                     );
                     write_message(&mut writer, b'2', &[]).await?; // BindComplete
@@ -797,11 +802,15 @@ where
                                         &formats,
                                     )
                                     .await?;
+                                    if let Some(p) = conn_state.portals.get_mut(&name) {
+                                        p.described_oids = Some(coids);
+                                    }
                                 } else {
                                     let timeout = (config.query_timeout_ms > 0)
                                         .then_some(config.query_timeout_ms);
                                     let res =
                                         run_statement(&sql, &executor, &mut conn_state, timeout);
+                                    let mut dyn_oids = None;
                                     match &res {
                                         Ok(r) => {
                                             let oids =
@@ -813,11 +822,15 @@ where
                                                 &formats,
                                             )
                                             .await?;
+                                            dyn_oids = Some(oids);
                                         }
                                         Err(_) => write_message(&mut writer, b'n', &[]).await?,
                                     }
                                     if let Some(p) = conn_state.portals.get_mut(&name) {
                                         p.described = Some(res);
+                                        if dyn_oids.is_some() {
+                                            p.described_oids = dyn_oids;
+                                        }
                                     }
                                 }
                             }
@@ -847,6 +860,7 @@ where
                     let portal_params = portal.params.clone();
                     let formats = portal.result_formats.clone();
                     let cached = portal.described.take();
+                    let portal_oids = portal.described_oids.clone();
                     let timeout = if config.query_timeout_ms > 0 {
                         Some(config.query_timeout_ms)
                     } else {
@@ -896,6 +910,7 @@ where
                         &mut conn_state,
                         false,
                         &formats,
+                        portal_oids.as_deref(),
                     )
                     .await?;
                 } else {
@@ -1501,12 +1516,15 @@ fn run_statement_inner(
     query_timeout_ms: Option<u64>,
 ) -> Result<QueryResponse, QueryErrorResponse> {
     if args.is_empty()
-        && let Some(r) = show_setting(sql).or_else(|| type_info_lookup(sql))
+        && let Some(r) = show_setting(sql)
     {
         return Ok(r);
     }
+    if let Some(r) = type_info_lookup(sql) {
+        return Ok(r);
+    }
     {
-        // Session commands drivers issue that the SQL engine has no use for.
+        // Session commands drivers issue or JouleDB session branch/guardrail GUCs.
         let t = sql.trim().trim_end_matches(';').trim();
         let u = t.to_ascii_uppercase();
         let mut w = u.split_whitespace();
@@ -1527,6 +1545,7 @@ fn run_statement_inner(
                 conn_state.param_oids.clear();
                 conn_state.select_cols.clear();
                 conn_state.describe_cache.clear();
+                conn_state.active_branch = None;
             } else {
                 conn_state.prepared_statements.remove(&name);
                 conn_state.param_oids.remove(&name);
@@ -1535,25 +1554,80 @@ fn run_statement_inner(
             return Ok(empty_response());
         }
         if first == "SET" || first == "RESET" {
-            // Session GUCs (extra_float_digits, application_name, DateStyle,
-            // TimeZone, ...) are accepted and have no effect on results.
-            return Ok(empty_response());
+            if u.contains("JOULEDB.") {
+                // Forward `SET jouledb.*` / `RESET jouledb.*` to the executor for branch & guardrail enforcement
+                if first == "RESET" && u.contains("JOULEDB.BRANCH") {
+                    conn_state.active_branch = None;
+                    return Ok(empty_response());
+                }
+                if first == "SET" && u.contains("JOULEDB.BRANCH")
+                    && let Some((_, rhs)) = t.split_once('=')
+                {
+                    let bname = rhs.trim().trim_matches('\'').trim_matches('"').to_string();
+                    conn_state.active_branch = if bname.eq_ignore_ascii_case("main") || bname.is_empty() {
+                        None
+                    } else {
+                        Some(bname)
+                    };
+                    return Ok(empty_response());
+                }
+            } else {
+                // Standard PostgreSQL session GUCs (extra_float_digits, application_name, DateStyle,
+                // TimeZone, ...) are accepted and have no effect on results.
+                return Ok(empty_response());
+            }
         }
     }
     // RBAC: check write permission before executing
     crate::query::check_write_permission(&conn_state.user_id, &conn_state.roles, sql)?;
+    let effective_session = conn_state
+        .session_id
+        .clone()
+        .or_else(|| Some(conn_state.conn_guard_key.clone()).filter(|_| {
+            sql.trim_start().get(..11).is_some_and(|p| p.eq_ignore_ascii_case("SET JOULEDB"))
+                || conn_state.has_custom_guardrails
+        }));
     let request = QueryRequest {
         sql: strip_pg_catalog(sql),
         params: HashMap::new(),
         args: args.to_vec(),
         explain: false,
         limit: None,
-        session_id: conn_state.session_id.clone(),
+        session_id: conn_state.session_id.clone().or_else(|| {
+            if conn_state.has_custom_guardrails
+                || sql
+                    .trim_start()
+                    .to_ascii_uppercase()
+                    .contains("JOULEDB.")
+            {
+                effective_session
+            } else {
+                None
+            }
+        }),
         query_timeout_ms,
-        branch_id: None,
+        branch_id: conn_state.active_branch.clone(),
         tenant_id: None,
     };
+    if sql
+        .trim_start()
+        .to_ascii_uppercase()
+        .starts_with("SET JOULEDB.")
+    {
+        conn_state.has_custom_guardrails = true;
+    }
     let result = executor.execute(&request);
+    if let Ok(ref resp) = result
+        && resp.columns.len() == 1
+        && resp.columns[0] == "active_branch"
+        && let Some(serde_json::Value::String(bname)) = resp.rows.first().and_then(|r| r.first())
+    {
+        conn_state.active_branch = if bname.eq_ignore_ascii_case("main") {
+            None
+        } else {
+            Some(bname.clone())
+        };
+    }
     if is_tx_end(sql) {
         // COMMIT/ROLLBACK end the session whether or not they succeeded.
         conn_state.session_id = None;
@@ -1577,10 +1651,14 @@ async fn write_statement_result<W: AsyncWriteExt + Unpin>(
     conn_state: &mut ConnectionState,
     describe: bool,
     formats: &[i16],
+    override_oids: Option<&[i32]>,
 ) -> Result<(), PgWireError> {
     match result {
         Ok(response) => {
-            let oids = column_oids(&response.rows, response.columns.len(), formats);
+            let oids = match override_oids {
+                Some(ov) if ov.len() == response.columns.len() => ov.to_vec(),
+                _ => column_oids(&response.rows, response.columns.len(), formats),
+            };
             if describe && (!response.columns.is_empty() || returns_rows(sql)) {
                 write_row_description_fmt(writer, &response.columns, &oids, formats).await?;
             }
@@ -1618,7 +1696,7 @@ async fn execute_and_write<W: AsyncWriteExt + Unpin>(
 ) -> Result<(), PgWireError> {
     stats.queries_executed.fetch_add(1, Ordering::Relaxed);
     let res = run_statement(sql, executor, conn_state, query_timeout_ms);
-    write_statement_result(sql, res, writer, stats, conn_state, true, &[]).await
+    write_statement_result(sql, res, writer, stats, conn_state, true, &[], None).await
 }
 
 /// `SHOW <setting>` for the session settings drivers read on connect
@@ -1669,7 +1747,7 @@ fn show_setting(sql: &str) -> Option<QueryResponse> {
 /// types, so it answers with zero rows, which psycopg reads as "not installed".
 fn type_info_lookup(sql: &str) -> Option<QueryResponse> {
     let l = sql.to_ascii_lowercase();
-    if !(l.contains("from pg_type t") && l.contains("::regtype")) {
+    if !(l.contains("from pg_type") && (l.contains("::regtype") || l.contains("to_regtype") || l.contains("pg_range"))) {
         return None;
     }
     Some(QueryResponse {
@@ -3275,6 +3353,12 @@ struct ConnectionState {
     select_cols: HashMap<String, Option<Vec<(String, i32)>>>,
     /// Per-SQL cached `describe_query` output across repeated `Parse` of unnamed statements
     describe_cache: HashMap<String, (Vec<i32>, Option<Vec<(String, i32)>>)>,
+    /// Active Copy-on-Write SQL branch selected via `USE BRANCH` or `SET jouledb.branch`
+    active_branch: Option<String>,
+    /// Connection-scoped guardrail key for `SET jouledb.*` agent safety policies
+    conn_guard_key: String,
+    /// True once any `SET jouledb.*` guardrail statement has been issued on this connection
+    has_custom_guardrails: bool,
 }
 
 /// A prepared statement parsed from a Parse message
@@ -3294,6 +3378,8 @@ struct Portal {
     result_formats: Vec<i16>,
     /// Result computed by Describe so Execute does not run it twice
     described: Option<Result<QueryResponse, QueryErrorResponse>>,
+    /// Column OIDs sent in RowDescription so binary DataRow encoding matches byte-for-byte
+    described_oids: Option<Vec<i32>>,
 }
 
 /// Substitute `$1`, `$2`, ... placeholders with bound parameter values.
@@ -3440,6 +3526,9 @@ impl ConnectionState {
             param_oids: HashMap::new(),
             select_cols: HashMap::new(),
             describe_cache: HashMap::new(),
+            active_branch: None,
+            conn_guard_key: format!("pgconn-{}", uuid::Uuid::new_v4()),
+            has_custom_guardrails: false,
             user_id: "anonymous".to_string(),
             roles: vec!["superuser".to_string()],
         }
@@ -3455,6 +3544,9 @@ impl ConnectionState {
             param_oids: HashMap::new(),
             select_cols: HashMap::new(),
             describe_cache: HashMap::new(),
+            active_branch: None,
+            conn_guard_key: format!("pgconn-{}", uuid::Uuid::new_v4()),
+            has_custom_guardrails: false,
             user_id,
             // When auth is enabled, default to readonly; when disabled, grant superuser
             roles: if auth_enabled {
@@ -3868,6 +3960,7 @@ mod tests {
                 params: vec![serde_json::json!("42")],
                 result_formats: Vec::new(),
                 described: None,
+                described_oids: None,
             },
         );
 

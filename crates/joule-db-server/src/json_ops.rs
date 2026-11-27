@@ -3,6 +3,7 @@
 //! Extracted from `query.rs` to reduce the 102K-line monolith.
 //! These are pure functions with no dependency on `SimpleQueryExecutor`.
 
+use crate::decimal128::{Decimal128, Decimal128Accumulator};
 use joule_db_query::ast::{Expression, OrderBy, Value as AstValue};
 
 // ── Equality ─────────────────────────────────────────────────────────────────
@@ -29,12 +30,38 @@ fn json_equals_inner(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     match (a, b) {
         (serde_json::Value::Null, serde_json::Value::Null) => true,
         (serde_json::Value::Bool(a), serde_json::Value::Bool(b)) => a == b,
-        (serde_json::Value::Number(a), serde_json::Value::Number(b)) => a.as_f64() == b.as_f64(),
-        (serde_json::Value::String(a), serde_json::Value::String(b)) => a == b,
-        // Implicit type coercion: Number vs String
+        (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_number(a),
+                Decimal128::from_json_number(b),
+            ) {
+                da == db
+            } else {
+                a.as_f64() == b.as_f64()
+            }
+        }
+        (serde_json::Value::String(a), serde_json::Value::String(b)) => {
+            if a == b {
+                true
+            } else if let (Some(da), Some(db)) =
+                (Decimal128::parse_str(a), Decimal128::parse_str(b))
+            {
+                // Preserve exact literal inequality for distinct strings unless same text:
+                // string equality remains exact text match (`"01" != "1"`).
+                let _ = (da, db);
+                false
+            } else {
+                false
+            }
+        }
+        // Implicit type coercion: Number vs String (exact 128-bit decimal first!)
         (serde_json::Value::Number(n), serde_json::Value::String(s))
         | (serde_json::Value::String(s), serde_json::Value::Number(n)) => {
-            if let Ok(parsed) = s.parse::<f64>() {
+            if let (Some(dn), Some(ds)) =
+                (Decimal128::from_json_number(n), Decimal128::parse_str(s))
+            {
+                dn == ds
+            } else if let Ok(parsed) = s.parse::<f64>() {
                 n.as_f64() == Some(parsed)
             } else {
                 false
@@ -92,12 +119,23 @@ pub fn json_compare(a: &serde_json::Value, b: &serde_json::Value) -> i32 {
     let result = match (a, b) {
         (serde_json::Value::Null, serde_json::Value::Null) => 0,
         (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
-            let af = a.as_f64().unwrap_or(f64::NAN);
-            let bf = b.as_f64().unwrap_or(f64::NAN);
-            match af.total_cmp(&bf) {
-                std::cmp::Ordering::Less => -1,
-                std::cmp::Ordering::Greater => 1,
-                std::cmp::Ordering::Equal => 0,
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_number(a),
+                Decimal128::from_json_number(b),
+            ) {
+                match da.cmp(&db) {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Greater => 1,
+                    std::cmp::Ordering::Equal => 0,
+                }
+            } else {
+                let af = a.as_f64().unwrap_or(f64::NAN);
+                let bf = b.as_f64().unwrap_or(f64::NAN);
+                match af.total_cmp(&bf) {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Greater => 1,
+                    std::cmp::Ordering::Equal => 0,
+                }
             }
         }
         (serde_json::Value::String(a), serde_json::Value::String(b)) => a.cmp(b) as i32,
@@ -189,35 +227,44 @@ pub fn normalize_int(val: serde_json::Value) -> serde_json::Value {
 
 // ── Arithmetic ───────────────────────────────────────────────────────────────
 
-/// Add two JSON values (numeric addition or string concatenation).
+/// Add two JSON values (exact 128-bit decimal addition, float fallback, or string concatenation).
 pub fn json_add(a: &serde_json::Value, b: &serde_json::Value) -> serde_json::Value {
     match (a, b) {
         (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
-            if let (Some(ai), Some(bi)) = (a.as_i64(), b.as_i64()) {
-                if let Some(result) = ai.checked_add(bi) {
-                    serde_json::Value::Number(result.into())
-                } else {
-                    serde_json::Number::from_f64(ai as f64 + bi as f64)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or(serde_json::Value::Null)
-                }
-            } else {
-                let af = a.as_f64().unwrap_or(0.0);
-                let bf = b.as_f64().unwrap_or(0.0);
-                serde_json::Number::from_f64(af + bf)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
+            if let (Some(ai), Some(bi)) = (a.as_i64(), b.as_i64())
+                && let Some(result) = ai.checked_add(bi)
+            {
+                return serde_json::Value::Number(result.into());
             }
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_number(a),
+                Decimal128::from_json_number(b),
+            ) && let Some(sum) = da.checked_add(db)
+            {
+                return sum.to_json_number_or_exact();
+            }
+            let af = a.as_f64().unwrap_or(0.0);
+            let bf = b.as_f64().unwrap_or(0.0);
+            serde_json::Number::from_f64(af + bf)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null)
         }
         (serde_json::Value::String(a), serde_json::Value::String(b)) => {
             serde_json::Value::String(format!("{}{}", a, b))
         }
         _ => {
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_value(a),
+                Decimal128::from_json_value(b),
+            ) && let Some(sum) = da.checked_add(db)
+            {
+                return sum.to_json_number_or_exact();
+            }
             if let (Some(af), Some(bf)) = (try_coerce_to_f64(a), try_coerce_to_f64(b)) {
-                if let (Some(ai), Some(bi)) = (try_coerce_to_i64(a), try_coerce_to_i64(b)) {
-                    if let Some(result) = ai.checked_add(bi) {
-                        return serde_json::Value::Number(result.into());
-                    }
+                if let (Some(ai), Some(bi)) = (try_coerce_to_i64(a), try_coerce_to_i64(b))
+                    && let Some(result) = ai.checked_add(bi)
+                {
+                    return serde_json::Value::Number(result.into());
                 }
                 serde_json::Number::from_f64(af + bf)
                     .map(serde_json::Value::Number)
@@ -229,32 +276,41 @@ pub fn json_add(a: &serde_json::Value, b: &serde_json::Value) -> serde_json::Val
     }
 }
 
-/// Subtract two JSON values.
+/// Subtract two JSON values (exact 128-bit decimal subtraction with float fallback).
 pub fn json_sub(a: &serde_json::Value, b: &serde_json::Value) -> serde_json::Value {
     match (a, b) {
         (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
-            if let (Some(ai), Some(bi)) = (a.as_i64(), b.as_i64()) {
-                if let Some(result) = ai.checked_sub(bi) {
-                    serde_json::Value::Number(result.into())
-                } else {
-                    serde_json::Number::from_f64(ai as f64 - bi as f64)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or(serde_json::Value::Null)
-                }
-            } else {
-                let af = a.as_f64().unwrap_or(0.0);
-                let bf = b.as_f64().unwrap_or(0.0);
-                serde_json::Number::from_f64(af - bf)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
+            if let (Some(ai), Some(bi)) = (a.as_i64(), b.as_i64())
+                && let Some(result) = ai.checked_sub(bi)
+            {
+                return serde_json::Value::Number(result.into());
             }
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_number(a),
+                Decimal128::from_json_number(b),
+            ) && let Some(diff) = da.checked_sub(db)
+            {
+                return diff.to_json_number_or_exact();
+            }
+            let af = a.as_f64().unwrap_or(0.0);
+            let bf = b.as_f64().unwrap_or(0.0);
+            serde_json::Number::from_f64(af - bf)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null)
         }
         _ => {
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_value(a),
+                Decimal128::from_json_value(b),
+            ) && let Some(diff) = da.checked_sub(db)
+            {
+                return diff.to_json_number_or_exact();
+            }
             if let (Some(af), Some(bf)) = (try_coerce_to_f64(a), try_coerce_to_f64(b)) {
-                if let (Some(ai), Some(bi)) = (try_coerce_to_i64(a), try_coerce_to_i64(b)) {
-                    if let Some(result) = ai.checked_sub(bi) {
-                        return serde_json::Value::Number(result.into());
-                    }
+                if let (Some(ai), Some(bi)) = (try_coerce_to_i64(a), try_coerce_to_i64(b))
+                    && let Some(result) = ai.checked_sub(bi)
+                {
+                    return serde_json::Value::Number(result.into());
                 }
                 serde_json::Number::from_f64(af - bf)
                     .map(serde_json::Value::Number)
@@ -266,32 +322,41 @@ pub fn json_sub(a: &serde_json::Value, b: &serde_json::Value) -> serde_json::Val
     }
 }
 
-/// Multiply two JSON values.
+/// Multiply two JSON values (exact 128-bit decimal multiplication with float fallback).
 pub fn json_mul(a: &serde_json::Value, b: &serde_json::Value) -> serde_json::Value {
     match (a, b) {
         (serde_json::Value::Number(a), serde_json::Value::Number(b)) => {
-            if let (Some(ai), Some(bi)) = (a.as_i64(), b.as_i64()) {
-                if let Some(result) = ai.checked_mul(bi) {
-                    serde_json::Value::Number(result.into())
-                } else {
-                    serde_json::Number::from_f64(ai as f64 * bi as f64)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or(serde_json::Value::Null)
-                }
-            } else {
-                let af = a.as_f64().unwrap_or(0.0);
-                let bf = b.as_f64().unwrap_or(0.0);
-                serde_json::Number::from_f64(af * bf)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
+            if let (Some(ai), Some(bi)) = (a.as_i64(), b.as_i64())
+                && let Some(result) = ai.checked_mul(bi)
+            {
+                return serde_json::Value::Number(result.into());
             }
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_number(a),
+                Decimal128::from_json_number(b),
+            ) && let Some(prod) = da.checked_mul(db)
+            {
+                return prod.to_json_number_or_exact();
+            }
+            let af = a.as_f64().unwrap_or(0.0);
+            let bf = b.as_f64().unwrap_or(0.0);
+            serde_json::Number::from_f64(af * bf)
+                .map(serde_json::Value::Number)
+                .unwrap_or(serde_json::Value::Null)
         }
         _ => {
+            if let (Some(da), Some(db)) = (
+                Decimal128::from_json_value(a),
+                Decimal128::from_json_value(b),
+            ) && let Some(prod) = da.checked_mul(db)
+            {
+                return prod.to_json_number_or_exact();
+            }
             if let (Some(af), Some(bf)) = (try_coerce_to_f64(a), try_coerce_to_f64(b)) {
-                if let (Some(ai), Some(bi)) = (try_coerce_to_i64(a), try_coerce_to_i64(b)) {
-                    if let Some(result) = ai.checked_mul(bi) {
-                        return serde_json::Value::Number(result.into());
-                    }
+                if let (Some(ai), Some(bi)) = (try_coerce_to_i64(a), try_coerce_to_i64(b))
+                    && let Some(result) = ai.checked_mul(bi)
+                {
+                    return serde_json::Value::Number(result.into());
                 }
                 serde_json::Number::from_f64(af * bf)
                     .map(serde_json::Value::Number)
@@ -371,26 +436,57 @@ pub fn compute_json_aggregate(
         "SUM" => {
             let mut sum_i64 = 0i64;
             let mut sum_f64 = 0.0f64;
+            let mut dec_acc = Decimal128Accumulator::new();
+            let mut dec_ok = true;
             let mut has_value = false;
             let mut all_int = true;
             for &idx in indices {
                 if let Some(ci) = col_idx {
-                    if let Some(serde_json::Value::Number(n)) =
-                        rows.get(idx).and_then(|r| r.get(ci))
-                    {
-                        if let Some(i) = n.as_i64() {
-                            sum_i64 = sum_i64.wrapping_add(i);
-                            sum_f64 += i as f64;
-                        } else if let Some(f) = n.as_f64() {
-                            if f.fract() == 0.0 && f >= i64::MIN as f64 && f <= i64::MAX as f64 {
-                                sum_i64 = sum_i64.wrapping_add(f as i64);
-                                sum_f64 += f;
-                            } else {
+                    match rows.get(idx).and_then(|r| r.get(ci)) {
+                        Some(serde_json::Value::Number(n)) => {
+                            if let Some(i) = n.as_i64() {
+                                sum_i64 = sum_i64.wrapping_add(i);
+                                sum_f64 += i as f64;
+                                if dec_ok && !dec_acc.push(Decimal128::from_i64(i)) {
+                                    dec_ok = false;
+                                }
+                            } else if let Some(f) = n.as_f64() {
+                                if f.fract() == 0.0 && f >= i64::MIN as f64 && f <= i64::MAX as f64
+                                {
+                                    sum_i64 = sum_i64.wrapping_add(f as i64);
+                                    sum_f64 += f;
+                                    if dec_ok && !dec_acc.push(Decimal128::from_i64(f as i64)) {
+                                        dec_ok = false;
+                                    }
+                                } else {
+                                    all_int = false;
+                                    sum_f64 += f;
+                                    if dec_ok {
+                                        if let Some(d) = Decimal128::from_json_number(n) {
+                                            if !dec_acc.push(d) {
+                                                dec_ok = false;
+                                            }
+                                        } else {
+                                            dec_ok = false;
+                                        }
+                                    }
+                                }
+                            }
+                            has_value = true;
+                        }
+                        Some(serde_json::Value::String(s)) => {
+                            if let Some(d) = Decimal128::parse_str(s) {
                                 all_int = false;
-                                sum_f64 += f;
+                                if let Ok(f) = s.trim().parse::<f64>() {
+                                    sum_f64 += f;
+                                }
+                                if dec_ok && !dec_acc.push(d) {
+                                    dec_ok = false;
+                                }
+                                has_value = true;
                             }
                         }
-                        has_value = true;
+                        _ => {}
                     }
                 }
             }
@@ -398,6 +494,8 @@ pub fn compute_json_aggregate(
                 serde_json::Value::Null
             } else if all_int {
                 serde_json::Value::Number(sum_i64.into())
+            } else if dec_ok && let Some(exact_sum) = dec_acc.sum() {
+                exact_sum.to_json_number_or_exact()
             } else {
                 serde_json::Number::from_f64(sum_f64)
                     .map(serde_json::Value::Number)

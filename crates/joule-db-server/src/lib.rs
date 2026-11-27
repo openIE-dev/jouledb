@@ -24,6 +24,7 @@ pub mod cql_executor;
 pub mod cxl_memory;
 pub mod cypher_executor;
 pub mod datalog_executor;
+pub mod decimal128;
 pub mod deployment;
 pub mod distributed_query;
 pub mod dynamic_routes;
@@ -35,6 +36,7 @@ pub mod error;
 pub mod fabric;
 pub mod features_bridge;
 pub mod file_formats;
+pub mod financial_ledger;
 #[cfg(feature = "flight-sql")]
 pub mod flight_sql;
 pub mod fts_analyzer;
@@ -83,6 +85,7 @@ pub mod security;
 pub mod sharding;
 pub mod sigql_executor;
 pub mod sparql_executor;
+pub mod sql_branch_sandbox;
 pub mod subscription_hdc;
 pub mod subscriptions;
 pub mod tcp_server;
@@ -546,6 +549,7 @@ pub struct Server {
     /// Edge Points of Presence manager
     edge_pop_manager: Arc<edge_pop::EdgePopManager>,
     ducklake_catalog: Arc<ducklake::DuckLakeCatalog>,
+    financial_ledger: Arc<financial_ledger::FinancialLedger>,
     reducer_runtime: Arc<wasm_reducers::ReducerRuntime>,
     living_embodied_runtime: Arc<living_embodied_routes::LivingEmbodiedRuntime>,
     fabric_runtime: Arc<fabric_routes::FabricRuntime>,
@@ -774,6 +778,8 @@ impl Server {
         base_executor
             .attach_timeseries_store(&ts_path)
             .map_err(|e| format!("Failed to open time-series store: {e}"))?;
+        base_executor.attach_durable_ledger_and_workflows(&config.db_path);
+        let financial_ledger_handle = base_executor.financial_ledger_handle();
         base_executor.set_timeout_config(config.query_timeout_ms, config.slow_query_threshold_ms);
         base_executor.set_max_result_rows(config.max_result_rows);
         if let Some(ref rbac) = rbac_manager {
@@ -941,6 +947,7 @@ impl Server {
                     .unwrap_or_else(|_| edge_pop::EdgePopManager::new()),
             ),
             ducklake_catalog,
+            financial_ledger: financial_ledger_handle,
             reducer_runtime,
             living_embodied_runtime,
             fabric_runtime,
@@ -1223,6 +1230,9 @@ impl Server {
             .merge(edge_routes)
             .merge(mcp_rt)
             .merge(ducklake::ducklake_routes(self.ducklake_catalog.clone()))
+            .merge(financial_ledger::financial_ledger_routes(
+                self.financial_ledger.clone(),
+            ))
             .merge(wasm_reducers::reducer_routes(self.reducer_runtime.clone()))
             .merge(living_embodied_routes::living_embodied_routes(
                 self.living_embodied_runtime.clone(),

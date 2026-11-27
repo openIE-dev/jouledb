@@ -611,6 +611,14 @@ fn load_rel(
     if amorphic.get_view(name).is_some() || amorphic.has_computed_columns(name) {
         return None;
     }
+    if let Ok(defs) = amorphic.get_column_defs(name)
+        && defs.iter().any(|d| {
+            let u = d.data_type.to_ascii_uppercase();
+            u.starts_with("NUMERIC") || u.starts_with("DECIMAL")
+        })
+    {
+        return None;
+    }
     if let Some(dt) = amorphic.disk_column_table(name) {
         return Some(ColRel::Disk(dt));
     }
@@ -4318,6 +4326,7 @@ struct AggState {
     cnt: u64,
     isum: i128,
     fsum: f64,
+    fcomp: f64,
     saw_float: bool,
     min: Option<OwnedVal>,
     max: Option<OwnedVal>,
@@ -4330,11 +4339,23 @@ impl AggState {
             cnt: 0,
             isum: 0,
             fsum: 0.0,
+            fcomp: 0.0,
             saw_float: false,
             min: None,
             max: None,
             distinct_ints: (op == AggOp::CountDistinctInt).then(FxSet::default),
         }
+    }
+
+    #[inline]
+    fn add_f64(&mut self, v: f64) {
+        let t = self.fsum + v;
+        if self.fsum.abs() >= v.abs() {
+            self.fcomp += (self.fsum - t) + v;
+        } else {
+            self.fcomp += (v - t) + self.fsum;
+        }
+        self.fsum = t;
     }
 
     #[inline]
@@ -4359,7 +4380,7 @@ impl AggState {
                 BVal::Float(f) => {
                     self.cnt += 1;
                     self.saw_float = true;
-                    self.fsum += f;
+                    self.add_f64(f);
                 }
                 _ => {}
             },
@@ -4391,7 +4412,8 @@ impl AggState {
     fn merge(&mut self, op: AggOp, other: Self) {
         self.cnt += other.cnt;
         self.isum += other.isum;
-        self.fsum += other.fsum;
+        self.add_f64(other.fsum);
+        self.add_f64(other.fcomp);
         self.saw_float |= other.saw_float;
         if let (Some(dst), Some(src)) = (&mut self.distinct_ints, other.distinct_ints) {
             for k in src {
@@ -4420,6 +4442,7 @@ impl AggState {
     }
 
     fn finalize(&self, op: AggOp) -> OwnedVal {
+        let total_f = (self.fsum + self.fcomp) + (self.isum as f64);
         match op {
             AggOp::CountStar | AggOp::Count => OwnedVal::Int(self.cnt as i64),
             AggOp::CountDistinctInt => {
@@ -4429,7 +4452,7 @@ impl AggState {
                 if self.cnt == 0 {
                     OwnedVal::Null
                 } else if self.saw_float {
-                    OwnedVal::Float(self.fsum + (self.isum as f64))
+                    OwnedVal::Float(total_f)
                 } else if let Ok(i) = i64::try_from(self.isum) {
                     OwnedVal::Int(i)
                 } else {
@@ -4440,7 +4463,7 @@ impl AggState {
                 if self.cnt == 0 {
                     OwnedVal::Null
                 } else {
-                    OwnedVal::Float((self.fsum + (self.isum as f64)) / (self.cnt as f64))
+                    OwnedVal::Float(total_f / (self.cnt as f64))
                 }
             }
             AggOp::Min => self.min.clone().unwrap_or(OwnedVal::Null),

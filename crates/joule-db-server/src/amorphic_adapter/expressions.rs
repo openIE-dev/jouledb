@@ -435,6 +435,20 @@ impl AmorphicTableStorage {
         agg_func: &str,
         column: &str,
     ) -> QueryResult<Option<f64>> {
+        // Never use `f64` columnar short-circuit on exact `NUMERIC` / `DECIMAL` columns
+        // when `SUM` or `AVG` is requested, preserving exact `Decimal128` penny math.
+        if matches!(agg_func.to_ascii_uppercase().as_str(), "SUM" | "AVG")
+            && let Ok(defs) = self.get_column_defs(table)
+            && defs.iter().any(|d| {
+                d.name.eq_ignore_ascii_case(column) && {
+                    let u = d.data_type.to_ascii_uppercase();
+                    u.starts_with("NUMERIC") || u.starts_with("DECIMAL")
+                }
+            })
+        {
+            return Ok(None);
+        }
+
         let store = self.store.read().map_err(lock_error)?;
 
         // Get table record IDs
@@ -454,8 +468,9 @@ impl AmorphicTableStorage {
             None => return Ok(None),
         };
 
-        // Filter columnar values to only those belonging to this table
+        // Filter columnar values using Neumaier compensated summation to avoid float drift
         let mut sum = 0.0f64;
+        let mut comp = 0.0f64;
         let mut count = 0usize;
         let mut min_val = f64::MAX;
         let mut max_val = f64::MIN;
@@ -463,12 +478,19 @@ impl AmorphicTableStorage {
         for (i, &record_id) in col.record_ids.iter().enumerate() {
             if table_ids.contains(&record_id) {
                 let v = col.values[i];
-                sum += v;
+                let t = sum + v;
+                if sum.abs() >= v.abs() {
+                    comp += (sum - t) + v;
+                } else {
+                    comp += (v - t) + sum;
+                }
+                sum = t;
                 count += 1;
                 min_val = min_val.min(v);
                 max_val = max_val.max(v);
             }
         }
+        sum += comp;
 
         if count == 0 {
             return Ok(None);

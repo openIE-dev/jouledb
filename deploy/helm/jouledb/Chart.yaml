@@ -1,9 +1,9 @@
 apiVersion: v2
 name: jouledb
-description: Starter Helm Chart for JouleDB v0.12.0 (pre-1.0 preview) — Multi-Model Rust Database (unaudited control profiles)
+description: Starter Helm Chart for JouleDB v0.13.0 (pre-1.0 preview) — Multi-Model Rust Database (unaudited control profiles)
 type: application
-version: 0.12.0
-appVersion: "0.12.0"
+version: 0.13.0
+appVersion: "0.13.0"
 home: https://jouledb.org
 sources:
   - https://github.com/openIE-dev/jouledb

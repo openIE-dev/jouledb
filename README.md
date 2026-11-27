@@ -1,6 +1,6 @@
-# JouleDB (`v0.12.0` — Pre-1.0 Research Preview)
+# JouleDB (`v0.13.0` — Pre-1.0 Research Preview)
 
-**An experimental energy-metered multi-model database in Rust (`Apache-2.0 OR MIT`) exploring Copy-on-Write `SSI` storage, out-of-core `.jcol` vectorized columnar analytics (`43 / 43` Official ClickBench at `100M` rows + `22 / 22` Official `TPC-H` at `SF=0.1` [`1.99×`], `SF=1.0` [`201 MB` RSS], & `SF=10.0` [`86.6M` rows in `755 MB` post-load RSS, `8.49×` geomean]), 64-shard `JMVR`/`JWU1` `pgwire` SQL OLTP, multi-host WAN TCP Raft `ReadIndex` consensus, Claude/MCP Apps Studio UI (`SEP-1865`), `10,240`-bit `Amorphic` VSA storage, and `.jsyn` sub-1-bit sentence embeddings.**
+**An experimental energy-metered multi-model database in Rust (`Apache-2.0 OR MIT`) unifying Core Banking (`128-bit` exact `NUMERIC`, SQL-native double-entry `LEDGER`, SHA-256 journal proofs), Autonomous AI Agents (`O(1)` CoW SQL branching, 3-way conflict `MERGE`, blast-radius & microjoule guardrails, durable `WORKFLOW` checkpoints, `58`-tool Claude/MCP Apps Studio), and Human Developer/Lakehouse Workloads (`pgwire` `psql`/`psycopg3`/`SQLAlchemy 2`/`node-pg`/`JDBC`, `SELECT ... FOR UPDATE SKIP LOCKED`, `100M`-row ClickBench [`2.11×`], `22 / 22` `TPC-H` `SF=10.0` [`86.6M` rows in `755 MB` RSS], `5,160 TPS` NVMe OLTP, and 5-node WAN TCP Raft).**
 
 [![Release](https://github.com/openIE-dev/jouledb/actions/workflows/release.yml/badge.svg)](https://github.com/openIE-dev/jouledb/releases)
 [![Quality](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml/badge.svg)](https://github.com/openIE-dev/jouledb/actions/workflows/quality.yml)
@@ -9,21 +9,21 @@
 [![Hugging Face Embedder](https://img.shields.io/badge/Hugging%20Face-MiniLM%20.jsyn%20(cos%200.944)-0D9488)](https://huggingface.co/dcharlot65-openie/all-MiniLM-L6-v2-LittleBit)
 [![Website](https://img.shields.io/badge/Web-jouledb.org-2563EB)](https://jouledb.org)
 
-> **Pre-1.0 Status & `v0.12.0` Release Summary (`2026-11-26`):** Building on our `v0.6.0` external-audit remediation (`v1.0.0` GA tag retracted/yanked, unrelated `1.11M`-LOC `joule-web` crate and synthetic `frontier_exam_routes.rs` deleted, 81 unverified low-BPW causal LLM exports pruned from Hugging Face) and `v0.7.0`–`v0.11.0` engine upgrades, **`v0.12.0`** collapses **`TPC-H` `SF = 10.0` (`86.6M` rows) post-load RSS `46.1×` (`34.81 GB -> 755.3 MB`) and cuts `SF = 10.0` 22-query total time `2.20×` (`34.06 s -> 15.46 s`, `8.49×` geomean)**, reaches **`1.99×` geomean (`5 / 22` faster than DuckDB `2.0.1`) at `SF = 0.1`** and **`4.33×` geomean (`201.4 MB` post-load RSS) at `SF = 1.0`**, upgrades **physical-NVMe `100`-warehouse `pgwire` OLTP with binary `JWU1` delta `UPDATE`s (`5,159.7 TPS` Pipelined / `5,154.1 TPS` Simple at `c=16`, `1.87×`–`2.02×` vs `PostgreSQL 16.16`, beating `PostgreSQL 16.16` `1.63×` at `c=1` Simple)**, and fixes `node-pg` untyped parameter coercion & `libpq` `GSSENCRequest` negotiation:
-> - **`46.1×` Lower Out-of-Core `.jcol` Post-Load RSS (`JCOL_ID_TAG`) + `2.20×` Faster `SF = 10.0` `TPC-H` (`columnar_join.rs`):** Disjoint `JCOL_ID_TAG` (`1 << 62`) segment IDs eliminate dense VSA hologram slot zero-filling after multi-million-row `.jcol` loads (`SF=1.0` post-load RSS `5,769 MB -> 201.4 MB` [`28.6×`]; `SF=10.0` post-load RSS `34,810 MB -> 755.3 MB` [`46.1×`, peak `VmHWM` `40.03 GB -> 15.59 GB`]). ZoneMap `DenseKeyBits` pruning, two-stage sparse dictionary materialization, 64-shard radix `GROUP BY` (`Q18`: `11.33 s -> 1.80 s` [`6.29×`]), and `<= 20M`-row semi-join key propagation (`Q10`: `9.11 s -> 5.23 s`, `Q17`: `1,529 ms -> 88.6 ms` [`17.2×`], `Q20`: `657 ms -> 99.7 ms` [`6.59×`]) cut `SF=10.0` geomean from **`16.03× -> 8.49×`** and `SF=1.0` from **`6.18× -> 4.33×`**.
-> - **Binary `JWU1` Delta `UPDATE` Codec + Physical-NVMe `100`-Warehouse `pgwire` OLTP (`oltp_pgwire_100wh.json`):** Binary `JWU1` WAL encoding, deferred-hologram `update_fields_deferred_holo`, unchanged-column skip, and 64-shard `table_id_shards` on real NVMe `fdatasync` (`--work-dir /var/tmp`) **beat `PostgreSQL 16.16` `1.63×` at `c=1` Simple (`1,950.5` vs `1,199.7 TPS`)** and scale to **`5,154.1 TPS` Simple / `5,159.7 TPS` Extended Pipeline at `c=16`** (`1.87×`–`2.02×` vs `PostgreSQL 16.16`, narrowed from `2.61×`–`2.91×` in `v0.11.0`, `invariant_verified = true` across all 5 runs).
-> - **`pgwire` Client Protocol Fixes + `41 / 41` (`100%`) `deny(clippy::unwrap_used)` Workspace:** Coerced untyped text numeric parameters for `node-postgres` (`tests/clients/node_pg.js` 5/5 green), added PostgreSQL v12+ `GSSENCRequest` `'N'` negotiation for `libpq`/`psycopg`, and forwarded `EnergyAwareExecutor` static `Describe` & owned Arrow hints. See [`CHANGELOG.md`](./CHANGELOG.md).
+> **Pre-1.0 Status & `v0.13.0` Release Summary (`2026-11-27`):** Building on our `v0.6.0` external-audit remediation (`v1.0.0` GA tag retracted/yanked, unrelated `1.11M`-LOC `joule-web` crate and synthetic `frontier_exam_routes.rs` deleted, 81 unverified low-BPW causal LLM exports pruned from Hugging Face) and `v0.7.0`–`v0.12.0` engine upgrades, **`v0.13.0`** closes the demarcation chasms between **Agentic AI sandboxes**, **Core Banking ledgers**, and **Human developer/analyst RDBMSs** inside one `41`-crate (`754.5k` LOC, `12,282` tests, `100%` panic-linted) binary:
+> - **Exact `128`-Bit Fixed-Point `DECIMAL(38, s)` + SQL-Native Double-Entry Core Banking `LEDGER` (`decimal128.rs`, `financial_ledger.rs`):** Eliminates IEEE-754 float penny drift (`0.10 + 0.20 = 0.30` exact; `1,000 × 0.01` `SUM = 10` exact; 38-digit scaled `i128` math) and embeds a `TigerBeetle`-class double-entry state machine (`LEDGER CREATE ACCOUNT`, `LEDGER TRANSFER`, `LEDGER MULTILEG`, two-phase `HOLD`/`POST HOLD`/`VOID HOLD`, `NO_OVERDRAFT` balance ceilings, mandatory `idempotency_key` replay/conflict detection, SHA-256 hash-chained `financial_ledger.jwal` `LEDGER VERIFY`, and live SQL `JOIN`s against `jouledb_ledger_accounts`).
+> - **Session-Isolated CoW SQL Branching, 3-Way Conflict `MERGE`, Agent Guardrails & Durable `WORKFLOW` Checkpoints (`sql_branch_sandbox.rs`):** `CREATE/USE/SHOW/DIFF/MERGE/DROP BRANCH` isolates agent mutations from `main`, detects 3-way write-write conflicts (`SQLSTATE 40001`), blocks prompt-injected `DROP TABLE` / `TRUNCATE` and `WHERE`-less `DELETE`/`UPDATE` (`SQLSTATE 42501`), enforces per-branch microjoule caps (`SQLSTATE 53200`), and adds DBOS-style crash-proof `WORKFLOW CHECKPOINT` / `WORKFLOW RESUME` (`58` MCP tools).
+> - **Human ORM & Queue Worker Parity (`pgwire.rs`, `query.rs`):** Adds `SELECT ... FOR UPDATE [NOWAIT | SKIP LOCKED]`, fixes `SQLAlchemy 2 + psycopg3` `pg_type JOIN pg_range` connect introspection and `psycopg3` `cursor(binary=True)` `RowDescription`/`DataRow` OID width alignment (`psql`, `psycopg3`, `SQLAlchemy 2`, `node-pg`, `pgJDBC` green), alongside `v0.12.0`'s **`46.1×` lower `TPC-H` `SF = 10.0` (`86.6M` rows) post-load RSS (`755.3 MB`, `15.46 s`, `8.49×` geomean)** and **`5,160 TPS` physical-NVMe `pgwire` OLTP**. See [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
-## What Is Real & Verified Today (`41` Workspace Crates · `747.6k` LOC · `12,272` Tests · `41 / 41` `deny(unwrap_used)`)
+## What Is Real & Verified Today (`41` Workspace Crates · `754.5k` LOC · `12,282` Tests · `41 / 41` `deny(unwrap_used)`)
 
-1. **Core Storage, 64-Shard Binary `JMVR`/`JWB1`/`JWU1` MVCC `SSI` & Recovery (`joule-db-core`, `joule-db-local`, `joule-db-amorphic`):**
-   - Copy-on-Write B-tree pages, lock-free positional `pread`/`pwrite`, Cahill Serializable Snapshot Isolation (`SSI` `rw`-antidependency detection), 64-shard `MvccStore` (`find_visible_at` zero-`HashSet`-clone snapshot reads) + 64-shard `MvccTableStorage` (`table_id_shards`) with binary `JMVR\x01`, `JWB1` `batch_ingest_fields`, and `JWU1` `UpdateFields` delta WAL serialization, deferred-hologram `INSERT`/`UPDATE`, adaptive `SmallVec`/`BTreeSet` secondary indexes, group-committed NVMe WAL durability, `CRC-32` torn-WAL truncation, `ALP + FSST` columnar codecs, and `RaBitQ` 1-bit `POPCNT` vector quantization.
-2. **Out-of-Core `.jcol` Columnar Analytics, Vectorized Multi-Table `TPC-H` Joins & `pgwire` (`joule-db-query`, `joule-db-server`):**
-   - PostgreSQL v3 wire listener (`psql`, `psycopg3` Simple & cached-`Describe` Extended Pipeline, `node-pg`, `JDBC`, `SQLAlchemy`, `GSSENCRequest` negotiation), owned-batch streaming Parquet `COPY` spilling `262,144`-row `.jcol` disk segments in `JCOL_ID_TAG` namespace (`755 MB` post-load RSS at `86.6M` rows), vectorized `execute_segmented` (`43 / 43` Official ClickBench at `100M` rows) + `columnar_join` (`22 / 22` Official `TPC-H` at `SF=0.1`, `SF=1.0`, and `SF=10.0`), and `DBSP` `ZSet<T>` incremental views.
-3. **Claude Apps / MCP Apps Host (`mcp_app_ui.rs`, `mcp_transport.rs`):**
-   - Native `SEP-1865` MCP Apps server over `jouledb mcp --data <dir>` (`stdio` JSON-RPC `2025-06-18`) and `POST /mcp` (Streamable HTTP), exposing `50` tools (`db.studio`, `db.query`, `db.schema`, `db.amorphic.*`, `db.synapse.*`, `db.branch.*`, `db.ledger.*`) and a zero-CDN interactive **JouleDB Studio** (`ui://jouledb/studio.html`, `text/html;profile=mcp-app`) for Claude Desktop, Claude Web, VS Code, Goose, and Antigravity.
+1. **Core Storage, Exact `Decimal128`, SQL-Native Double-Entry Banking Ledger & 64-Shard `SSI` (`joule-db-core`, `joule-db-local`, `joule-db-amorphic`, `joule-db-server`):**
+   - Copy-on-Write B-tree pages, Cahill Serializable Snapshot Isolation (`SSI`), 64-shard `MvccStore` + `MvccTableStorage` (`JMVR\x01`, `JWB1`, `JWU1` delta NVMe WAL), exact `128-bit` fixed-point `NUMERIC(38, s)` (`Decimal128`), SQL-native double-entry `FinancialLedger` (`i128` minor units, multi-leg conservation, two-phase holds, `idempotency_key`, SHA-256 `financial_ledger.jwal`, SQL virtual tables `jouledb_ledger_*`), `SELECT ... FOR UPDATE [NOWAIT | SKIP LOCKED]`, `ALP + FSST` codecs, and `RaBitQ` 1-bit `POPCNT` vectors.
+2. **Agentic CoW SQL Branching, Durable `WORKFLOW` Checkpoints & `58`-Tool Claude/MCP Apps Host (`sql_branch_sandbox.rs`, `mcp_app_ui.rs`, `mcp_transport.rs`):**
+   - Session-isolated SQL branches (`CREATE/USE/DIFF/MERGE BRANCH` with 3-way `40001` conflict checks), strict agent blast-radius guardrails (`42501` DDL/unbounded-write blocks + `53200` microjoule caps), crash-proof `WORKFLOW CHECKPOINT`/`RESUME`, and native `SEP-1865` **JouleDB Studio** (`ui://jouledb/studio.html`) over `jouledb mcp` (`stdio`) and `POST /mcp` (`58` tools incl. `ledger.*` & `db.workflow_*`).
+3. **Out-of-Core `.jcol` Columnar Analytics, Vectorized Multi-Table `TPC-H` Joins & `pgwire` (`joule-db-query`, `joule-db-server`):**
+   - PostgreSQL v3 wire listener (`psql`, `psycopg3` text & binary + Extended Pipeline, `SQLAlchemy 2`, `node-pg`, `JDBC`, `GSSENCRequest`), owned-batch streaming Parquet `COPY` spilling `262,144`-row `.jcol` disk segments (`755 MB` post-load RSS at `86.6M` rows), `execute_segmented` (`43 / 43` Official ClickBench at `100M` rows), `columnar_join` (`22 / 22` Official `TPC-H` at `SF=0.1`, `1.0`, & `10.0`), and `DBSP` `ZSet<T>` incremental views.
 4. **5-Node Multi-Host WAN & Local TCP Raft Consensus (`raft.rs`, `raft_transport.rs`, `examples/raft_wan_node.rs`):**
    - Quorum write commit via `RaftNode::propose_and_commit` (§5.4.2), quorum linearizable reads via `RaftNode::read_linearizable` (§6.4 `ReadIndex` heartbeat quorum, zero WAL growth), `CRC-32` `raft.wal` crash recovery, and both multi-host Tailscale WAN (`27.58 ms` RTT + `SIGKILL`) and local 20-link fault-injection suites verified **`{:valid? true}`** by official Clojure `elle/elle 0.2.8`.
 5. **Energy Telemetry & `.jsyn` Sub-1-Bit Sentence Embeddings (`joule-db-energy`, `joule-db-weights`):**
@@ -85,22 +85,29 @@ Executed via [`bench/raft_multihost_wan.py`](./bench/raft_multihost_wan.py), [`e
 | `Gemma-4-E2B` `q_proj` (`r = 8..128`) | `0.028–0.166` | `564×–96.6×` | `0.271–0.455` output cos (`KL 3.87–2.72`) | **Experimental only** — not a drop-in causal LLM (retracted from HF) |
 | `Inkling-2-Mini` `w13` (`128`-Exp MoE, `r = 8..128`) | `0.023–0.134` | `701×–120×` | `0.113–0.350` output cos (`KL 2.91–2.59`) | **Experimental only** — not a drop-in causal LLM (retracted from HF) |
 
+### 6. Unified Core Banking, Agentic CoW Sandbox & Human Row-Locking Suite (`bench/unified_banking_agentic.py`)
+
+Executed via [`bench/unified_banking_agentic.py`](./bench/unified_banking_agentic.py) ([`unified_banking_agentic_v013.json`](./bench/results/unified_banking_agentic_v013.json)) against a single live `jouledb` process:
+- **Core Banking (`Decimal128` + `FinancialLedger`):** `0.10 + 0.20 = 0.30` exact, `30`-digit `DECIMAL_ADD` exact, `1,000 × 0.01` `SUM = 10` exact, multi-leg split settlement, two-phase `HOLD` -> partial `POST HOLD`, live SQL `JOIN` (`kyc_customers JOIN jouledb_ledger_accounts`), 500 concurrent hot-wallet debit attempts against a `$350.00` balance (**`350` committed, `150` rejected, `0` overdrafts**), and `LEDGER VERIFY` SHA-256 chain proof (`valid = true`).
+- **Autonomous Agent Sandbox (`SqlBranchSandboxManager`):** 10 isolated `CREATE BRANCH ... GUARDRAILS STRICT` sandboxes (`DROP TABLE` & unbounded `DELETE` blocked with `SQLSTATE 42501`), `DIFF BRANCH`, clean `MERGE BRANCH`, true 3-way write-write conflict rejection (`SQLSTATE 40001`), and idempotent `WORKFLOW CHECKPOINT` replay.
+- **Human Queue Worker Locking (`RowLockManager`):** Concurrent `SELECT ... FOR UPDATE NOWAIT` (`SQLSTATE 55P03`) and `SELECT ... FOR UPDATE SKIP LOCKED` row-claim verification.
+
 ---
 
-## Quickstart (`v0.12.0`)
+## Quickstart (`v0.13.0`)
 
 ```bash
-# 1. Install prebuilt v0.12.0 binary (macOS ARM64/x86_64; Linux x86_64 GLIBC <= 2.35, Ubuntu 22.04/24.04 & Debian 12 ready)
+# 1. Install prebuilt v0.13.0 binary (macOS ARM64/x86_64; Linux x86_64 GLIBC <= 2.35, Ubuntu 22.04/24.04 & Debian 12 ready)
 cargo binstall jouledb
 
 # 2. Launch JouleDB server (HTTP :8080, TCP :8081, PgWire :8082, JWP :8083, FlightSQL :8084, MCP HTTP /mcp)
 jouledb --port 8080 --data ./joule-data
 
-# 3. Or run as a Claude Desktop / MCP Apps stdio server (50 tools + interactive ui://jouledb/studio.html)
+# 3. Or run as a Claude Desktop / MCP Apps stdio server (58 tools + interactive ui://jouledb/studio.html)
 jouledb mcp --data ./joule-data
 
-# 4. Connect with psql, install GitHub Release Python/TS SDK artifacts, or run smoke/security self-tests
-psql -h 127.0.0.1 -p 8082 -U postgres -c "SELECT version();"
+# 4. Connect with psql, SQLAlchemy 2, or run smoke/security self-tests
+psql -h 127.0.0.1 -p 8082 -U postgres -c "SELECT 0.10 + 0.20 = 0.30, version();"
 jouledb self-check && jouledb trust
 ```
 
@@ -108,10 +115,10 @@ jouledb self-check && jouledb trust
 
 ## Honest Engineering Boundaries (Read Before Adopting)
 
-- **Pre-1.0 research preview (`v0.12.0`), not a battle-tested production RDBMS:** While JouleDB `0.12.0` executes `43 / 43` Official ClickBench on `99,997,497` rows (`2.11×` geomean vs DuckDB `2.0.1`), `22 / 22` Official `TPC-H` up to `SF=10.0` (`86.6M` rows in `755 MB` post-load RSS, `8.49×` geomean), `5,160 TPS` physical-NVMe `pgwire` OLTP (`invariant_verified = true`), and 5-node cross-machine WAN Raft (`elle` `{:valid? true}`), mature specialized engines (`DuckDB 2.0.1` `2.11×` faster on `100M` ClickBench & `4.33×`–`8.49×` faster on `SF=1..10` `TPC-H`; `PostgreSQL 16.16` `1.87×–2.80×` faster on `c=4..16` NVMe `pgwire` OLTP; `SQLite` embedded WAL) remain faster for conventional single-model production workloads.
+- **Pre-1.0 research preview (`v0.13.0`), not a battle-tested production RDBMS:** While JouleDB `0.13.0` unifies exact `128-bit` `NUMERIC` + double-entry SQL `LEDGER` + session-isolated CoW SQL branching + `43 / 43` Official ClickBench on `99,997,497` rows (`2.11×` geomean vs DuckDB `2.0.1`) + `22 / 22` Official `TPC-H` up to `SF=10.0` (`86.6M` rows in `755 MB` post-load RSS, `8.49×` geomean) + `5,160 TPS` physical-NVMe `pgwire` OLTP + 5-node cross-machine WAN Raft (`elle` `{:valid? true}`), mature single-purpose engines (`DuckDB 2.0.1` `2.11×` faster on `100M` ClickBench & `4.33×`–`8.49×` faster on `SF=1..10` `TPC-H`; `PostgreSQL 16.16` `1.87×–2.80×` faster on `c=4..16` NVMe `pgwire` OLTP; dedicated clustered `TigerBeetle` at `100k–1M+` batched ledger TPS; `SQLite` embedded WAL) remain faster on their specialized single axis.
 - **No external compliance certifications:** `jouledb trust` exercises technical security primitives in code (`external_audit_performed = false`). **No third-party SOC 2, ISO 27001, HIPAA, PCI-DSS, NIST CMVP, or FedRAMP audit has been conducted.**
 - **Exact compiler safety lint scope:** `#![deny(unsafe_code)]` is set in `joule-db-core` with **1** `#![allow(unsafe_code)]` module (`crates/joule-db-core/src/storage/mmap_extent.rs`). `#![cfg_attr(not(test), deny(clippy::unwrap_used))]` is enforced across **`41 / 41` workspace crates (`100%`, `0` `#[allow(clippy::unwrap_used)]` bypasses)** via a blocking CI gate.
-- **SDK registry status:** Prebuilt `cp39-abi3` Python `.whl` wheels, TypeScript `openie-jouledb-0.12.0.tgz`, and Claude `.mcpb` bundles are published on [GitHub Releases (`v0.12.0`)](https://github.com/openIE-dev/jouledb/releases/tag/v0.12.0) (with automated OIDC/token publish steps wired in `.github/workflows/release.yml`); packages are **not yet published** on PyPI, npm, NuGet, or Maven Central pending registry token/OIDC registration.
+- **SDK registry status:** Prebuilt `cp39-abi3` Python `.whl` wheels, TypeScript `openie-jouledb-0.13.0.tgz`, and Claude `.mcpb` bundles are published on [GitHub Releases (`v0.13.0`)](https://github.com/openIE-dev/jouledb/releases/tag/v0.13.0) (with automated OIDC/token publish steps wired in `.github/workflows/release.yml`); packages are **not yet published** on PyPI, npm, NuGet, or Maven Central pending registry token/OIDC registration.
 
 ---
 
@@ -120,7 +127,7 @@ jouledb self-check && jouledb trust
 - **Website:** [https://jouledb.org](https://jouledb.org) ([Claude & MCP Apps](https://jouledb.org/claude) · [Benchmarks](https://jouledb.org/benchmarks) · [Honest Boundaries](https://jouledb.org/honest) · [Security Controls & Bridges](https://jouledb.org/trust) · [`.jsyn` Fidelity](https://jouledb.org/jsyn))
 - **Online Book (`mdBook`):** [https://openie-dev.github.io/jouledb](https://openie-dev.github.io/jouledb) ([Claude & MCP Apps Guide](https://openie-dev.github.io/jouledb/claude-apps.html))
 - **Verified `.jsyn` Sentence Embedder & Benchmark Dataset:** [https://huggingface.co/dcharlot65-openie](https://huggingface.co/dcharlot65-openie)
-- **Architecture Whitepaper (`v0.12.0`):** [`docs/WHITEPAPER-JOULEDB-2026-11.md`](./docs/WHITEPAPER-JOULEDB-2026-11.md)
+- **Architecture Whitepaper (`v0.13.0`):** [`docs/WHITEPAPER-JOULEDB-2026-11.md`](./docs/WHITEPAPER-JOULEDB-2026-11.md)
 - **`.jsyn` Binary Specification:** [`docs/JSYN-LIVING-WEIGHTS-SPEC.md`](./docs/JSYN-LIVING-WEIGHTS-SPEC.md)
 - **Benchmark Scripts & Raw JSON/EDN Outputs:** [`bench/`](./bench/)
 

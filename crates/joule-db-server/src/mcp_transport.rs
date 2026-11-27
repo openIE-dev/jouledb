@@ -1040,7 +1040,39 @@ pub fn all_sota_tool_definitions() -> Vec<McpToolDef> {
     for (name, desc) in [
         (
             "db.branch_diff",
-            "Compute 3-way structural file/KV diff vs parent",
+            "Compute 3-way structural file/KV/SQL diff vs parent",
+        ),
+        (
+            "db.workflow_checkpoint",
+            "Persist or idempotently replay a durable agentic workflow step checkpoint",
+        ),
+        (
+            "db.workflow_resume",
+            "Inspect completed durable workflow step checkpoints for crash-proof resume",
+        ),
+        (
+            "ledger.create_account",
+            "Create an exact 128-bit double-entry financial ledger account with optional overdraft floor",
+        ),
+        (
+            "ledger.transfer",
+            "Execute an atomic double-entry transfer with mandatory idempotency_key",
+        ),
+        (
+            "ledger.hold",
+            "Place a two-phase pending authorization hold reserving funds atomically",
+        ),
+        (
+            "ledger.post_hold",
+            "Capture (full or partial) a pending financial hold with idempotency_key",
+        ),
+        (
+            "ledger.void_hold",
+            "Void a pending financial hold and release reserved balance",
+        ),
+        (
+            "ledger.verify",
+            "Verify the SHA-256 hash chain and global double-entry conservation across the ledger",
         ),
         (
             "db.agentfs_write",

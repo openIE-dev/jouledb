@@ -9,6 +9,24 @@ All notable changes to this release surface are documented here. Format follows 
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-27
+
+### Added
+- **Exact `128`-Bit Fixed-Point `DECIMAL(38, s)` / `NUMERIC(38, s)` Arithmetic (`crates/joule-db-server/src/{decimal128.rs, query.rs, columnar_join.rs}`, `amorphic_adapter/expressions.rs`)**:
+  - Added `Decimal128` (`i128` mantissa, `scale 0..=18`, up to 38 decimal digits, `#![deny(clippy::unwrap_used)]`) and `Decimal128Accumulator`, eliminating IEEE-754 binary floating-point penny drift across SQL `+`, `-`, `*`, `/` (banker's half-even rounding), `=`, `<`, `<=`, `>`, `>=`, `CAST(... AS NUMERIC(p, s))` (half-away-from-zero), `SUM()`, `DECIMAL_ADD/SUB/MUL/DIV/ROUND/CMP`, and multi-table/bulk-loaded `NUMERIC`/`DECIMAL` tables (`0.10 + 0.20 = 0.30` exact; `1,000 × 0.01` `SUM` = `10` exact; `30+`-digit institutional wires exact), plus Neumaier compensated `f64` summation in `columnar_join` & `columnar_aggregate`.
+- **SQL-Native Double-Entry Core Banking Ledger (`crates/joule-db-server/src/financial_ledger.rs`)**:
+  - Unified `TigerBeetle`-style accounting invariants directly inside SQL without split-brain dual databases: `128-bit` minor-unit `LedgerAccount` & `LedgerTransferRecord`, structural conservation ($\sum \text{debits} \equiv \sum \text{credits}$) across 2-account `LEDGER TRANSFER` and $N$-leg `LEDGER MULTILEG` split settlements, hard `NO_OVERDRAFT` (`debits_must_not_exceed_credits` / `credits_must_not_exceed_debits`) balance floors, two-phase `LEDGER HOLD` -> full/partial `LEDGER POST HOLD` / `LEDGER VOID HOLD` card authorization flows, mandatory `idempotency_key` exact replay vs payload-mismatch conflict (`SQLSTATE 23505` / HTTP `409`), SHA-256 hash-chained `financial_ledger.jwal` crash recovery (`LEDGER VERIFY`), live relational SQL `JOIN`s via virtual tables (`jouledb_ledger_accounts`, `jouledb_ledger_transfers`, `jouledb_ledger_legs`), Axum `/api/v1/ledger/{accounts,transfers,holds,holds/post,holds/void,verify}`, and 6 MCP `ledger.*` tools.
+- **Session-Isolated Copy-on-Write SQL Branching, 3-Way Conflict-Checked `MERGE`, Agent Blast-Radius Guardrails & Durable Workflows (`crates/joule-db-server/src/sql_branch_sandbox.rs`)**:
+  - Added real row/table-isolated `CREATE BRANCH [name] [FROM parent] [ENERGY BUDGET <uj>] [GUARDRAILS STRICT]`, `USE BRANCH` / `SET jouledb.branch`, `SHOW BRANCHES`, `DIFF BRANCH`, 3-way write-write conflict detection (`SQLSTATE 40001`) on `MERGE BRANCH`, and `DROP BRANCH`.
+  - Enforced per-branch and per-session autonomous agent blast-radius guardrails (`SET jouledb.agent_guardrails = 'strict'`): blocks destructive DDL (`DROP TABLE`, `TRUNCATE`, `ALTER TABLE ... DROP` -> `SQLSTATE 42501`), blocks unbounded `DELETE`/`UPDATE` without `WHERE` (`SQLSTATE 42501`), and enforces microjoule (`µJ`) session/branch budgets (`SQLSTATE 53200`).
+  - Added DBOS-style crash-proof durable workflow step checkpointing (`WORKFLOW CHECKPOINT`, `WORKFLOW RESUME`, virtual table `jouledb_workflow_steps`, `workflow_steps.jwal`, and MCP `db.workflow_checkpoint` / `db.workflow_resume`, expanding the MCP server to **`58` tools**).
+- **Pessimistic Row Locking (`SELECT ... FOR UPDATE [NOWAIT | SKIP LOCKED]`), `JouleOS` Receipt Bridge & `SIMD-LUT4` `.jsyn` Kernel**:
+  - Added `RowLockManager` (`SELECT ... FOR UPDATE` / `FOR SHARE` with `NOWAIT` `SQLSTATE 55P03` and `SKIP LOCKED` concurrent worker queue claiming), `jouleos_ingest.rs` (`4,352`-bit Kulisch `ExactF64Superaccumulator` + SHA-256 Merkle bridge in `joule-db-ledger`), and `forward_simd_lut4_q24` nibble kernel in `joule-db-weights`.
+
+### Fixed
+- **100% Green Real-Driver `pgwire` Compatibility (`SQLAlchemy 2 + psycopg3` + Binary `DataRow` OID Width Parity) & `Engine` CI (`pgwire.rs`, `query.rs`, `amorphic/src/lib.rs`)**:
+  - Enabled parameterized `type_info_lookup` (`psycopg3` `TypeInfo.fetch(conn, "hstore")` with `$1`) and `pg_catalog` / `information_schema` resolution inside `optimized_joins` (`SQLAlchemy 2` `pg_type JOIN pg_range` connect introspection), aligned `Portal.described_oids` between `RowDescription` and binary `DataRow` encoding (`psycopg3` `cursor(binary=True)` `10 / 10` green), and added `catch_up_holograms` before LSH comparison in `bulk_ingest_tests::delete_batch_equals_sequential`.
+
 ## [0.12.0] - 2026-11-26
 
 ### Added
