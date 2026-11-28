@@ -1665,4 +1665,43 @@ mod tests {
         assert_eq!(vmm_dig, 0xe77f_e8d0_868d_c261);
         assert_eq!(smmu_dig ^ vmm_dig, 0xd31e_015c_51e4_5b9f);
     }
+
+    #[test]
+    fn weightdb_dual_vm_virq_mcs_and_wots_sha3_pq_attestation_match_sel4_h48_exact() {
+        let fnv1a = |bytes: &[u8]| -> u64 {
+            let mut h = 0xCBF2_9CE4_8422_2325u64;
+            for &b in bytes {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(0x0100_0000_01B3);
+            }
+            h
+        };
+        let smmu_dig = 0x3461_e98c_d769_99feu64;
+
+        let mut vmm0 = [0u8; 48];
+        vmm0[0..8].copy_from_slice(b"WAIOSVM2");
+        vmm0[8..16].copy_from_slice(&0x2000_0000u64.to_le_bytes());
+        vmm0[16..20].copy_from_slice(&61u32.to_le_bytes());
+        vmm0[20..24].copy_from_slice(&42u32.to_le_bytes());
+        vmm0[24..28].copy_from_slice(&0x214D_4D56u32.to_le_bytes());
+        vmm0[28..32].copy_from_slice(&55u32.to_le_bytes());
+        vmm0[32..36].copy_from_slice(&0x5152_4956u32.to_le_bytes());
+        vmm0[36..40].copy_from_slice(&2u32.to_le_bytes());
+        vmm0[40..48].copy_from_slice(&smmu_dig.to_le_bytes());
+        let vmm0_dig = fnv1a(&vmm0);
+        assert_eq!(vmm0_dig, 0x1f18_3623_8827_edd9);
+
+        let mut rvm1 = [0u8; 40];
+        rvm1[0..8].copy_from_slice(b"WAIOSRVM");
+        rvm1[8..16].copy_from_slice(&0x4000_2000u64.to_le_bytes());
+        rvm1[16..20].copy_from_slice(&200u32.to_le_bytes());
+        rvm1[20..24].copy_from_slice(&128u32.to_le_bytes());
+        rvm1[24..28].copy_from_slice(&500u32.to_le_bytes());
+        rvm1[28..32].copy_from_slice(&1u32.to_le_bytes());
+        rvm1[32..36].copy_from_slice(&2u32.to_le_bytes());
+        rvm1[36..40].copy_from_slice(&0x4E49_5053u32.to_le_bytes());
+        let rvm1_dig = fnv1a(&rvm1);
+        assert_eq!(rvm1_dig, 0x97b8_ca43_9bcf_4be5);
+        assert_eq!(smmu_dig ^ vmm0_dig ^ rvm1_dig, 0xbcc1_15ec_c481_3fc2);
+    }
 }
