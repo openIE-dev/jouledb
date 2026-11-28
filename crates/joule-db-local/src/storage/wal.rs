@@ -389,9 +389,9 @@ fn sync_file(file: &File) -> std::io::Result<()> {
 /// its write lock; if another committer's fsync already covered `lsn` it
 /// returns at once, otherwise it fsyncs everything written so far (covering
 /// every commit queued behind it).
-#[derive(Debug)]
 pub struct GroupSync {
     file: File,
+    wal_flusher: Option<std::sync::Arc<std::sync::Mutex<WalManager>>>,
     committed: std::sync::Arc<AtomicU64>,
     /// highest LSN known durable
     synced: std::sync::Mutex<u64>,
@@ -401,8 +401,31 @@ pub struct GroupSync {
     inject: std::sync::atomic::AtomicBool,
 }
 
+impl std::fmt::Debug for GroupSync {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GroupSync")
+            .field("file", &self.file)
+            .field("has_wal_flusher", &self.wal_flusher.is_some())
+            .field("committed", &self.committed)
+            .field("fsyncs", &self.fsyncs)
+            .field("failed", &self.failed)
+            .finish()
+    }
+}
+
 impl GroupSync {
-    /// LSN of the last commit record written (flushed to the OS).
+    /// Attach the owning `WalManager` handle so `wait_durable` flushes accumulated
+    /// user-space `BufWriter` frames once per fsync group (coalescing `N` `write()` syscalls
+    /// into `1` `write()` + `1` `fdatasync()`).
+    pub fn with_wal_flusher(
+        mut self,
+        wal: std::sync::Arc<std::sync::Mutex<WalManager>>,
+    ) -> Self {
+        self.wal_flusher = Some(wal);
+        self
+    }
+
+    /// LSN of the last commit record written (buffered or flushed).
     pub fn committed_lsn(&self) -> u64 {
         self.committed.load(Ordering::Acquire)
     }
@@ -424,8 +447,22 @@ impl GroupSync {
         if *synced >= lsn {
             return Ok(());
         }
-        // everything up to `target` is already in the OS page cache
-        let target = self.committed.load(Ordering::Acquire).max(lsn);
+        // Flush any buffered WAL frames for the entire waiting group in a single `write()` syscall
+        // and immediately release the `WalManager` mutex BEFORE `sync_file` so new transactions
+        // can continue appending into RAM while `fdatasync` runs on hardware!
+        let target = if let Some(ref wf) = self.wal_flusher {
+            let mut wg = wf.lock().unwrap_or_else(|p| p.into_inner());
+            if let Err(e) = wg.flush_buffer() {
+                drop(wg);
+                self.failed.store(true, Ordering::Release);
+                return Err(e);
+            }
+            let t = self.committed.load(Ordering::Acquire).max(lsn);
+            drop(wg);
+            t
+        } else {
+            self.committed.load(Ordering::Acquire).max(lsn)
+        };
         let r = sync_file(&self.file);
         let r = if self.inject.swap(false, Ordering::AcqRel) {
             Err(std::io::Error::other("injected fsync failure"))
@@ -493,7 +530,7 @@ impl WalManager {
             StorageError::Backend(format!("Failed to seek to WAL write pos: {}", e))
         })?;
 
-        let writer = BufWriter::new(file);
+        let writer = BufWriter::with_capacity(256 * 1024, file);
 
         Ok(Self {
             path,
@@ -540,6 +577,7 @@ impl WalManager {
             .map_err(|e| StorageError::Backend(format!("WAL handle: {e}")))?;
         Ok(GroupSync {
             file,
+            wal_flusher: None,
             committed: self.committed_lsn.clone(),
             synced: std::sync::Mutex::new(0),
             fsyncs: AtomicU64::new(0),
@@ -861,13 +899,27 @@ impl WalManager {
         Ok(lsn)
     }
 
-    /// Encode and flush an entire atomic OLTP transaction (`PageWrite` frames + `Commit` frame)
-    /// in a single contiguous buffer, single `write_all`, single `BufWriter::flush()`, and zero
-    /// `active_transactions` lock churn. Returns the committed LSN for `GroupSync::wait_durable`.
-    pub fn log_atomic_tx_fast(
+    /// Flush any buffered user-space WAL bytes in `self.writer` to the OS page cache.
+    pub fn flush_buffer(&mut self) -> Result<(), StorageError> {
+        if let Some(ref mut writer) = self.writer
+            && !writer.buffer().is_empty()
+        {
+            writer
+                .flush()
+                .map_err(|e| StorageError::Backend(format!("WAL flush error: {}", e)))?;
+        }
+        Ok(())
+    }
+
+    /// Encode and append an entire atomic OLTP transaction (`PageWrite` frames + `Commit` frame).
+    /// When `defer_flush` is `true` (`GroupSync` active), frames are staged in the 256 KB
+    /// user-space `BufWriter` with zero kernel `write()` syscalls inside `commit_lock`, and
+    /// `GroupSync::wait_durable` flushes the entire waiting group in a single `write()` before `fdatasync`.
+    pub fn log_atomic_tx_buffered(
         &mut self,
         tx_id: u64,
         pages: &[(PageId, Vec<u8>)],
+        defer_flush: bool,
     ) -> Result<u64, StorageError> {
         let count = pages.len() as u64 + 1;
         let first_lsn = self.current_lsn.fetch_add(count, Ordering::SeqCst);
@@ -919,8 +971,11 @@ impl WalManager {
 
         self.ensure_wal_capacity(total_bytes as u64)?;
         if let Some(ref mut writer) = self.writer {
-            // Single-syscall direct write when BufWriter is empty (avoids double write() > 8 KB)
-            if writer.buffer().is_empty() {
+            if defer_flush {
+                writer
+                    .write_all(&buf)
+                    .map_err(|e| StorageError::Backend(format!("WAL write error: {}", e)))?;
+            } else if writer.buffer().is_empty() {
                 writer
                     .get_mut()
                     .write_all(&buf)
@@ -939,6 +994,17 @@ impl WalManager {
         self.committed_lsn.fetch_max(commit_lsn, Ordering::AcqRel);
 
         Ok(commit_lsn)
+    }
+
+    /// Encode and flush an entire atomic OLTP transaction (`PageWrite` frames + `Commit` frame)
+    /// in a single contiguous buffer, single `write_all`, single `BufWriter::flush()`, and zero
+    /// `active_transactions` lock churn. Returns the committed LSN for `GroupSync::wait_durable`.
+    pub fn log_atomic_tx_fast(
+        &mut self,
+        tx_id: u64,
+        pages: &[(PageId, Vec<u8>)],
+    ) -> Result<u64, StorageError> {
+        self.log_atomic_tx_buffered(tx_id, pages, false)
     }
 
     /// Append a rollback entry

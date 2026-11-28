@@ -11,16 +11,22 @@ use joule_db_query::executor::{RowData, TableStorage};
 /// This allows queries like `SELECT * FROM holographic`
 /// or `INSERT INTO holographic (key, value) VALUES (...)`
 pub struct HolographicTableStorage {
-    // We use a fixed dimension of 512 for the standard adapter
-    store: Arc<RwLock<HolographicKV<512>>>,
+    // Lazily initialized 512-dim HolographicKV so pure-RAM ephemeral branches pay zero allocation
+    // unless `holographic` or `kv` is actually queried.
+    store: Arc<std::sync::OnceLock<RwLock<HolographicKV<512>>>>,
 }
 
 impl HolographicTableStorage {
     pub fn new() -> Self {
-        let config = HolographicKVConfig::default();
         Self {
-            store: Arc::new(RwLock::new(HolographicKV::new(config))),
+            store: Arc::new(std::sync::OnceLock::new()),
         }
+    }
+
+    #[inline]
+    fn kv(&self) -> &RwLock<HolographicKV<512>> {
+        self.store
+            .get_or_init(|| RwLock::new(HolographicKV::new(HolographicKVConfig::default())))
     }
 
     fn check_table(&self, table: &str) -> QueryResult<()> {
@@ -39,7 +45,7 @@ impl TableStorage for HolographicTableStorage {
         self.check_table(table)?;
 
         let store = self
-            .store
+            .kv()
             .read()
             .map_err(|_| QueryError::ExecutionError("Lock poisoned".to_string()))?;
 
@@ -90,7 +96,7 @@ impl TableStorage for HolographicTableStorage {
         };
 
         let mut store = self
-            .store
+            .kv()
             .write()
             .map_err(|_| QueryError::ExecutionError("Lock poisoned".to_string()))?;
 
@@ -191,7 +197,7 @@ impl TableStorage for HolographicTableStorage {
             };
 
             let store = self
-                .store
+                .kv()
                 .read()
                 .map_err(|_| QueryError::ExecutionError("Lock poisoned".to_string()))?;
 

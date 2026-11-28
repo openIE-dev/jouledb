@@ -46,12 +46,14 @@ impl GinIndexInfo {
 /// Manages live GIN inverted indexes, analogous to SpatialIndexManager.
 pub struct GinIndexManager {
     indexes: RwLock<HashMap<String, GinIndexInfo>>,
+    count: std::sync::atomic::AtomicUsize,
 }
 
 impl GinIndexManager {
     pub fn new() -> Self {
         Self {
             indexes: RwLock::new(HashMap::new()),
+            count: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
@@ -91,11 +93,17 @@ impl GinIndexManager {
             u64_to_id,
             next_id,
         };
-        crate::lock_util::write_lock(&self.indexes).insert(name.to_string(), info);
+        let mut guard = crate::lock_util::write_lock(&self.indexes);
+        guard.insert(name.to_string(), info);
+        self.count
+            .store(guard.len(), std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Find which GIN index covers a given table + column.
     pub fn find_index_for(&self, table: &str, column: &str) -> Option<String> {
+        if self.count.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return None;
+        }
         let indexes = crate::lock_util::read_lock(&self.indexes);
         for (name, info) in indexes.iter() {
             if info.table.eq_ignore_ascii_case(table) && info.column.eq_ignore_ascii_case(column) {
@@ -107,6 +115,9 @@ impl GinIndexManager {
 
     /// List all GIN indexes for a given table, returning `(name, column)` pairs.
     pub fn indexes_for_table(&self, table: &str) -> Vec<(String, String)> {
+        if self.count.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return Vec::new();
+        }
         let indexes = crate::lock_util::read_lock(&self.indexes);
         indexes
             .iter()
@@ -189,9 +200,11 @@ impl GinIndexManager {
 
     /// Drop an index entirely.
     pub fn drop_index(&self, name: &str) -> bool {
-        crate::lock_util::write_lock(&self.indexes)
-            .remove(name)
-            .is_some()
+        let mut guard = crate::lock_util::write_lock(&self.indexes);
+        let removed = guard.remove(name).is_some();
+        self.count
+            .store(guard.len(), std::sync::atomic::Ordering::Relaxed);
+        removed
     }
 
     /// Rebuild GIN indexes from `__indexes__` metadata at startup.

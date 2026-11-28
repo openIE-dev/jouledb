@@ -1501,8 +1501,10 @@ fn run_statement_with_args(
     query_timeout_ms: Option<u64>,
 ) -> Result<QueryResponse, QueryErrorResponse> {
     let t = std::time::Instant::now();
-    let r = if tokio::runtime::Handle::try_current()
-        .is_ok_and(|h| h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread)
+    // Skip `tokio::task::block_in_place` scheduler migration on pure-RAM ~500ns `BEGIN`!
+    let r = if !is_tx_begin(sql)
+        && tokio::runtime::Handle::try_current()
+            .is_ok_and(|h| h.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread)
     {
         tokio::task::block_in_place(|| {
             run_statement_inner(sql, args, executor, conn_state, query_timeout_ms)

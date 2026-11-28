@@ -112,6 +112,7 @@ impl GridIndex {
 /// Manages live spatial grid indexes, analogous to VectorIndexManager.
 pub struct SpatialIndexManager {
     indexes: RwLock<HashMap<String, SpatialIndexInfo>>,
+    count: std::sync::atomic::AtomicUsize,
 }
 
 struct SpatialIndexInfo {
@@ -124,6 +125,7 @@ impl SpatialIndexManager {
     pub fn new() -> Self {
         Self {
             indexes: RwLock::new(HashMap::new()),
+            count: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
@@ -161,7 +163,10 @@ impl SpatialIndexManager {
             table: table.to_string(),
             column: column.to_string(),
         };
-        crate::lock_util::write_lock(&self.indexes).insert(name.to_string(), info);
+        let mut guard = crate::lock_util::write_lock(&self.indexes);
+        guard.insert(name.to_string(), info);
+        self.count
+            .store(guard.len(), std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Insert a single point into an existing spatial index.
@@ -173,13 +178,18 @@ impl SpatialIndexManager {
 
     /// Remove a spatial index.
     pub fn remove_index(&self, name: &str) -> bool {
-        crate::lock_util::write_lock(&self.indexes)
-            .remove(name)
-            .is_some()
+        let mut guard = crate::lock_util::write_lock(&self.indexes);
+        let removed = guard.remove(name).is_some();
+        self.count
+            .store(guard.len(), std::sync::atomic::Ordering::Relaxed);
+        removed
     }
 
     /// List all spatial indexes for a given table, returning (name, column) pairs.
     pub fn indexes_for_table(&self, table: &str) -> Vec<(String, String)> {
+        if self.count.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return Vec::new();
+        }
         let indexes = crate::lock_util::read_lock(&self.indexes);
         indexes
             .iter()
@@ -190,6 +200,9 @@ impl SpatialIndexManager {
 
     /// Find a spatial index for a given table and column.
     pub fn find_index_for(&self, table: &str, column: &str) -> Option<String> {
+        if self.count.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return None;
+        }
         let indexes = crate::lock_util::read_lock(&self.indexes);
         for (name, info) in indexes.iter() {
             if info.table == table && info.column == column {

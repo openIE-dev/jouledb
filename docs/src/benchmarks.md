@@ -1,6 +1,6 @@
-# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.18.0`)
+# Benchmarks, Consensus Verification & Subsystem Smoke Tests (`v0.19.0`)
 
-> **Audit Remediation & Evidence Standard (`v0.18.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
+> **Audit Remediation & Evidence Standard (`v0.19.0`):** Earlier `v0.2.8`–`v1.0.0` documentation presented 36 in-process micro-harnesses and synthetic simulations as *"36 / 36 Certified Global Benchmark Pillars"*, including synthetic frontier AI exam routes (`frontier_exam_routes.rs`). **All synthetic frontier AI benchmark claims remain retracted and `frontier_exam_routes.rs` has been deleted.**
 >
 > Below we strictly separate **(1) reproducible external dataset, multi-table `TPC-H` (`SF=0.1..10.0`), physical-NVMe core-banking & multi-client `pgwire` OLTP, sub-millisecond lazy CoW branching, `LTCB` (`enwik8`/`enwik9`) `Joules-per-Bit` compression, & multi-host WAN consensus evaluations** (with every win, loss, memory profile, and architectural bottleneck reported openly) from **(2) fast in-process functional smoke checks**, and tag every energy figure as **`reported_j`** (hardware RAPL / SMC counters) or **`est_j`** / **`analytical_est`** (modeled).
 
@@ -40,14 +40,14 @@
 
 ## 2. Official 22-Query `TPC-H` Relational Suite (`tpch_queries()`, 8 Tables, `SF = 0.1`, `1.0` & `10.0`) vs. DuckDB `2.0.1`
 
-- **Harness & Raw Artifacts:** [`bench/tpch_official.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/tpch_official.py), [`tpch_official_sf01.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf01.json), [`tpch_official_sf1.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf1.json), **[`tpch_official_sf10.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf10.json)**.
-- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)` on physical NVMe (`--work-dir /var/tmp`), loads them into JouleDB `0.18.0` over TCP `pgwire`, and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` (`PK-FD` group-by compression + 3-hop semi-join pushdown + 64-shard `NeqExists`) against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
+- **Harness & Raw Artifacts:** [`bench/tpch_official.py`](https://github.com/openIE-dev/jouledb/blob/main/bench/tpch_official.py), [`tpch_official_sf01.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_official_sf01.json), [`tpch_sf1_v019.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_sf1_v019.json), **[`tpch_sf10_v019.json`](https://github.com/openIE-dev/jouledb/blob/main/bench/results/tpch_sf10_v019.json)**.
+- **Methodology:** Generates standard 8-table `TPC-H` Parquet fixtures via DuckDB `dbgen(sf=...)` on physical NVMe (`--work-dir /var/tmp`), loads them into JouleDB `0.19.0` over TCP `pgwire`, and runs all **22 official `tpch_queries()` (`Q01..Q22`)** unmodified via `columnar_join.rs` (boundary-stitched disjoint `.jcol` segment `CompactNumAgg` + `PK-FD` group-by compression + 3-hop semi-join pushdown + fused `NeqExists`) against DuckDB `2.0.1` (`rapl-package` **`reported_j`**).
 
 | `TPC-H` Scale | Total Rows (8 Tables) | Parquet Load (`DuckDB` vs `JouleDB`) | Post-Load RSS (`VmHWM` Peak) | Verified Exact (`Faster`) | Total 22-Query Time (`DuckDB` vs `JouleDB`) | Geomean Latency (`JouleDB / DuckDB`) |
 |---|---:|---:|---:|---:|---:|---:|
 | **`SF = 0.1`** | `866,602` rows | `0.430 s` (`12.2 J`) vs `1.380 s` (`54.5 J`) | **`780.8 MB`** (`939.3 MB`) | **`22 / 22` (`5` wins)** | `88.2 ms` vs **`253.0 ms`** | **`1.99×` slower** (`median 2.16×`) |
-| **`SF = 1.0`** | `8,661,245` rows (`6.0M` `lineitem`) | `1.200 s` (`65.0 J`) vs `4.707 s` (`143.8 J`) | **`201.6 MB`** (**`578.5 MB`**) | **`22 / 22` (`0` err)** | `238.6 ms` vs **`927.5 ms`** (**sub-second**, `1.71×` vs `v0.15`) | **`3.61×` slower** (`median 3.59×`, down from `6.18×`) |
-| **`SF = 10.0`** | **`86,586,082` rows (`60.0M` `lineitem`)** | `5.839 s` (`508.5 J`) vs `46.135 s` (`1,373.0 J`) | **`754.9 MB`** (**`4,259.3 MB`**) | **`22 / 22` (`0` err)** | `945.6 ms` vs **`7,441.0 ms`** (**`2.18×` faster vs `v0.15`**) | **`6.41×` slower** (`median 6.51×`, down from `16.03×`) |
+| **`SF = 1.0`** | `8,661,245` rows (`6.0M` `lineitem`) | `1.421 s` (`135.0 J`) vs `5.127 s` (`318.3 J`) | **`189.7 MB`** (**`459.5 MB`**) | **`22 / 22` (`0` err)** | `276.0 ms` vs **`972.4 ms`** (**sub-second**) | **`3.36×` slower** (`median 3.27×`, down from `6.18×`) |
+| **`SF = 10.0`** | **`86,586,082` rows (`60.0M` `lineitem`)** | `8.459 s` vs `52.441 s` | **`743.4 MB`** (**`1,251.3 MB`**) | **`22 / 22` (`0` err)** | `1,010.2 ms` vs **`5,458.3 ms`** (**`2.97×` faster vs `v0.15`**) | **`5.04×` slower** (`median 5.26×`, down from `16.03×`) |
 
 ### Selected Per-Query `TPC-H` Latencies (`SF = 0.1`, `SF = 1.0` & `SF = 10.0`, `reported_j`)
 

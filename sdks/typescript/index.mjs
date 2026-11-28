@@ -1,9 +1,9 @@
 /**
- * @openie/jouledb v0.18.0
+ * @openie/jouledb v0.19.0
  * Universal Fetch-native client for Node.js (>=18), Deno, Bun, Cloudflare Workers & Browsers.
  */
 
-export const VERSION = "0.18.0";
+export const VERSION = "0.19.0";
 
 export class JouleDBError extends Error {
   constructor(message, status = 0) {

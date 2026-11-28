@@ -67,6 +67,10 @@ impl AmorphicTableStorage {
         store
             .ingest_json(&trigger_json.to_string())
             .map_err(amorphic_error)?;
+        if existing_ids.is_empty() {
+            self.trigger_count
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
 
         Ok(())
     }
@@ -99,11 +103,19 @@ impl AmorphicTableStorage {
         for id in &trigger_ids {
             let _ = store.delete(*id);
         }
+        let _ = self.trigger_count.fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |c| Some(c.saturating_sub(trigger_ids.len())),
+        );
         Ok(())
     }
 
     /// List all triggers (returned from the list_triggers method).
     pub fn list_triggers(&self) -> Vec<TriggerInfo> {
+        if !self.has_any_triggers() {
+            return Vec::new();
+        }
         let store = match self.store.read_columns() {
             Ok(s) => s,
             Err(_) => return Vec::new(),
@@ -149,6 +161,9 @@ impl AmorphicTableStorage {
 
     /// Get all triggers for a given table, timing, and event.
     pub fn get_triggers(&self, table: &str, timing: &str, event: &str) -> Vec<TriggerInfo> {
+        if !self.has_any_triggers() {
+            return Vec::new();
+        }
         let store = match self.store.read_columns() {
             Ok(s) => s,
             Err(_) => return Vec::new(),

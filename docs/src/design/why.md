@@ -5,7 +5,7 @@ vector index, property-graph engine, container daemon, and external LLM weight s
 orders of magnitude more joules and tail latency than arithmetic inside an ALU. JouleDB
 consolidates transactional storage, hybrid retrieval, and sub-1-bit `.jsyn` neural execution
 onto a single Copy-on-Write Serializable Snapshot Isolation (`SSI`) substrate written in
-Rust (`41` workspace member crates / `760k+` LOC in [`crates/`](https://github.com/openIE-dev/jouledb/tree/main/crates), `v0.18.0` pre-1.0 preview, `41 / 41` `deny(clippy::unwrap_used)`).
+Rust (`41` workspace member crates / `760k+` LOC in [`crates/`](https://github.com/openIE-dev/jouledb/tree/main/crates), `v0.19.0` pre-1.0 preview, `41 / 41` `deny(clippy::unwrap_used)`).
 
 This chapter states the prior art JouleDB builds on, where established systems outperform
 JouleDB, the exact `1..15` hyperdimensional computing (`HDC`) primitives, benchmark protocols
@@ -172,7 +172,7 @@ constraints over `PathHD` candidates.
 2. **What the `crates.io` `jouledb` Crate (`stubs/jouledb`) Does:**
    Because the 41 internal workspace crates are not yet published individually on `crates.io`,
    the top-level `jouledb` package on `crates.io` ([`stubs/jouledb/`](https://github.com/openIE-dev/jouledb/tree/main/stubs/jouledb),
-   `v0.18.0`, `MIT OR Apache-2.0`; `1.0.0` yanked) is a **`cargo-binstall` binary-fetcher stub**:
+   `v0.19.0`, `MIT OR Apache-2.0`; `1.0.0` yanked) is a **`cargo-binstall` binary-fetcher stub**:
    - `cargo binstall jouledb` downloads the signed release archive built from this repository
      by [`.github/workflows/release.yml`](https://github.com/openIE-dev/jouledb/blob/main/.github/workflows/release.yml).
    - Plain `cargo install jouledb` compiles `stubs/jouledb/src/main.rs`, which prints install

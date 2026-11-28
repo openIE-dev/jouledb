@@ -31,12 +31,14 @@ pub struct VectorIndexInfo {
 pub struct VectorIndexManager {
     /// index_name -> VectorIndexInfo
     indexes: RwLock<HashMap<String, VectorIndexInfo>>,
+    count: std::sync::atomic::AtomicUsize,
 }
 
 impl VectorIndexManager {
     pub fn new() -> Self {
         Self {
             indexes: RwLock::new(HashMap::new()),
+            count: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
@@ -101,6 +103,8 @@ impl VectorIndexManager {
                     .write()
                     .map_err(|e| format!("lock error: {}", e))?;
                 indexes.insert(name.to_string(), info);
+                self.count
+                    .store(indexes.len(), std::sync::atomic::Ordering::Relaxed);
                 return Ok(());
             }
             "HNSW_SQ" | "HNSW+SQ" => {
@@ -133,6 +137,8 @@ impl VectorIndexManager {
                     .write()
                     .map_err(|e| format!("lock error: {}", e))?;
                 indexes.insert(name.to_string(), info);
+                self.count
+                    .store(indexes.len(), std::sync::atomic::Ordering::Relaxed);
                 return Ok(());
             }
             "IVF_PQ" | "IVF+PQ" => {
@@ -165,6 +171,8 @@ impl VectorIndexManager {
                     .write()
                     .map_err(|e| format!("lock error: {}", e))?;
                 indexes.insert(name.to_string(), info);
+                self.count
+                    .store(indexes.len(), std::sync::atomic::Ordering::Relaxed);
                 return Ok(());
             }
             "HNSW_CORE" => {
@@ -212,6 +220,8 @@ impl VectorIndexManager {
                     .write()
                     .map_err(|e| format!("lock error: {}", e))?;
                 indexes.insert(name.to_string(), info);
+                self.count
+                    .store(indexes.len(), std::sync::atomic::Ordering::Relaxed);
                 return Ok(());
             }
             _ => {
@@ -257,6 +267,8 @@ impl VectorIndexManager {
             .write()
             .map_err(|e| format!("lock error: {}", e))?;
         indexes.insert(name.to_string(), info);
+        self.count
+            .store(indexes.len(), std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 
@@ -387,6 +399,9 @@ impl VectorIndexManager {
     /// Check if any vector index covers the given table + column.
     /// Returns the index name if found.
     pub fn find_index_for(&self, table: &str, column: &str) -> Option<String> {
+        if self.count.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return None;
+        }
         let indexes = self.indexes.read().ok()?;
         for (name, info) in indexes.iter() {
             if info.table.eq_ignore_ascii_case(table) && info.column.eq_ignore_ascii_case(column) {
@@ -399,6 +414,9 @@ impl VectorIndexManager {
     /// Check if any vector index exists for the given table (any column).
     /// Returns (index_name, column_name) pairs.
     pub fn indexes_for_table(&self, table: &str) -> Vec<(String, String)> {
+        if self.count.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            return Vec::new();
+        }
         let indexes = match self.indexes.read() {
             Ok(g) => g,
             Err(_) => return Vec::new(),
@@ -417,6 +435,8 @@ impl VectorIndexManager {
             .write()
             .map_err(|e| format!("lock error: {}", e))?;
         indexes.remove(name);
+        self.count
+            .store(indexes.len(), std::sync::atomic::Ordering::Relaxed);
         Ok(())
     }
 

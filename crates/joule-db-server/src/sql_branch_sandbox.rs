@@ -1265,31 +1265,9 @@ fn materialize_one_branch_table(
     base: &TableBaseSnapshot,
 ) -> Result<(), QueryErrorResponse> {
     let exec = entry.executor();
-    if !base.col_defs.is_empty() {
-        let ddl = render_create_table_sql(table, &base.col_defs);
-        let _ = exec.execute(&QueryRequest {
-            sql: ddl,
-            ..Default::default()
-        })?;
-    } else if !base.columns.is_empty() {
-        let cols_ddl: Vec<String> = base
-            .columns
-            .iter()
-            .map(|c| format!("\"{c}\" TEXT"))
-            .collect();
-        let ddl = format!("CREATE TABLE \"{table}\" ({})", cols_ddl.join(", "));
-        let _ = exec.execute(&QueryRequest {
-            sql: ddl,
-            ..Default::default()
-        })?;
-    }
-
-    if !base.raw_rows.is_empty() && !base.columns.is_empty() {
-        exec.amorphic()
-            .insert_rows(table, &base.raw_rows)
-            .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))?;
-    }
-    Ok(())
+    exec.amorphic()
+        .materialize_ephemeral_branch_table(table, &base.columns, &base.col_defs, &base.raw_rows)
+        .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()))
 }
 
 fn materialize_all_branch_tables(entry: &SqlBranchEntry) -> Result<(), QueryErrorResponse> {

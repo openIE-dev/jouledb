@@ -573,9 +573,10 @@ impl HoloLock {
         if sync.as_ref().is_some_and(|s| s.has_failed()) {
             return Err("WAL fsync failed earlier".into());
         }
+        let defer_flush = sync.is_some();
         let mut wal_guard = self.wal.lock().unwrap_or_else(|p| p.into_inner());
         let commit_lsn = wal_guard
-            .log_atomic_tx_fast(tx_id, pages)
+            .log_atomic_tx_buffered(tx_id, pages, defer_flush)
             .map_err(|e| format!("WAL commit failed: {e}"))?;
         drop(wal_guard);
         Ok((commit_lsn, sync))
@@ -584,6 +585,10 @@ impl HoloLock {
     pub(crate) fn write_ram_only(
         &self,
     ) -> std::sync::LockResult<std::sync::RwLockWriteGuard<'_, DurableAmorphicStore>> {
+        self.last_bulk_ms.store(
+            self.epoch.elapsed().as_millis() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         self.writers_waiting
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let w = self.inner.write();
@@ -768,13 +773,40 @@ pub(crate) struct CachedTableSchema {
     pub columns: std::sync::Arc<Vec<String>>,
     pub defs: std::sync::Arc<Vec<ColumnDefInfo>>,
     pub has_computed: bool,
+    pub has_pk: bool,
+    pub has_unique: bool,
+    pub has_fk: bool,
+    pub has_auto_inc: bool,
+}
+
+impl CachedTableSchema {
+    pub(crate) fn from_parts(cols: Vec<String>, defs: Vec<ColumnDefInfo>) -> Self {
+        let has_computed = defs.iter().any(|d| d.computed_expr.is_some());
+        let has_pk = defs.iter().any(|d| d.primary_key);
+        let has_unique = defs.iter().any(|d| d.unique && !d.primary_key);
+        let has_fk = defs.iter().any(|d| d.foreign_key.is_some());
+        let has_auto_inc = defs.iter().any(|d| d.auto_increment);
+        Self {
+            columns: std::sync::Arc::new(cols),
+            defs: std::sync::Arc::new(defs),
+            has_computed,
+            has_pk,
+            has_unique,
+            has_fk,
+            has_auto_inc,
+        }
+    }
 }
 
 pub struct AmorphicTableStorage {
     store: HoloLock,
     db_path: std::path::PathBuf,
-    /// Cached `(columns, column_defs, has_computed)` per table, invalidated only on DDL/schema mutation.
+    /// Cached `(columns, column_defs, constraint_flags)` per table, invalidated only on DDL/schema mutation.
     pub(crate) schema_cache: std::sync::RwLock<HashMap<String, CachedTableSchema>>,
+    /// Atomic count of active SQL triggers (zero-lock OLTP fast-path when `0`).
+    pub(crate) trigger_count: std::sync::atomic::AtomicUsize,
+    /// Atomic count of active fulltext indexes (zero-lock OLTP fast-path when `0`).
+    pub(crate) fulltext_index_count: std::sync::atomic::AtomicUsize,
     /// Columnar snapshots per table, keyed by the store generation they were built at
     col_cache: std::sync::Mutex<
         HashMap<
@@ -800,10 +832,26 @@ impl AmorphicTableStorage {
     pub fn new(store: DurableAmorphicStore) -> Self {
         let db_path = store.path().to_path_buf();
         let recovered_disk = crate::disk_col_segments::DiskColumnTable::open_all(&db_path);
+        let init_triggers = store
+            .records_equal(
+                TABLE_FIELD,
+                &AmorphicValue::String(TRIGGER_TABLE.to_string()),
+            )
+            .len();
+        let init_fts = store
+            .records_equal(
+                "__index_type__",
+                &AmorphicValue::String("fulltext".to_string()),
+            )
+            .into_iter()
+            .filter(|r| r.get(TABLE_FIELD) == Some(&AmorphicValue::String(INDEX_TABLE.to_string())))
+            .count();
         Self {
             store: HoloLock::new(store),
             db_path,
             schema_cache: std::sync::RwLock::new(HashMap::new()),
+            trigger_count: std::sync::atomic::AtomicUsize::new(init_triggers),
+            fulltext_index_count: std::sync::atomic::AtomicUsize::new(init_fts),
             col_cache: std::sync::Mutex::new(HashMap::new()),
             disk_cols: std::sync::RwLock::new(recovered_disk),
         }
@@ -816,9 +864,68 @@ impl AmorphicTableStorage {
             store: HoloLock::new_ephemeral(store),
             db_path: std::path::PathBuf::new(),
             schema_cache: std::sync::RwLock::new(HashMap::new()),
+            trigger_count: std::sync::atomic::AtomicUsize::new(0),
+            fulltext_index_count: std::sync::atomic::AtomicUsize::new(0),
             col_cache: std::sync::Mutex::new(HashMap::new()),
             disk_cols: std::sync::RwLock::new(HashMap::new()),
         }
+    }
+
+    #[inline]
+    pub fn has_any_triggers(&self) -> bool {
+        self.trigger_count
+            .load(std::sync::atomic::Ordering::Relaxed)
+            > 0
+    }
+
+    #[inline]
+    pub fn has_any_fulltext_indexes(&self) -> bool {
+        self.fulltext_index_count
+            .load(std::sync::atomic::Ordering::Relaxed)
+            > 0
+    }
+
+    /// O(1) cached lookup returning `(columns, defs, has_computed, has_pk, has_unique, has_fk, has_auto_inc)`
+    /// via `Arc` handles without cloning `Vec<String>` or `Vec<ColumnDefInfo>` on OLTP hot paths.
+    pub fn cached_table_meta(
+        &self,
+        table: &str,
+    ) -> QueryResult<(
+        std::sync::Arc<Vec<String>>,
+        std::sync::Arc<Vec<ColumnDefInfo>>,
+        bool,
+        bool,
+        bool,
+        bool,
+        bool,
+    )> {
+        if let Ok(sc) = self.schema_cache.read()
+            && let Some(hit) = sc.get(table)
+        {
+            return Ok((
+                hit.columns.clone(),
+                hit.defs.clone(),
+                hit.has_computed,
+                hit.has_pk,
+                hit.has_unique,
+                hit.has_fk,
+                hit.has_auto_inc,
+            ));
+        }
+        let store = self
+            .store
+            .read_columns()
+            .map_err(conversions::lock_error)?;
+        let hit = self.cached_schema_with_store(&store, table)?;
+        Ok((
+            hit.columns,
+            hit.defs,
+            hit.has_computed,
+            hit.has_pk,
+            hit.has_unique,
+            hit.has_fk,
+            hit.has_auto_inc,
+        ))
     }
 
     #[inline]
@@ -842,12 +949,7 @@ impl AmorphicTableStorage {
         let defs = self
             .load_column_defs_uncached(store, table)
             .unwrap_or_default();
-        let has_computed = defs.iter().any(|d| d.computed_expr.is_some());
-        let entry = CachedTableSchema {
-            columns: std::sync::Arc::new(cols),
-            defs: std::sync::Arc::new(defs),
-            has_computed,
-        };
+        let entry = CachedTableSchema::from_parts(cols, defs);
         if let Ok(mut sc) = self.schema_cache.write() {
             if sc.len() > 512 {
                 sc.clear();

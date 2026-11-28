@@ -495,9 +495,11 @@ pub struct MvccTableStorage {
     /// 64-way sharded per-table mapping `amorphic_record_id -> mvcc_record_id` for records seeded into MVCC.
     table_id_shards: Box<[Mutex<HashMap<String, HashMap<u64, u64>>>; SESSION_SHARDS]>,
     /// Per-table set of `mvcc_record_id`s deleted via MVCC (so older snapshots still find them).
-    mvcc_deleted_ids: Mutex<HashMap<String, HashSet<u64>>>,
+    mvcc_deleted_ids: std::sync::RwLock<HashMap<String, HashSet<u64>>>,
+    has_any_deleted: std::sync::atomic::AtomicBool,
     /// Per-(table, column) set of `mvcc_record_id`s whose `column` value was modified via MVCC.
-    mvcc_col_updated_ids: Mutex<HashMap<(String, String), HashSet<u64>>>,
+    mvcc_col_updated_ids: std::sync::RwLock<HashMap<(String, String), HashSet<u64>>>,
+    has_any_col_updated: std::sync::atomic::AtomicBool,
 }
 
 impl MvccTableStorage {
@@ -516,8 +518,10 @@ impl MvccTableStorage {
             active_session_counter: AtomicU64::new(0),
             next_temp_id: AtomicU64::new(NEW_RECORD_ID_BASE),
             table_id_shards,
-            mvcc_deleted_ids: Mutex::new(HashMap::new()),
-            mvcc_col_updated_ids: Mutex::new(HashMap::new()),
+            mvcc_deleted_ids: std::sync::RwLock::new(HashMap::new()),
+            has_any_deleted: std::sync::atomic::AtomicBool::new(false),
+            mvcc_col_updated_ids: std::sync::RwLock::new(HashMap::new()),
+            has_any_col_updated: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -661,11 +665,12 @@ impl MvccTableStorage {
                     }
                 }
             }
-            let mut del = crate::lock_util::mutex_lock(&self.mvcc_deleted_ids);
+            let mut del = crate::lock_util::write_lock(&self.mvcc_deleted_ids);
             let del_set = del.entry(table.to_string()).or_default();
             for (_, mid) in removed_amorphic_ids {
                 del_set.insert(mid);
             }
+            self.has_any_deleted.store(true, Ordering::Release);
         }
     }
 
@@ -701,8 +706,8 @@ impl MvccTableStorage {
                     }
 
                     // Include any rows deleted via MVCC or whose `eq_col` was modified via MVCC
-                    {
-                        let del = crate::lock_util::mutex_lock(&self.mvcc_deleted_ids);
+                    if self.has_any_deleted.load(Ordering::Acquire) {
+                        let del = crate::lock_util::read_lock(&self.mvcc_deleted_ids);
                         if let Some(ids) = del.get(table) {
                             for &id in ids {
                                 if seen_ids.insert(id) {
@@ -711,8 +716,8 @@ impl MvccTableStorage {
                             }
                         }
                     }
-                    {
-                        let upd = crate::lock_util::mutex_lock(&self.mvcc_col_updated_ids);
+                    if self.has_any_col_updated.load(Ordering::Acquire) {
+                        let upd = crate::lock_util::read_lock(&self.mvcc_col_updated_ids);
                         if let Some(ids) = upd.get(&(table.to_string(), eq_col)) {
                             for &id in ids {
                                 if seen_ids.insert(id) {
@@ -955,7 +960,7 @@ impl MvccTableStorage {
             }
 
             if !deleted_tracking.is_empty() {
-                let mut del = crate::lock_util::mutex_lock(&self.mvcc_deleted_ids);
+                let mut del = crate::lock_util::write_lock(&self.mvcc_deleted_ids);
                 for (tbl, mid, aid_opt) in deleted_tracking {
                     if let Some(aid) = aid_opt {
                         let mut map = crate::lock_util::mutex_lock(
@@ -967,12 +972,23 @@ impl MvccTableStorage {
                     }
                     del.entry(tbl).or_default().insert(mid);
                 }
+                self.has_any_deleted.store(true, Ordering::Release);
             }
 
             if !updated_col_tracking.is_empty() {
-                let mut upd = crate::lock_util::mutex_lock(&self.mvcc_col_updated_ids);
-                for (tbl, col, mid) in updated_col_tracking {
-                    upd.entry((tbl, col)).or_default().insert(mid);
+                let needs_write = {
+                    let upd = crate::lock_util::read_lock(&self.mvcc_col_updated_ids);
+                    updated_col_tracking.iter().any(|(tbl, col, mid)| {
+                        !upd.get(&(tbl.clone(), col.clone()))
+                            .is_some_and(|s| s.contains(mid))
+                    })
+                };
+                if needs_write {
+                    let mut upd = crate::lock_util::write_lock(&self.mvcc_col_updated_ids);
+                    for (tbl, col, mid) in updated_col_tracking {
+                        upd.entry((tbl, col)).or_default().insert(mid);
+                    }
+                    self.has_any_col_updated.store(true, Ordering::Release);
                 }
             }
 

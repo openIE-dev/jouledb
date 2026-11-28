@@ -1021,61 +1021,79 @@ pub struct AmorphicStore {
 impl AmorphicStore {
     /// Create a new amorphic store
     pub fn new() -> Self {
-        let mut rng = StdRng::seed_from_u64(0xA0F0_0F1C);
+        type DefaultSeedState = (
+            HashMap<String, BinaryHV>,
+            BinaryHV,
+            Vec<Vec<usize>>,
+            u64,
+        );
+        static DEFAULT_SEED_STATE: std::sync::OnceLock<DefaultSeedState> =
+            std::sync::OnceLock::new();
 
-        let mut type_vectors = HashMap::new();
-        type_vectors.insert(
-            "null".to_string(),
-            BinaryHV::from_hash(b"TYPE_NULL", DIMENSION),
-        );
-        type_vectors.insert(
-            "bool".to_string(),
-            BinaryHV::from_hash(b"TYPE_BOOL", DIMENSION),
-        );
-        type_vectors.insert(
-            "int".to_string(),
-            BinaryHV::from_hash(b"TYPE_INT", DIMENSION),
-        );
-        type_vectors.insert(
-            "float".to_string(),
-            BinaryHV::from_hash(b"TYPE_FLOAT", DIMENSION),
-        );
-        type_vectors.insert(
-            "string".to_string(),
-            BinaryHV::from_hash(b"TYPE_STRING", DIMENSION),
-        );
-        type_vectors.insert(
-            "array".to_string(),
-            BinaryHV::from_hash(b"TYPE_ARRAY", DIMENSION),
-        );
-        type_vectors.insert(
-            "object".to_string(),
-            BinaryHV::from_hash(b"TYPE_OBJECT", DIMENSION),
-        );
-        type_vectors.insert(
-            "edge".to_string(),
-            BinaryHV::from_hash(b"TYPE_EDGE", DIMENSION),
-        );
+        let (type_vectors_ref, scalar_base_ref, lsh_bit_positions_ref, post_seed) =
+            DEFAULT_SEED_STATE.get_or_init(|| {
+                let mut rng = StdRng::seed_from_u64(0xA0F0_0F1C);
 
-        let scalar_base = BinaryHV::random(DIMENSION, rng.random());
+                let mut type_vectors = HashMap::with_capacity(8);
+                type_vectors.insert(
+                    "null".to_string(),
+                    BinaryHV::from_hash(b"TYPE_NULL", DIMENSION),
+                );
+                type_vectors.insert(
+                    "bool".to_string(),
+                    BinaryHV::from_hash(b"TYPE_BOOL", DIMENSION),
+                );
+                type_vectors.insert(
+                    "int".to_string(),
+                    BinaryHV::from_hash(b"TYPE_INT", DIMENSION),
+                );
+                type_vectors.insert(
+                    "float".to_string(),
+                    BinaryHV::from_hash(b"TYPE_FLOAT", DIMENSION),
+                );
+                type_vectors.insert(
+                    "string".to_string(),
+                    BinaryHV::from_hash(b"TYPE_STRING", DIMENSION),
+                );
+                type_vectors.insert(
+                    "array".to_string(),
+                    BinaryHV::from_hash(b"TYPE_ARRAY", DIMENSION),
+                );
+                type_vectors.insert(
+                    "object".to_string(),
+                    BinaryHV::from_hash(b"TYPE_OBJECT", DIMENSION),
+                );
+                type_vectors.insert(
+                    "edge".to_string(),
+                    BinaryHV::from_hash(b"TYPE_EDGE", DIMENSION),
+                );
 
-        // Initialize LSH tables with random bit positions
+                let scalar_base = BinaryHV::random(DIMENSION, rng.random());
+
+                let mut lsh_bit_positions = Vec::with_capacity(LSH_NUM_TABLES);
+                for _ in 0..LSH_NUM_TABLES {
+                    let mut positions: Vec<usize> = (0..DIMENSION).collect();
+                    for i in (1..DIMENSION).rev() {
+                        let j = rng.random_range(0..=i);
+                        positions.swap(i, j);
+                    }
+                    positions.truncate(LSH_BITS_PER_TABLE);
+                    positions.sort_unstable();
+                    lsh_bit_positions.push(positions);
+                }
+
+                let next_rng_seed: u64 = rng.random();
+                (type_vectors, scalar_base, lsh_bit_positions, next_rng_seed)
+            });
+
+        let type_vectors = type_vectors_ref.clone();
+        let scalar_base = scalar_base_ref.clone();
+        let lsh_bit_positions = lsh_bit_positions_ref.clone();
+        let rng = StdRng::seed_from_u64(*post_seed);
+
         let mut lsh_tables = Vec::with_capacity(LSH_NUM_TABLES);
-        let mut lsh_bit_positions = Vec::with_capacity(LSH_NUM_TABLES);
-
         for _ in 0..LSH_NUM_TABLES {
             lsh_tables.push(HashMap::new());
-
-            // Select random bit positions for this table
-            let mut positions: Vec<usize> = (0..DIMENSION).collect();
-            // Fisher-Yates shuffle to pick random positions
-            for i in (1..DIMENSION).rev() {
-                let j = rng.random_range(0..=i);
-                positions.swap(i, j);
-            }
-            positions.truncate(LSH_BITS_PER_TABLE);
-            positions.sort_unstable(); // Sort for cache-friendly access
-            lsh_bit_positions.push(positions);
         }
 
         Self {

@@ -1,0 +1,50 @@
+{
+  "suite": "jouledb_v019_sota_agentic_bench",
+  "version": "0.19.0",
+  "energy_measurement_class": "analytical_est",
+  "pillar1_joule_route_live_failover": {
+    "rtk_raw_tokens": 1169,
+    "rtk_compressed_tokens": 82,
+    "rtk_reduction_pct": 93.01,
+    "rtk_latency_us": 683.1,
+    "live_http_429_failover_ms": 2.928,
+    "tier0_langcache_hit_ms": 2.175,
+    "failover_skipped": [
+      "aaa-tier1-429-upstream:live_http_429"
+    ],
+    "selected_provider": "zzz-tier1-healthy-upstream",
+    "tier0_hit_tier": "o_auth_subscription"
+  },
+  "pillar2_lazy_cow_ram_ontology_and_mcp_power": {
+    "v017_disk_branch_dry_run_ms": 34.122,
+    "v018_pure_ram_dry_run_ms": 26.135,
+    "v019_lazy_cow_urllib_dry_run_median_ms": 0.954,
+    "v019_lazy_cow_keepalive_dry_run_median_ms": 0.564,
+    "v019_lazy_cow_sql_dry_run_median_ms": 0.626,
+    "speedup_vs_v017_x": 35.76,
+    "speedup_vs_v018_x": 27.39,
+    "sql_live_action_plus_ledger_ms": 0.985,
+    "ledger_transfer_id": "tx_00000003",
+    "mcp_scoped_tool_count": 5,
+    "mcp_scoped_prompt_savings_pct": 97.73,
+    "opencode_sql_lsp_roundtrip_ms": 0.672,
+    "opencode_lsp_codes": [
+      "42501",
+      "ONT001"
+    ]
+  },
+  "pillar3_voyage_cohere_rerank_64docs": {
+    "candidate_docs": 64,
+    "top1_index": 19,
+    "top1_score": 0.84797,
+    "http_roundtrip_median_ms": 0.651,
+    "engine_elapsed_us": 336,
+    "docs_per_sec": 98381.6
+  },
+  "pillar4_super_adapter_and_lance_blob": {
+    "super_adapter_rank": 96,
+    "max_pairwise_cosine": 0.005805,
+    "audit_and_concat_ms": 1.962,
+    "lance_blob_4kb_seek_ms": 0.442
+  }
+}

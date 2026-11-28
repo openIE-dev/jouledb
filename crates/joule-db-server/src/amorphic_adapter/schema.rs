@@ -172,6 +172,116 @@ impl AmorphicTableStorage {
         Ok(())
     }
 
+    /// Materialize a base table into an ephemeral Copy-on-Write branch store in pure RAM
+    /// without SQL DDL rendering/parsing, WAL serialization, or synchronous 10,000-bit
+    /// hypervector/LSH computation (deferred holograms remain queued for lazy `read_indexed` catch-up).
+    pub fn materialize_ephemeral_branch_table(
+        &self,
+        table: &str,
+        columns: &[String],
+        col_defs: &[ColumnDefInfo],
+        rows: &[RowData],
+    ) -> QueryResult<()> {
+        let effective_cols: Vec<String> = if !columns.is_empty() {
+            columns.to_vec()
+        } else {
+            col_defs.iter().map(|d| d.name.clone()).collect()
+        };
+        if effective_cols.is_empty() {
+            return Ok(());
+        }
+
+        let (_, first_id) = self.store.alloc_tx_and_ids(1 + rows.len());
+        let mut next_id = first_id;
+
+        let mut schema_fields = HashMap::with_capacity(4);
+        schema_fields.insert(
+            TABLE_FIELD.to_string(),
+            AmorphicValue::String(SCHEMA_TABLE.to_string()),
+        );
+        schema_fields.insert(
+            SCHEMA_NAME_FIELD.to_string(),
+            AmorphicValue::String(table.to_string()),
+        );
+        schema_fields.insert(
+            SCHEMA_COLUMNS_FIELD.to_string(),
+            AmorphicValue::Array(
+                effective_cols
+                    .iter()
+                    .map(|c| AmorphicValue::String(c.clone()))
+                    .collect(),
+            ),
+        );
+        if !col_defs.is_empty() {
+            let defs_arr: Vec<AmorphicValue> = col_defs
+                .iter()
+                .map(|def| {
+                    let fk_json = def.foreign_key.as_ref().map(|fk| {
+                        serde_json::json!({
+                            "ref_table": fk.ref_table,
+                            "ref_column": fk.ref_column,
+                            "on_delete": fk.on_delete,
+                            "on_update": fk.on_update,
+                        })
+                    });
+                    let obj = serde_json::json!({
+                        "name": def.name,
+                        "type": def.data_type,
+                        "nullable": def.nullable,
+                        "primary_key": def.primary_key,
+                        "unique": def.unique,
+                        "default": def.default_value,
+                        "check_expr": def.check_expr,
+                        "auto_increment": def.auto_increment,
+                        "foreign_key": fk_json,
+                        "column_family": def.column_family,
+                        "computed_expr": def.computed_expr,
+                    });
+                    AmorphicValue::String(obj.to_string())
+                })
+                .collect();
+            schema_fields.insert(
+                SCHEMA_COLUMN_DEFS_FIELD.to_string(),
+                AmorphicValue::Array(defs_arr),
+            );
+        }
+
+        let table_val = AmorphicValue::String(table.to_string());
+        let mut prepared_rows: Vec<(u64, HashMap<String, AmorphicValue>)> =
+            Vec::with_capacity(rows.len());
+        let schema_id = next_id;
+        next_id += 1;
+        for row in rows {
+            let rid = next_id;
+            next_id += 1;
+            let mut f = HashMap::with_capacity(row.columns.len() + 1);
+            f.insert(TABLE_FIELD.to_string(), table_val.clone());
+            for (c, v) in row.columns.iter().zip(row.values.iter()) {
+                f.insert(c.clone(), ast_to_amorphic(v));
+            }
+            prepared_rows.push((rid, f));
+        }
+
+        let mut guard = self.store.write_ram_only().map_err(lock_error)?;
+        let _ = guard.apply_oltp_ram_insert(schema_id, schema_fields);
+        for (rid, f) in prepared_rows {
+            let _ = guard.apply_oltp_ram_insert(rid, f);
+        }
+        let has_pending = guard.pending_holograms() > 0;
+        drop(guard);
+
+        if let Ok(mut sc) = self.schema_cache.write() {
+            sc.insert(
+                table.to_string(),
+                CachedTableSchema::from_parts(effective_cols, col_defs.to_vec()),
+            );
+        }
+        if has_pending {
+            self.store.mark_pending();
+        }
+        Ok(())
+    }
+
     /// Create a SQL table with full column definitions
     pub fn create_table_with_defs(
         &self,

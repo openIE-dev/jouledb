@@ -176,9 +176,11 @@ impl DurableAmorphicStore {
     /// released, `wait_durable(committed_lsn())` makes every commit made so
     /// far power-loss durable, sharing one fsync among concurrent writers.
     pub fn group_sync(&self) -> AmorphicResult<GroupSync> {
-        self.lock_wal()
+        let gs = self
+            .lock_wal()
             .group_sync()
-            .map_err(|e| AmorphicError::IngestionError(e.to_string()))
+            .map_err(|e| AmorphicError::IngestionError(e.to_string()))?;
+        Ok(gs.with_wal_flusher(self.wal.clone()))
     }
 
     /// Open or create a durable AmorphicStore at the given directory

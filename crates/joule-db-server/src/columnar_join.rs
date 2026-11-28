@@ -193,6 +193,92 @@ impl ColRel {
         IntKeySet::from_vec(all).estimated_len() == total
     }
 
+    /// Return `Some(per_seg_bounds)` when `col_name` is a non-null integer column on a `.jcol`
+    /// `DiskColumnTable` whose segment ZoneMap intervals `[lo, hi]` are mutually disjoint or
+    /// overlap only at segment boundaries (`Q18`: `lineitem.l_orderkey` across 230 segments where
+    /// `seg[s].hi == seg[s+1].lo` when a multi-line order straddles a `262,144`-row boundary!).
+    /// Each entry is `(lo, hi, inner_lo, inner_hi)` where any key `k` in `[inner_lo, inner_hi]` is
+    /// guaranteed NOT to appear in any other segment (`zero` cross-segment state!).
+    fn col_disjoint_segment_bounds(
+        &self,
+        col_name: &str,
+    ) -> Option<Vec<Option<(i64, i64, i64, i64)>>> {
+        let rc = self.resolve_col_name(col_name)?;
+        let ColRel::Disk(dt) = self else {
+            return None;
+        };
+        if dt.segments.len() > 4096 {
+            return None;
+        }
+        let &ci = dt.col_index.get(&rc)?;
+        if !matches!(
+            dt.inferred_col_kind(ci),
+            DiskColKind::I8 | DiskColKind::I16 | DiskColKind::I32 | DiskColKind::I64
+        ) {
+            return None;
+        }
+        let mut raw: Vec<Option<(i64, i64)>> = Vec::with_capacity(dt.segments.len());
+        for seg in &dt.segments {
+            if seg.len == 0 {
+                raw.push(None);
+                continue;
+            }
+            let cm = &seg.cols[ci];
+            if cm.null_count != 0 {
+                return None;
+            }
+            let (Some(lo), Some(hi)) = (cm.min_int(seg.len), cm.max_int(seg.len)) else {
+                return None;
+            };
+            if lo > hi {
+                return None;
+            }
+            raw.push(Some((lo, hi)));
+        }
+        let mut out: Vec<Option<(i64, i64, i64, i64)>> = Vec::with_capacity(raw.len());
+        let mut total_span: u128 = 0;
+        let mut interior_span: u128 = 0;
+        for (i, cur) in raw.iter().enumerate() {
+            let Some((lo_i, hi_i)) = *cur else {
+                out.push(None);
+                continue;
+            };
+            let mut inner_lo = lo_i;
+            let mut inner_hi = hi_i;
+            for (j, other) in raw.iter().enumerate() {
+                if i == j {
+                    continue;
+                }
+                let Some((lo_j, hi_j)) = *other else {
+                    continue;
+                };
+                if lo_j > hi_i || hi_j < lo_i {
+                    continue;
+                }
+                if lo_j <= lo_i && hi_j >= hi_i {
+                    inner_lo = 1;
+                    inner_hi = 0;
+                    break;
+                } else if lo_j <= lo_i && hi_j < hi_i {
+                    inner_lo = inner_lo.max(hi_j.saturating_add(1));
+                } else if lo_j > lo_i && hi_j >= hi_i {
+                    inner_hi = inner_hi.min(lo_j.saturating_sub(1));
+                } else {
+                    return None;
+                }
+            }
+            total_span += ((hi_i as i128) - (lo_i as i128) + 1) as u128;
+            if inner_lo <= inner_hi {
+                interior_span += ((inner_hi as i128) - (inner_lo as i128) + 1) as u128;
+            }
+            out.push(Some((lo_i, hi_i, inner_lo, inner_hi)));
+        }
+        if total_span == 0 || interior_span.saturating_mul(4) < total_span.saturating_mul(3) {
+            return None;
+        }
+        Some(out)
+    }
+
     fn load_segment<'a>(&'a self, seg_idx: usize, cols: &[&str]) -> Option<SegData<'a>> {
         match self {
             ColRel::Disk(dt) => dt
@@ -1556,6 +1642,15 @@ enum SegExpr {
         col_idx: usize,
         mask: Vec<bool>,
     },
+    /// Pre-indexed `i32` ISO-date dictionary comparison (`l_receiptdate > l_commitdate` in `Q04`, `Q12`, `Q21`),
+    /// turning per-row string `memcmp` into two `i32` array loads!
+    ColTextIsoCmp {
+        left_col: usize,
+        op: Operator,
+        right_col: usize,
+        left_keys: Vec<i32>,
+        right_keys: Vec<i32>,
+    },
     Substr {
         expr: Box<SegExpr>,
         start_1based: usize,
@@ -1994,6 +2089,33 @@ fn compile_seg_expr(expr: &Expression, cols: &[(&str, &Col)]) -> Option<SegExpr>
                     {
                         return Some(db);
                     }
+                    if let (SegExpr::Col(la), SegExpr::Col(rb)) = (&l, &r)
+                        && let (Col::Text(_, da), Col::Text(_, db)) = (cols[*la].1, cols[*rb].1)
+                    {
+                        let pack_iso = |s: &str| -> Option<i32> {
+                            if s.len() != 10 {
+                                return None;
+                            }
+                            let (y, m, d) = parse_iso_ymd_fast(s)?;
+                            Some((y << 9) | ((m as i32) << 5) | (d as i32))
+                        };
+                        if let (Some(ka), Some(kb)) = (
+                            da.iter()
+                                .map(|s| pack_iso(s.as_ref()))
+                                .collect::<Option<Vec<i32>>>(),
+                            db.iter()
+                                .map(|s| pack_iso(s.as_ref()))
+                                .collect::<Option<Vec<i32>>>(),
+                        ) {
+                            return Some(SegExpr::ColTextIsoCmp {
+                                left_col: *la,
+                                op: *op,
+                                right_col: *rb,
+                                left_keys: ka,
+                                right_keys: kb,
+                            });
+                        }
+                    }
                     Some(SegExpr::Cmp(Box::new(l), *op, Box::new(r)))
                 }
                 _ => None,
@@ -2023,6 +2145,31 @@ impl SegExpr {
                     }
                 } else {
                     BVal::Bool(false)
+                }
+            }
+            SegExpr::ColTextIsoCmp {
+                left_col,
+                op,
+                right_col,
+                left_keys,
+                right_keys,
+            } => {
+                if let (Col::Text(ca_vec, _), Col::Text(cb_vec, _)) =
+                    (cols[*left_col].1, cols[*right_col].1)
+                {
+                    let ca = ca_vec[row];
+                    let cb = cb_vec[row];
+                    if ca == NULL_TEXT_CODE || cb == NULL_TEXT_CODE {
+                        BVal::Null
+                    } else if let (Some(&ka), Some(&kb)) =
+                        (left_keys.get(ca as usize), right_keys.get(cb as usize))
+                    {
+                        BVal::Bool(ord_matches(ka.cmp(&kb), *op))
+                    } else {
+                        BVal::Null
+                    }
+                } else {
+                    BVal::Null
                 }
             }
             SegExpr::Neg(x) => match x.eval(cols, row) {
@@ -2587,7 +2734,7 @@ enum ColBuilder {
     Text {
         codes: Vec<u32>,
         dict: Vec<Arc<str>>,
-        map: HashMap<String, u32>,
+        map: FxMap<Arc<str>, u32>,
     },
 }
 
@@ -2599,7 +2746,7 @@ impl ColBuilder {
             Col::Text(..) => Some(ColBuilder::Text {
                 codes: Vec::new(),
                 dict: Vec::new(),
-                map: HashMap::new(),
+                map: FxMap::default(),
             }),
             Col::Other => None,
         }
@@ -2611,23 +2758,33 @@ impl ColBuilder {
             ColBuilder::Int(vals, nulls, any_null) => match bv {
                 BVal::Int(v) => {
                     vals.push(v);
-                    nulls.push(false);
+                    if *any_null {
+                        nulls.push(false);
+                    }
                 }
                 _ => {
+                    if !*any_null {
+                        nulls.resize(vals.len(), false);
+                        *any_null = true;
+                    }
                     vals.push(0);
                     nulls.push(true);
-                    *any_null = true;
                 }
             },
             ColBuilder::Float(vals, nulls, any_null) => match bv.as_f64() {
                 Some(f) => {
                     vals.push(f);
-                    nulls.push(false);
+                    if *any_null {
+                        nulls.push(false);
+                    }
                 }
                 None => {
+                    if !*any_null {
+                        nulls.resize(vals.len(), false);
+                        *any_null = true;
+                    }
                     vals.push(0.0);
                     nulls.push(true);
-                    *any_null = true;
                 }
             },
             ColBuilder::Text { codes, dict, map } => match bv {
@@ -2636,13 +2793,122 @@ impl ColBuilder {
                         codes.push(c);
                     } else {
                         let c = dict.len() as u32;
-                        dict.push(Arc::from(s));
-                        map.insert(s.to_string(), c);
+                        let arc_s: Arc<str> = Arc::from(s);
+                        dict.push(arc_s.clone());
+                        map.insert(arc_s, c);
                         codes.push(c);
                     }
                 }
                 _ => codes.push(NULL_TEXT_CODE),
             },
+        }
+    }
+
+    /// Bulk-append `sel` row indices from `src` in a tight loop, remapping `Col::Text`'s
+    /// segment dictionary ONCE per segment (`~2,400` dates) instead of hashing per row (`15M` rows)!
+    fn append_selected_from_col(&mut self, src: &Col, sel: &[u32]) {
+        match (self, src) {
+            (ColBuilder::Int(vals, nulls, any_null), Col::Int(src_ints, src_nulls)) => {
+                vals.reserve(sel.len());
+                if src_nulls.is_empty() && !*any_null {
+                    match src_ints {
+                        Ints::I64(s) if sel.len() == s.len() => vals.extend_from_slice(s),
+                        Ints::I64(s) => {
+                            for &r in sel {
+                                vals.push(s[r as usize]);
+                            }
+                        }
+                        Ints::I32(s) => {
+                            for &r in sel {
+                                vals.push(s[r as usize] as i64);
+                            }
+                        }
+                        Ints::I16(s) => {
+                            for &r in sel {
+                                vals.push(s[r as usize] as i64);
+                            }
+                        }
+                        Ints::I8(s) => {
+                            for &r in sel {
+                                vals.push(s[r as usize] as i64);
+                            }
+                        }
+                    }
+                } else {
+                    for &r in sel {
+                        let ri = r as usize;
+                        if nl(src_nulls, ri) {
+                            if !*any_null {
+                                nulls.resize(vals.len(), false);
+                                *any_null = true;
+                            }
+                            vals.push(0);
+                            nulls.push(true);
+                        } else {
+                            vals.push(src_ints.at(ri));
+                            if *any_null {
+                                nulls.push(false);
+                            }
+                        }
+                    }
+                }
+            }
+            (ColBuilder::Float(vals, nulls, any_null), Col::Float(src_f, src_nulls)) => {
+                vals.reserve(sel.len());
+                if src_nulls.is_empty() && !*any_null {
+                    if sel.len() == src_f.len() {
+                        vals.extend_from_slice(src_f);
+                    } else {
+                        for &r in sel {
+                            vals.push(src_f[r as usize]);
+                        }
+                    }
+                } else {
+                    for &r in sel {
+                        let ri = r as usize;
+                        if nl(src_nulls, ri) {
+                            if !*any_null {
+                                nulls.resize(vals.len(), false);
+                                *any_null = true;
+                            }
+                            vals.push(0.0);
+                            nulls.push(true);
+                        } else {
+                            vals.push(src_f[ri]);
+                            if *any_null {
+                                nulls.push(false);
+                            }
+                        }
+                    }
+                }
+            }
+            (ColBuilder::Text { codes, dict, map }, Col::Text(src_codes, src_dict)) => {
+                let mut remap: Vec<u32> = Vec::with_capacity(src_dict.len());
+                for s_arc in src_dict {
+                    if let Some(&gc) = map.get(s_arc.as_ref()) {
+                        remap.push(gc);
+                    } else {
+                        let gc = dict.len() as u32;
+                        dict.push(s_arc.clone());
+                        map.insert(s_arc.clone(), gc);
+                        remap.push(gc);
+                    }
+                }
+                codes.reserve(sel.len());
+                for &r in sel {
+                    let sc = src_codes[r as usize];
+                    if sc == NULL_TEXT_CODE {
+                        codes.push(NULL_TEXT_CODE);
+                    } else {
+                        codes.push(*remap.get(sc as usize).unwrap_or(&NULL_TEXT_CODE));
+                    }
+                }
+            }
+            (this, other) => {
+                for &r in sel {
+                    this.push_from_col(other, r as usize);
+                }
+            }
         }
     }
 
@@ -2822,8 +3088,40 @@ fn exec_core_query_seeded(
         propagate_initial_key_sets(&rels, &equi_edges, &mut local_filters)?;
     }
 
-    // 8b. Decorrelate `IN`, `EXISTS` / `NOT EXISTS`, correlated scalar `< / > / =`, and uncorrelated scalar subqueries!
-    for sconj in deferred_subq_conjs {
+    // 8b. Decorrelate `IN`, `EXISTS` / `NOT EXISTS` (fusing same-relation `NeqExists` pairs like `Q21` into a single pass!),
+    // correlated scalar `< / > / =`, and uncorrelated scalar subqueries!
+    let mut consumed_subq = vec![false; deferred_subq_conjs.len()];
+    if deferred_subq_conjs.len() >= 2 {
+        for i in 0..deferred_subq_conjs.len() {
+            if consumed_subq[i] {
+                continue;
+            }
+            for j in (i + 1)..deferred_subq_conjs.len() {
+                if consumed_subq[j] {
+                    continue;
+                }
+                if try_decorrelate_fused_neq_exists_pair(
+                    &deferred_subq_conjs[i],
+                    &deferred_subq_conjs[j],
+                    &rels,
+                    &equi_edges,
+                    &mut local_filters,
+                    amorphic,
+                    active_ctes,
+                )
+                .is_some()
+                {
+                    consumed_subq[i] = true;
+                    consumed_subq[j] = true;
+                    break;
+                }
+            }
+        }
+    }
+    for (si, sconj) in deferred_subq_conjs.into_iter().enumerate() {
+        if consumed_subq[si] {
+            continue;
+        }
         decorrelate_conjunct(
             &sconj,
             &rels,
@@ -3538,6 +3836,325 @@ fn scan_distinct_int_keys(
         all.extend(p);
     }
     Some(IntKeySet::from_vec(all))
+}
+
+/// Fuse two correlated `EXISTS` / `NOT EXISTS` subqueries over the same inner table and same
+/// `(eq_col, ne_col)` correlation pair (`Q21`: `EXISTS l2` + `NOT EXISTS l3` over 60M-row `lineitem`!)
+/// into a single outer domain precomputation + single parallel `.jcol` scan!
+fn try_decorrelate_fused_neq_exists_pair(
+    conj_a: &Expression,
+    conj_b: &Expression,
+    outer_rels: &[RelEntry],
+    equi_edges: &[((usize, String), (usize, String))],
+    local_filters: &mut [Vec<LocalFilter>],
+    amorphic: &AmorphicTableStorage,
+    cte_rels: &HashMap<String, ColRel>,
+) -> Option<()> {
+    struct ParsedNeq {
+        is_not: bool,
+        table_lower: String,
+        inner_rel: ColRel,
+        in_eq_col: String,
+        out_ri: usize,
+        out_eq_col: String,
+        in_ne_col: String,
+        out_ne_col: String,
+        inner_filters: Vec<LocalFilter>,
+    }
+
+    let parse_one = |conj: &Expression| -> Option<ParsedNeq> {
+        let (sq, is_not) = match conj {
+            Expression::Exists(sq) => (sq.as_ref(), false),
+            Expression::Unary {
+                op: UnaryOperator::Not,
+                expr: inner,
+            } => match inner.as_ref() {
+                Expression::Exists(sq) => (sq.as_ref(), true),
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let sub_sql = ast_query_to_sql_query(sq)?;
+        if !sub_sql.joins.is_empty() || !sub_sql.group_by.is_empty() {
+            return None;
+        }
+        let inner_rels = subquery_rels(&sub_sql, amorphic, cte_rels)?;
+        if inner_rels.len() != 1 {
+            return None;
+        }
+        let table_lower = inner_rels[0].table.to_ascii_lowercase();
+        let inner_rel = inner_rels[0].rel.clone();
+        let mut sub_conjs = Vec::new();
+        if let Some(ref w) = sub_sql.where_clause {
+            split_and_owned(w, &mut sub_conjs);
+        }
+        let mut eq_corr: Option<(String, usize, String)> = None;
+        let mut ne_corr: Option<(String, usize, String)> = None;
+        let mut inner_filters: Vec<LocalFilter> = Vec::new();
+        for sc in sub_conjs {
+            if !expr_refs_outer(&sc, &inner_rels, outer_rels) {
+                inner_filters.push(LocalFilter::Expr(sc));
+                continue;
+            }
+            let Expression::Binary {
+                ref left,
+                op: op @ (Operator::Eq | Operator::Ne),
+                ref right,
+            } = sc
+            else {
+                return None;
+            };
+            let pair = if let (Some((_, ic)), Some((ori, oc))) = (
+                resolve_rel_col(&inner_rels, left),
+                resolve_rel_col(outer_rels, right),
+            ) {
+                Some((ic, ori, oc))
+            } else if let (Some((_, ic)), Some((ori, oc))) = (
+                resolve_rel_col(&inner_rels, right),
+                resolve_rel_col(outer_rels, left),
+            ) {
+                Some((ic, ori, oc))
+            } else {
+                None
+            };
+            let (ic, ori, oc) = pair?;
+            if !inner_rel.col_is_int(&ic) || !outer_rels[ori].rel.col_is_int(&oc) {
+                return None;
+            }
+            if op == Operator::Eq && eq_corr.is_none() {
+                eq_corr = Some((ic, ori, oc));
+            } else if op == Operator::Ne && ne_corr.is_none() {
+                ne_corr = Some((ic, ori, oc));
+            } else {
+                return None;
+            }
+        }
+        let (in_eq_col, out_ri, out_eq_col) = eq_corr?;
+        let (in_ne_col, ne_out_ri, out_ne_col) = ne_corr?;
+        if ne_out_ri != out_ri {
+            return None;
+        }
+        Some(ParsedNeq {
+            is_not,
+            table_lower,
+            inner_rel,
+            in_eq_col,
+            out_ri,
+            out_eq_col,
+            in_ne_col,
+            out_ne_col,
+            inner_filters,
+        })
+    };
+
+    let pa = parse_one(conj_a)?;
+    let pb = parse_one(conj_b)?;
+    if pa.table_lower != pb.table_lower
+        || pa.out_ri != pb.out_ri
+        || !pa.in_eq_col.eq_ignore_ascii_case(&pb.in_eq_col)
+        || !pa.out_eq_col.eq_ignore_ascii_case(&pb.out_eq_col)
+        || !pa.in_ne_col.eq_ignore_ascii_case(&pb.in_ne_col)
+        || !pa.out_ne_col.eq_ignore_ascii_case(&pb.out_ne_col)
+    {
+        return None;
+    }
+
+    let inner_rel = &pa.inner_rel;
+    let mut base_filters: Vec<LocalFilter> = Vec::new();
+    if let Some(ds) = try_compute_outer_domain_set(
+        pa.out_ri,
+        &pa.out_eq_col,
+        outer_rels,
+        equi_edges,
+        local_filters,
+    ) && ds.estimated_len().saturating_mul(2) <= inner_rel.total_rows().max(1)
+    {
+        base_filters.push(LocalFilter::KeyIn {
+            col: pa.in_eq_col.clone(),
+            set: ds,
+            negated: false,
+        });
+    }
+
+    let rk = inner_rel.resolve_col_name(&pa.in_eq_col)?;
+    let rn = inner_rel.resolve_col_name(&pa.in_ne_col)?;
+    let mut needed = HashSet::new();
+    needed.insert(rk.clone());
+    needed.insert(rn.clone());
+    for f in &pa.inner_filters {
+        f.collect_cols(inner_rel, &mut needed);
+    }
+    for f in &pb.inner_filters {
+        f.collect_cols(inner_rel, &mut needed);
+    }
+    let col_vec: Vec<String> = needed.into_iter().collect();
+    let col_refs: Vec<&str> = col_vec.iter().map(String::as_str).collect();
+
+    const NEQ_SHARDS: usize = 64;
+    type WorkerPair = (Vec<FxMap<i64, NeqSummary>>, Vec<FxMap<i64, NeqSummary>>);
+
+    let intersect_sorted_u32 = |a: &[u32], b: &[u32]| -> Vec<u32> {
+        let mut out = Vec::with_capacity(a.len().min(b.len()));
+        let (mut ia, mut ib) = (0usize, 0usize);
+        while ia < a.len() && ib < b.len() {
+            match a[ia].cmp(&b[ib]) {
+                Ordering::Less => ia += 1,
+                Ordering::Greater => ib += 1,
+                Ordering::Equal => {
+                    out.push(a[ia]);
+                    ia += 1;
+                    ib += 1;
+                }
+            }
+        }
+        out
+    };
+
+    let any_err = std::sync::atomic::AtomicBool::new(false);
+    let mut worker_pairs: Vec<WorkerPair> = (0..inner_rel.num_segments())
+        .into_par_iter()
+        .fold(
+            || {
+                (
+                    (0..NEQ_SHARDS).map(|_| FxMap::default()).collect(),
+                    (0..NEQ_SHARDS).map(|_| FxMap::default()).collect(),
+                )
+            },
+            |mut pair: WorkerPair, si| {
+                if any_err.load(std::sync::atomic::Ordering::Relaxed) {
+                    return pair;
+                }
+                let Some(loaded) = inner_rel.load_filtered_segment(si, &col_refs, &base_filters)
+                else {
+                    any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                    return pair;
+                };
+                let Some((seg, sel)) = loaded else {
+                    return pair;
+                };
+                let tc = seg.tc();
+                let (Some(kc), Some(nc)) = (tc.cols.get(&rk), tc.cols.get(&rn)) else {
+                    any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                    return pair;
+                };
+
+                let feed_rows = |rows_u32: &[u32], shards: &mut [FxMap<i64, NeqSummary>]| {
+                    for &r in rows_u32 {
+                        let row = r as usize;
+                        if let (BVal::Int(k), BVal::Int(nv)) =
+                            (read_col_bval(kc, row), read_col_bval(nc, row))
+                        {
+                            let sh =
+                                (((k as u64).wrapping_mul(0x517cc1b727220a95)) >> 58) as usize;
+                            shards[sh]
+                                .entry(k)
+                                .and_modify(|s| {
+                                    if let NeqSummary::One(prev) = *s
+                                        && prev != nv
+                                    {
+                                        *s = NeqSummary::Many;
+                                    }
+                                })
+                                .or_insert(NeqSummary::One(nv));
+                        }
+                    }
+                };
+
+                if pa.inner_filters.is_empty() {
+                    feed_rows(&sel, &mut pair.0);
+                } else {
+                    let Some(fa) = filter_segment_rows(tc, &pa.inner_filters) else {
+                        any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                        return pair;
+                    };
+                    let rows_a = if base_filters.is_empty() {
+                        fa
+                    } else {
+                        intersect_sorted_u32(&sel, &fa)
+                    };
+                    feed_rows(&rows_a, &mut pair.0);
+                }
+
+                if pb.inner_filters.is_empty() {
+                    feed_rows(&sel, &mut pair.1);
+                } else {
+                    let Some(fb) = filter_segment_rows(tc, &pb.inner_filters) else {
+                        any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                        return pair;
+                    };
+                    let rows_b = if base_filters.is_empty() {
+                        fb
+                    } else {
+                        intersect_sorted_u32(&sel, &fb)
+                    };
+                    feed_rows(&rows_b, &mut pair.1);
+                }
+
+                pair
+            },
+        )
+        .collect();
+    if any_err.load(std::sync::atomic::Ordering::Relaxed) {
+        return None;
+    }
+
+    let merge_shard_vec = |mut by_sh: Vec<Vec<FxMap<i64, NeqSummary>>>| -> Vec<FxMap<i64, NeqSummary>> {
+        by_sh
+            .into_par_iter()
+            .map(|mut parts| {
+                let mut merged = parts.pop().unwrap_or_default();
+                for pm in parts {
+                    for (k, v) in pm {
+                        merged
+                            .entry(k)
+                            .and_modify(|cur| match (*cur, v) {
+                                (NeqSummary::Many, _) => {}
+                                (_, NeqSummary::Many) => *cur = NeqSummary::Many,
+                                (NeqSummary::One(a), NeqSummary::One(b)) if a != b => {
+                                    *cur = NeqSummary::Many;
+                                }
+                                _ => {}
+                            })
+                            .or_insert(v);
+                    }
+                }
+                merged
+            })
+            .collect()
+    };
+
+    let mut by_sh_a: Vec<Vec<FxMap<i64, NeqSummary>>> = (0..NEQ_SHARDS)
+        .map(|_| Vec::with_capacity(worker_pairs.len()))
+        .collect();
+    let mut by_sh_b: Vec<Vec<FxMap<i64, NeqSummary>>> = (0..NEQ_SHARDS)
+        .map(|_| Vec::with_capacity(worker_pairs.len()))
+        .collect();
+    for (wa, wb) in &mut worker_pairs {
+        for (sh, m) in wa.iter_mut().enumerate() {
+            by_sh_a[sh].push(std::mem::take(m));
+        }
+        for (sh, m) in wb.iter_mut().enumerate() {
+            by_sh_b[sh].push(std::mem::take(m));
+        }
+    }
+    drop(worker_pairs);
+
+    let merged_a = merge_shard_vec(by_sh_a);
+    let merged_b = merge_shard_vec(by_sh_b);
+
+    local_filters[pa.out_ri].push(LocalFilter::NeqExists {
+        key_col: pa.out_eq_col,
+        neq_col: pa.out_ne_col,
+        shards: Arc::new(merged_a),
+        negated: pa.is_not,
+    });
+    local_filters[pb.out_ri].push(LocalFilter::NeqExists {
+        key_col: pb.out_eq_col,
+        neq_col: pb.out_ne_col,
+        shards: Arc::new(merged_b),
+        negated: pb.is_not,
+    });
+    Some(())
 }
 
 fn decorrelate_conjunct(
@@ -5703,17 +6320,23 @@ fn build_snowflake_branch(
                     }
                 }
 
-                let mut chosen = Vec::with_capacity(built_children.len());
-                for &r_u32 in &sel {
-                    emit_with_children(
-                        0,
-                        r_u32 as usize,
-                        &node_col_refs,
-                        &child_fk_cols,
-                        &built_children,
-                        &mut chosen,
-                        blds,
-                    );
+                if built_children.is_empty() {
+                    for (bi, &nc) in node_col_refs.iter().enumerate() {
+                        blds[bi].append_selected_from_col(nc, &sel);
+                    }
+                } else {
+                    let mut chosen = Vec::with_capacity(built_children.len());
+                    for &r_u32 in &sel {
+                        emit_with_children(
+                            0,
+                            r_u32 as usize,
+                            &node_col_refs,
+                            &child_fk_cols,
+                            &built_children,
+                            &mut chosen,
+                            blds,
+                        );
+                    }
                 }
             }
         }
@@ -6185,9 +6808,38 @@ fn exec_bushy_plan(
         (priority, rels[*r_ri].rel.total_rows())
     });
 
+    let probe_total = rels[probe_ri].rel.total_rows();
     let mut branches: Vec<BuiltBranch> = Vec::with_capacity(root_attachments.len());
     for idx_ra in 0..root_attachments.len() {
         let (root_ri, ref attach) = root_attachments[idx_ra];
+        // Before materializing a huge (`>= 5M` row) 1-key branch (`orders` in `Q09` / `Q21`),
+        // if `probe_ri` (`lineitem`) already carries selective `KeyIn` or `NeqExists` filters,
+        // extract `probe_ri`'s surviving FK bitset in parallel so `root_ri` skips non-matching rows!
+        let root_total = rels[root_ri].rel.total_rows();
+        if attach.len() == 1 && root_total >= 5_000_000 && local_filters[root_ri].is_empty() {
+            let probe_is_selective = local_filters[probe_ri].iter().any(|lf| match lf {
+                LocalFilter::KeyIn {
+                    set,
+                    negated: false,
+                    ..
+                } => set.estimated_len().saturating_mul(4) <= probe_total.max(1),
+                _ => false,
+            });
+            if probe_is_selective
+                && let Some(fk_set) = scan_distinct_int_keys(
+                    &rels[probe_ri].rel,
+                    &attach[0].0,
+                    &local_filters[probe_ri],
+                )
+                && fk_set.estimated_len().saturating_mul(2) <= root_total
+            {
+                local_filters[root_ri].push(LocalFilter::KeyIn {
+                    col: attach[0].1.clone(),
+                    set: fk_set,
+                    negated: false,
+                });
+            }
+        }
         let b_nodes: Vec<usize> = (0..k)
             .filter(|&ri| branch_owner[ri] == Some(root_ri))
             .collect();
@@ -6216,21 +6868,30 @@ fn exec_bushy_plan(
             }
             return Some((out_names, Vec::new()));
         }
-        // Push selective 1-key branch keyset into any not-yet-built sibling branch sharing `probe_col` (`Q09`)
+        // Push selective 1-key branch keyset into `probe_ri` immediately AND into any not-yet-built sibling branch sharing `probe_col` (`Q09`)
         if built.probe_key_cols.len() == 1
-            && built.num_rows <= 2_000_000
+            && built.num_rows <= 4_000_000
             && let Some(ks) = built.key_set_1()
         {
-            let pcol = &built.probe_key_cols[0];
-            for &(other_root, ref other_attach) in &root_attachments[idx_ra + 1..] {
-                if built.num_rows.saturating_mul(3) <= rels[other_root].rel.total_rows() {
-                    for (other_pcol, other_rcol) in other_attach {
-                        if other_pcol.eq_ignore_ascii_case(pcol) {
-                            local_filters[other_root].push(LocalFilter::KeyIn {
-                                col: other_rcol.clone(),
-                                set: ks.clone(),
-                                negated: false,
-                            });
+            if built.num_rows.saturating_mul(3) <= probe_total {
+                local_filters[probe_ri].push(LocalFilter::KeyIn {
+                    col: built.probe_key_cols[0].clone(),
+                    set: ks.clone(),
+                    negated: false,
+                });
+            }
+            if built.num_rows <= 2_000_000 {
+                let pcol = &built.probe_key_cols[0];
+                for &(other_root, ref other_attach) in &root_attachments[idx_ra + 1..] {
+                    if built.num_rows.saturating_mul(3) <= rels[other_root].rel.total_rows() {
+                        for (other_pcol, other_rcol) in other_attach {
+                            if other_pcol.eq_ignore_ascii_case(pcol) {
+                                local_filters[other_root].push(LocalFilter::KeyIn {
+                                    col: other_rcol.clone(),
+                                    set: ks.clone(),
+                                    negated: false,
+                                });
+                            }
                         }
                     }
                 }
@@ -6240,22 +6901,6 @@ fn exec_bushy_plan(
     }
 
     branches.sort_by_key(|b| b.num_rows);
-
-    // Push single-key selective branches (`<= 4,000,000` rows and `<= probe_rows / 3`) into `probe_ri` local_filters!
-    let probe_total = rels[probe_ri].rel.total_rows();
-    for b in &branches {
-        if b.probe_key_cols.len() == 1
-            && b.num_rows <= 4_000_000
-            && b.num_rows.saturating_mul(3) <= probe_total
-            && let Some(ks) = b.key_set_1()
-        {
-            local_filters[probe_ri].push(LocalFilter::KeyIn {
-                col: b.probe_key_cols[0].clone(),
-                set: ks,
-                negated: false,
-            });
-        }
-    }
 
     // 7. Prepare `probe_ri` Stage-2 payload column list & fast slot lookup table!
     // Note: filter-only columns stay in `local_filters[probe_ri]` so `load_filtered_segment`
@@ -6657,57 +7302,73 @@ fn exec_bushy_plan(
             return Some((out_names, vec![row]));
         } else {
             // Fast Path A: 64-Shard Radix-Partitioned Single-`i64` `GROUP BY` (`Q18` `lineitem` 15M groups!)
-            let single_int_group = branches.is_empty()
-                && compiled_residuals.is_empty()
+            let single_int_group_pci: Option<usize> = if compiled_residuals.is_empty()
                 && compiled_groups.len() == 1
                 && agg_specs.len() <= 2
                 && !agg_specs
                     .iter()
                     .any(|s| matches!(s.op, AggOp::CountDistinctInt | AggOp::Min | AggOp::Max))
-                && matches!(compiled_groups[0], JoinExpr::Slot(gs) if matches!(slot_srcs[gs], SlotSource::Probe(pci) if rels[probe_ri].rel.col_is_int(&probe_col_vec[pci])));
+                && let JoinExpr::Slot(gs) = compiled_groups[0]
+                && let SlotSource::Probe(pci) = slot_srcs[gs]
+                && rels[probe_ri].rel.col_is_int(&probe_col_vec[pci])
+            {
+                Some(pci)
+            } else {
+                None
+            };
 
-            if single_int_group {
+            if let Some(grp_pci) = single_int_group_pci {
                 const RADIX_SHARDS: usize = 64;
                 let op0 = agg_specs.first().map_or(AggOp::CountStar, |s| s.op);
                 let op1 = agg_specs.get(1).map_or(AggOp::CountStar, |s| s.op);
 
-                // Ultra-lean single-agg worker-folded path (`Q18`: 60M rows / 15M groups -> ~3.5 GB instead of 15.6 GB!)
-                if agg_specs.len() <= 1 {
-                    let any_err = std::sync::atomic::AtomicBool::new(false);
-                    let mut worker_shards: Vec<Vec<FxMap<Option<i64>, CompactNumAgg>>> = (0
-                        ..n_probe_segs)
+                // Fast Path A0: Disjoint / Boundary-Stitched Segment ZoneMap Local Aggregation (`Q18`: 60M rows / 15M groups -> ~6 MB per-thread L3 slice instead of 6.7 GB!)
+                if branches.is_empty()
+                    && let Some(seg_bounds) = rels[probe_ri]
+                        .rel
+                        .col_disjoint_segment_bounds(&probe_col_vec[grp_pci])
+                {
+                    type SegAggPart = (Vec<Vec<OwnedVal>>, Vec<(i64, [CompactNumAgg; 2])>);
+                    let seg_parts: Option<Vec<SegAggPart>> = (0..n_probe_segs)
                         .into_par_iter()
-                        .fold(
-                            || {
-                                (0..RADIX_SHARDS)
-                                    .map(|_| FxMap::<Option<i64>, CompactNumAgg>::default())
-                                    .collect::<Vec<_>>()
-                            },
-                            |mut shards: Vec<FxMap<Option<i64>, CompactNumAgg>>, si| {
-                                if any_err.load(std::sync::atomic::Ordering::Relaxed) {
-                                    return shards;
-                                }
-                                let Some(loaded) = rels[probe_ri].rel.load_filtered_segment(
-                                    si,
-                                    &probe_col_refs,
-                                    &local_filters[probe_ri],
-                                ) else {
-                                    any_err.store(true, std::sync::atomic::Ordering::Relaxed);
-                                    return shards;
+                        .map(|si| {
+                            let Some((lo, hi, inner_lo, inner_hi)) = seg_bounds[si] else {
+                                return Some((Vec::new(), Vec::new()));
+                            };
+                            let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+                                si,
+                                &probe_col_refs,
+                                &local_filters[probe_ri],
+                            )?
+                            else {
+                                return Some((Vec::new(), Vec::new()));
+                            };
+                            let tc = seg.tc();
+                            let pcols: Vec<&Col> = probe_col_vec
+                                .iter()
+                                .filter_map(|c| tc.cols.get(c))
+                                .collect();
+                            if pcols.len() != probe_col_vec.len() {
+                                return None;
+                            }
+                            let mut out_seg: Vec<Vec<OwnedVal>> = Vec::new();
+                            let mut boundary: Vec<(i64, [CompactNumAgg; 2])> = Vec::new();
+                            let mut gvals = vec![OwnedVal::Null; 1];
+                            let mut avals = vec![OwnedVal::Null; agg_specs.len()];
+                            let mut tuple = vec![BVal::Null; n_slots];
+
+                            let span_i128 = (hi as i128) - (lo as i128) + 1;
+                            if span_i128 > 0
+                                && span_i128 <= 2_097_152
+                                && agg_specs.len() <= 1
+                            {
+                                let span = span_i128 as usize;
+                                let mut flat = vec![CompactNumAgg::default(); span];
+                                let mut seen = if agg_specs.is_empty() {
+                                    vec![false; span]
+                                } else {
+                                    Vec::new()
                                 };
-                                let Some((seg, sel)) = loaded else {
-                                    return shards;
-                                };
-                                let tc = seg.tc();
-                                let pcols: Vec<&Col> = probe_col_vec
-                                    .iter()
-                                    .filter_map(|c| tc.cols.get(c))
-                                    .collect();
-                                if pcols.len() != probe_col_vec.len() {
-                                    any_err.store(true, std::sync::atomic::Ordering::Relaxed);
-                                    return shards;
-                                }
-                                let mut tuple = vec![BVal::Null; n_slots];
                                 for &r_u32 in &sel {
                                     let r_idx = r_u32 as usize;
                                     for (si_slot, src) in slot_srcs.iter().enumerate() {
@@ -6715,86 +7376,157 @@ fn exec_bushy_plan(
                                             tuple[si_slot] = read_col_bval(pcols[pci], r_idx);
                                         }
                                     }
-                                    let gk = match compiled_groups[0].eval(&tuple) {
-                                        BVal::Int(k) => Some(k),
-                                        BVal::Null => None,
-                                        _ => {
-                                            any_err
-                                                .store(true, std::sync::atomic::Ordering::Relaxed);
-                                            return shards;
-                                        }
+                                    let BVal::Int(k) = tuple[match compiled_groups[0] {
+                                        JoinExpr::Slot(s) => s,
+                                        _ => return None,
+                                    }] else {
+                                        return None;
                                     };
-                                    let sh = match gk {
-                                        Some(k) => {
-                                            (((k as u64).wrapping_mul(0x517cc1b727220a95)) >> 58)
-                                                as usize
+                                    let idx = (k - lo) as usize;
+                                    if idx >= span {
+                                        return None;
+                                    }
+                                    if agg_specs.is_empty() {
+                                        seen[idx] = true;
+                                    } else {
+                                        let v0 = agg_specs[0]
+                                            .arg
+                                            .as_ref()
+                                            .map_or(BVal::Int(1), |je| je.eval(&tuple));
+                                        flat[idx].update(op0, v0);
+                                        if matches!(op0, AggOp::Count | AggOp::Sum | AggOp::Avg)
+                                            && flat[idx].cnt == 0
+                                        {
+                                            if seen.is_empty() {
+                                                seen = vec![false; span];
+                                            }
+                                            seen[idx] = true;
                                         }
-                                        None => 0,
-                                    };
-                                    let v0 = agg_specs.first().map_or(BVal::Null, |sp| {
-                                        sp.arg.as_ref().map_or(BVal::Int(1), |je| je.eval(&tuple))
-                                    });
-                                    let acc = shards[sh].entry(gk).or_default();
-                                    if !agg_specs.is_empty() {
-                                        acc.update(op0, v0);
                                     }
                                 }
-                                shards
-                            },
-                        )
-                        .collect();
-                    if any_err.load(std::sync::atomic::Ordering::Relaxed) {
-                        return None;
-                    }
-                    // Transpose `[worker][shard]` -> `[shard][worker]` via `mem::take` so each shard drops worker maps immediately after merge!
-                    let mut by_shard: Vec<Vec<FxMap<Option<i64>, CompactNumAgg>>> = (0
-                        ..RADIX_SHARDS)
-                        .map(|_| Vec::with_capacity(worker_shards.len()))
-                        .collect();
-                    for wvec in &mut worker_shards {
-                        for (sh, m) in wvec.iter_mut().enumerate() {
-                            by_shard[sh].push(std::mem::take(m));
-                        }
-                    }
-                    drop(worker_shards);
-
-                    let shard_rows: Vec<Vec<Vec<OwnedVal>>> = by_shard
-                        .into_par_iter()
-                        .map(|mut part_maps| {
-                            let mut merged: FxMap<Option<i64>, CompactNumAgg> =
-                                part_maps.pop().unwrap_or_default();
-                            for pm in part_maps {
-                                for (gk, part) in pm {
-                                    merged.entry(gk).or_default().merge(part);
+                                for (idx, st0) in flat.into_iter().enumerate() {
+                                    let present = st0.cnt > 0
+                                        || (!seen.is_empty() && seen[idx]);
+                                    if !present {
+                                        continue;
+                                    }
+                                    let k = lo + idx as i64;
+                                    if inner_lo <= inner_hi && k >= inner_lo && k <= inner_hi {
+                                        gvals[0] = OwnedVal::Int(k);
+                                        if !agg_specs.is_empty() {
+                                            avals[0] = st0.finalize(op0);
+                                        }
+                                        if let Some(ref hc) = having_compiled
+                                            && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                                        {
+                                            continue;
+                                        }
+                                        let row: Vec<OwnedVal> = post_selects
+                                            .iter()
+                                            .map(|pe| pe.eval(&gvals, &avals))
+                                            .collect();
+                                        out_seg.push(row);
+                                    } else {
+                                        boundary.push((k, [st0, CompactNumAgg::default()]));
+                                    }
+                                }
+                            } else {
+                                let mut lmap: FxMap<i64, [CompactNumAgg; 2]> = FxMap::default();
+                                for &r_u32 in &sel {
+                                    let r_idx = r_u32 as usize;
+                                    for (si_slot, src) in slot_srcs.iter().enumerate() {
+                                        if let SlotSource::Probe(pci) = *src {
+                                            tuple[si_slot] = read_col_bval(pcols[pci], r_idx);
+                                        }
+                                    }
+                                    let BVal::Int(k) = compiled_groups[0].eval(&tuple) else {
+                                        return None;
+                                    };
+                                    let entry = lmap.entry(k).or_default();
+                                    if !agg_specs.is_empty() {
+                                        let v0 = agg_specs[0]
+                                            .arg
+                                            .as_ref()
+                                            .map_or(BVal::Int(1), |je| je.eval(&tuple));
+                                        entry[0].update(op0, v0);
+                                    }
+                                    if agg_specs.len() == 2 {
+                                        let v1 = agg_specs[1]
+                                            .arg
+                                            .as_ref()
+                                            .map_or(BVal::Int(1), |je| je.eval(&tuple));
+                                        entry[1].update(op1, v1);
+                                    }
+                                }
+                                for (k, st_arr) in lmap {
+                                    if inner_lo <= inner_hi && k >= inner_lo && k <= inner_hi {
+                                        gvals[0] = OwnedVal::Int(k);
+                                        if !agg_specs.is_empty() {
+                                            avals[0] = st_arr[0].finalize(op0);
+                                        }
+                                        if agg_specs.len() == 2 {
+                                            avals[1] = st_arr[1].finalize(op1);
+                                        }
+                                        if let Some(ref hc) = having_compiled
+                                            && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                                        {
+                                            continue;
+                                        }
+                                        let row: Vec<OwnedVal> = post_selects
+                                            .iter()
+                                            .map(|pe| pe.eval(&gvals, &avals))
+                                            .collect();
+                                        out_seg.push(row);
+                                    } else {
+                                        boundary.push((k, st_arr));
+                                    }
                                 }
                             }
-                            let mut out_sh: Vec<Vec<OwnedVal>> = Vec::new();
-                            let mut gvals = vec![OwnedVal::Null; 1];
-                            let mut avals = vec![OwnedVal::Null; agg_specs.len()];
-                            for (gk, st0) in merged {
-                                gvals[0] = gk.map_or(OwnedVal::Null, OwnedVal::Int);
-                                if !agg_specs.is_empty() {
-                                    avals[0] = st0.finalize(op0);
-                                }
-                                if let Some(ref hc) = having_compiled
-                                    && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
-                                {
-                                    continue;
-                                }
-                                let row: Vec<OwnedVal> = post_selects
-                                    .iter()
-                                    .map(|pe| pe.eval(&gvals, &avals))
-                                    .collect();
-                                out_sh.push(row);
-                            }
-                            out_sh
+                            Some((out_seg, boundary))
                         })
                         .collect();
 
-                    let total_out: usize = shard_rows.iter().map(Vec::len).sum();
-                    let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(total_out);
-                    for sr in shard_rows {
+                    let seg_parts = seg_parts?;
+                    let mut bmap: FxMap<i64, [CompactNumAgg; 2]> = FxMap::default();
+                    let mut total_out: usize = 0;
+                    for (sr, _) in &seg_parts {
+                        total_out += sr.len();
+                    }
+                    let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(total_out + 64);
+                    for (sr, bvec) in seg_parts {
                         out_owned.extend(sr);
+                        for (k, st_arr) in bvec {
+                            let dst = bmap.entry(k).or_default();
+                            if !agg_specs.is_empty() {
+                                dst[0].merge(st_arr[0]);
+                            }
+                            if agg_specs.len() == 2 {
+                                dst[1].merge(st_arr[1]);
+                            }
+                        }
+                    }
+                    if !bmap.is_empty() {
+                        let mut gvals = vec![OwnedVal::Null; 1];
+                        let mut avals = vec![OwnedVal::Null; agg_specs.len()];
+                        for (k, st_arr) in bmap {
+                            gvals[0] = OwnedVal::Int(k);
+                            if !agg_specs.is_empty() {
+                                avals[0] = st_arr[0].finalize(op0);
+                            }
+                            if agg_specs.len() == 2 {
+                                avals[1] = st_arr[1].finalize(op1);
+                            }
+                            if let Some(ref hc) = having_compiled
+                                && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                            {
+                                continue;
+                            }
+                            let row: Vec<OwnedVal> = post_selects
+                                .iter()
+                                .map(|pe| pe.eval(&gvals, &avals))
+                                .collect();
+                            out_owned.push(row);
+                        }
                     }
                     sort_and_slice_owned(&mut out_owned, &order_specs, query.offset, query.limit);
                     let final_rows: Vec<Vec<serde_json::Value>> = out_owned
@@ -6809,83 +7541,123 @@ fn exec_bushy_plan(
                     return Some((out_names, final_rows));
                 }
 
-                let seg_shards: Option<Vec<Vec<FxMap<Option<i64>, [AggState; 2]>>>> = (0
+                // Fast Path A1: 64-shard worker-folded `CompactNumAgg` single-`i64` `GROUP BY` (with or without `branches`, covering `Q11`!)
+                let any_err = std::sync::atomic::AtomicBool::new(false);
+                let mut worker_shards: Vec<Vec<FxMap<Option<i64>, [CompactNumAgg; 2]>>> = (0
                     ..n_probe_segs)
                     .into_par_iter()
-                    .map(|si| {
-                        let mut shards: Vec<FxMap<Option<i64>, [AggState; 2]>> =
-                            (0..RADIX_SHARDS).map(|_| FxMap::default()).collect();
-                        let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
-                            si,
-                            &probe_col_refs,
-                            &local_filters[probe_ri],
-                        )?
-                        else {
-                            return Some(shards);
-                        };
-                        let tc = seg.tc();
-                        let pcols: Vec<&Col> = probe_col_vec
-                            .iter()
-                            .filter_map(|c| tc.cols.get(c))
-                            .collect();
-                        if pcols.len() != probe_col_vec.len() {
-                            return None;
-                        }
-                        let mut tuple = vec![BVal::Null; n_slots];
-                        for &r_u32 in &sel {
-                            let r_idx = r_u32 as usize;
-                            for (si_slot, src) in slot_srcs.iter().enumerate() {
-                                if let SlotSource::Probe(pci) = *src {
-                                    tuple[si_slot] = read_col_bval(pcols[pci], r_idx);
-                                }
+                    .fold(
+                        || {
+                            (0..RADIX_SHARDS)
+                                .map(|_| FxMap::<Option<i64>, [CompactNumAgg; 2]>::default())
+                                .collect::<Vec<_>>()
+                        },
+                        |mut shards: Vec<FxMap<Option<i64>, [CompactNumAgg; 2]>>, si| {
+                            if any_err.load(std::sync::atomic::Ordering::Relaxed) {
+                                return shards;
                             }
-                            let gk = match compiled_groups[0].eval(&tuple) {
-                                BVal::Int(k) => Some(k),
-                                BVal::Null => None,
-                                _ => return None,
+                            let Some(loaded) = rels[probe_ri].rel.load_filtered_segment(
+                                si,
+                                &probe_col_refs,
+                                &local_filters[probe_ri],
+                            ) else {
+                                any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                                return shards;
                             };
-                            let sh = match gk {
-                                Some(k) => {
-                                    (((k as u64).wrapping_mul(0x517cc1b727220a95)) >> 58) as usize
-                                }
-                                None => 0,
+                            let Some((seg, sel)) = loaded else {
+                                return shards;
                             };
-                            let v0 = agg_specs.first().map_or(BVal::Null, |sp| {
-                                sp.arg.as_ref().map_or(BVal::Int(1), |je| je.eval(&tuple))
-                            });
-                            let v1 = agg_specs.get(1).map_or(BVal::Null, |sp| {
-                                sp.arg.as_ref().map_or(BVal::Int(1), |je| je.eval(&tuple))
-                            });
-                            let accs = shards[sh]
-                                .entry(gk)
-                                .or_insert_with(|| [AggState::new(op0), AggState::new(op1)]);
-                            if !agg_specs.is_empty() {
-                                accs[0].update(op0, v0);
+                            let tc = seg.tc();
+                            let pcols: Vec<&Col> = probe_col_vec
+                                .iter()
+                                .filter_map(|c| tc.cols.get(c))
+                                .collect();
+                            if pcols.len() != probe_col_vec.len() {
+                                any_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                                return shards;
                             }
-                            if agg_specs.len() == 2 {
-                                accs[1].update(op1, v1);
+                            let mut chosen_b = vec![0usize; branches.len()];
+                            let mut tuple = vec![BVal::Null; n_slots];
+                            for &r_u32 in &sel {
+                                probe_row_recursive(
+                                    0,
+                                    r_u32 as usize,
+                                    &pcols,
+                                    &branches,
+                                    &branch_probe_key_idxs,
+                                    &slot_srcs,
+                                    &compiled_residuals,
+                                    &mut chosen_b,
+                                    &mut tuple,
+                                    &mut |tup| {
+                                        let gk = match compiled_groups[0].eval(tup) {
+                                            BVal::Int(k) => Some(k),
+                                            BVal::Null => None,
+                                            _ => {
+                                                any_err.store(
+                                                    true,
+                                                    std::sync::atomic::Ordering::Relaxed,
+                                                );
+                                                return;
+                                            }
+                                        };
+                                        let sh = match gk {
+                                            Some(k) => {
+                                                (((k as u64).wrapping_mul(0x517cc1b727220a95))
+                                                    >> 58)
+                                                    as usize
+                                            }
+                                            None => 0,
+                                        };
+                                        let accs = shards[sh].entry(gk).or_default();
+                                        if !agg_specs.is_empty() {
+                                            let v0 = agg_specs[0]
+                                                .arg
+                                                .as_ref()
+                                                .map_or(BVal::Int(1), |je| je.eval(tup));
+                                            accs[0].update(op0, v0);
+                                        }
+                                        if agg_specs.len() == 2 {
+                                            let v1 = agg_specs[1]
+                                                .arg
+                                                .as_ref()
+                                                .map_or(BVal::Int(1), |je| je.eval(tup));
+                                            accs[1].update(op1, v1);
+                                        }
+                                    },
+                                );
                             }
-                        }
-                        Some(shards)
-                    })
+                            shards
+                        },
+                    )
                     .collect();
+                if any_err.load(std::sync::atomic::Ordering::Relaxed) {
+                    return None;
+                }
+                let mut by_shard: Vec<Vec<FxMap<Option<i64>, [CompactNumAgg; 2]>>> = (0
+                    ..RADIX_SHARDS)
+                    .map(|_| Vec::with_capacity(worker_shards.len()))
+                    .collect();
+                for wvec in &mut worker_shards {
+                    for (sh, m) in wvec.iter_mut().enumerate() {
+                        by_shard[sh].push(std::mem::take(m));
+                    }
+                }
+                drop(worker_shards);
 
-                let seg_shards = seg_shards?;
-                let shard_rows: Vec<Vec<Vec<OwnedVal>>> = (0..RADIX_SHARDS)
+                let shard_rows: Vec<Vec<Vec<OwnedVal>>> = by_shard
                     .into_par_iter()
-                    .map(|sh| {
-                        let mut merged: FxMap<Option<i64>, [AggState; 2]> = FxMap::default();
-                        for seg_vec in &seg_shards {
-                            for (&gk, part) in &seg_vec[sh] {
-                                if let Some(dst) = merged.get_mut(&gk) {
-                                    if !agg_specs.is_empty() {
-                                        dst[0].merge(op0, part[0].clone());
-                                    }
-                                    if agg_specs.len() == 2 {
-                                        dst[1].merge(op1, part[1].clone());
-                                    }
-                                } else {
-                                    merged.insert(gk, part.clone());
+                    .map(|mut part_maps| {
+                        let mut merged: FxMap<Option<i64>, [CompactNumAgg; 2]> =
+                            part_maps.pop().unwrap_or_default();
+                        for pm in part_maps {
+                            for (gk, part) in pm {
+                                let dst = merged.entry(gk).or_default();
+                                if !agg_specs.is_empty() {
+                                    dst[0].merge(part[0]);
+                                }
+                                if agg_specs.len() == 2 {
+                                    dst[1].merge(part[1]);
                                 }
                             }
                         }
@@ -6894,8 +7666,11 @@ fn exec_bushy_plan(
                         let mut avals = vec![OwnedVal::Null; agg_specs.len()];
                         for (gk, st_arr) in merged {
                             gvals[0] = gk.map_or(OwnedVal::Null, OwnedVal::Int);
-                            for (ai, spec) in agg_specs.iter().enumerate() {
-                                avals[ai] = st_arr[ai].finalize(spec.op);
+                            if !agg_specs.is_empty() {
+                                avals[0] = st_arr[0].finalize(op0);
+                            }
+                            if agg_specs.len() == 2 {
+                                avals[1] = st_arr[1].finalize(op1);
                             }
                             if let Some(ref hc) = having_compiled
                                 && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
@@ -6930,22 +7705,258 @@ fn exec_bushy_plan(
                 return Some((out_names, final_rows));
             }
 
-            // Fast Path B: Branch-Row-Indexed `u32` Pre-Aggregation (`Q10`: 7 wide dimension columns!)
-            // When `branches.len() == 1`, `compiled_residuals.is_empty()`, and all `GROUP BY` slots
-            // originate in `Branch(0, _)`, pre-aggregate by `b_row: u32` during the `probe_ri` scan
-            // so zero strings/dimension columns are touched per fact row!
+            // Fast Path A2: Low-Cardinality Dictionary Flat-Table `GROUP BY` (`Q01`: 60M rows, 2 char dict cols, 8 numeric aggs -> 0 `Arc<str>` allocations & 0 hashing!)
+            let text_grp_pcis: Option<Vec<usize>> = if branches.is_empty()
+                && compiled_residuals.is_empty()
+                && (1..=2).contains(&compiled_groups.len())
+                && agg_specs.len() <= 10
+                && !agg_specs
+                    .iter()
+                    .any(|s| matches!(s.op, AggOp::CountDistinctInt | AggOp::Min | AggOp::Max))
+            {
+                let mut pcis = Vec::with_capacity(compiled_groups.len());
+                let mut ok = true;
+                for ge in &compiled_groups {
+                    if let JoinExpr::Slot(gs) = *ge
+                        && let SlotSource::Probe(pci) = slot_srcs[gs]
+                        && !rels[probe_ri].rel.col_is_int(&probe_col_vec[pci])
+                    {
+                        pcis.push(pci);
+                    } else {
+                        ok = false;
+                        break;
+                    }
+                }
+                ok.then_some(pcis)
+            } else {
+                None
+            };
+
+            if let Some(ref tg_pcis) = text_grp_pcis {
+                type DictGrpKey = (Option<Arc<str>>, Option<Arc<str>>);
+                let n_aggs = agg_specs.len();
+                let mut agg_slots_vec = Vec::new();
+                {
+                    let mut aset = HashSet::new();
+                    for sp in &agg_specs {
+                        if let Some(ref je) = sp.arg {
+                            je.collect_slots(&mut aset);
+                        }
+                    }
+                    agg_slots_vec.extend(aset);
+                }
+                let seg_parts: Option<Vec<Vec<(DictGrpKey, [CompactNumAgg; 10])>>> = (0
+                    ..n_probe_segs)
+                    .into_par_iter()
+                    .map(|si| {
+                        let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+                            si,
+                            &probe_col_refs,
+                            &local_filters[probe_ri],
+                        )?
+                        else {
+                            return Some(Vec::new());
+                        };
+                        let tc = seg.tc();
+                        let pcols: Vec<&Col> = probe_col_vec
+                            .iter()
+                            .filter_map(|c| tc.cols.get(c))
+                            .collect();
+                        if pcols.len() != probe_col_vec.len() {
+                            return None;
+                        }
+                        let Col::Text(codes0, dict0) = pcols[tg_pcis[0]] else {
+                            return None;
+                        };
+                        let opt_c1 = if tg_pcis.len() == 2 {
+                            let Col::Text(codes1, dict1) = pcols[tg_pcis[1]] else {
+                                return None;
+                            };
+                            Some((codes1, dict1))
+                        } else {
+                            None
+                        };
+                        let d0_len = dict0.len();
+                        let d1_len = opt_c1.map_or(0, |(_, d1)| d1.len());
+                        let mut tuple = vec![BVal::Null; n_slots];
+
+                        if d0_len <= 128 && d1_len <= 128 {
+                            let rad1 = d1_len + 1;
+                            let n_buckets = (d0_len + 1) * rad1;
+                            let mut flat = vec![[CompactNumAgg::default(); 10]; n_buckets];
+                            let mut used = vec![false; n_buckets];
+
+                            for &r_u32 in &sel {
+                                let r_idx = r_u32 as usize;
+                                let c0 = codes0[r_idx];
+                                let i0 = if c0 == NULL_TEXT_CODE {
+                                    d0_len
+                                } else {
+                                    (c0 as usize).min(d0_len)
+                                };
+                                let i1 = if let Some((codes1, _)) = opt_c1 {
+                                    let c1 = codes1[r_idx];
+                                    if c1 == NULL_TEXT_CODE {
+                                        d1_len
+                                    } else {
+                                        (c1 as usize).min(d1_len)
+                                    }
+                                } else {
+                                    0
+                                };
+                                let b = i0 * rad1 + i1;
+                                used[b] = true;
+                                for &si_slot in &agg_slots_vec {
+                                    if let SlotSource::Probe(pci) = slot_srcs[si_slot] {
+                                        tuple[si_slot] = read_col_bval(pcols[pci], r_idx);
+                                    }
+                                }
+                                let accs = &mut flat[b];
+                                for (ai, spec) in agg_specs.iter().enumerate() {
+                                    let v = spec
+                                        .arg
+                                        .as_ref()
+                                        .map_or(BVal::Int(1), |je| je.eval(&tuple));
+                                    accs[ai].update(spec.op, v);
+                                }
+                            }
+                            let mut out_v = Vec::new();
+                            for (b, is_used) in used.into_iter().enumerate() {
+                                if !is_used {
+                                    continue;
+                                }
+                                let i0 = b / rad1;
+                                let i1 = b % rad1;
+                                let k0 = (i0 < d0_len).then(|| dict0[i0].clone());
+                                let k1 = opt_c1
+                                    .and_then(|(_, d1)| (i1 < d1_len).then(|| d1[i1].clone()));
+                                out_v.push(((k0, k1), flat[b]));
+                            }
+                            Some(out_v)
+                        } else {
+                            let mut fmap: FxMap<DictGrpKey, [CompactNumAgg; 10]> = FxMap::default();
+                            for &r_u32 in &sel {
+                                let r_idx = r_u32 as usize;
+                                let c0 = codes0[r_idx];
+                                let k0 = (c0 != NULL_TEXT_CODE)
+                                    .then(|| dict0.get(c0 as usize).cloned())
+                                    .flatten();
+                                let k1 = opt_c1.and_then(|(codes1, dict1)| {
+                                    let c1 = codes1[r_idx];
+                                    (c1 != NULL_TEXT_CODE)
+                                        .then(|| dict1.get(c1 as usize).cloned())
+                                        .flatten()
+                                });
+                                for &si_slot in &agg_slots_vec {
+                                    if let SlotSource::Probe(pci) = slot_srcs[si_slot] {
+                                        tuple[si_slot] = read_col_bval(pcols[pci], r_idx);
+                                    }
+                                }
+                                let accs = fmap.entry((k0, k1)).or_default();
+                                for (ai, spec) in agg_specs.iter().enumerate() {
+                                    let v = spec
+                                        .arg
+                                        .as_ref()
+                                        .map_or(BVal::Int(1), |je| je.eval(&tuple));
+                                    accs[ai].update(spec.op, v);
+                                }
+                            }
+                            Some(fmap.into_iter().collect())
+                        }
+                    })
+                    .collect();
+
+                if let Some(parts) = seg_parts {
+                    let mut merged: FxMap<DictGrpKey, [CompactNumAgg; 10]> = FxMap::default();
+                    for seg_v in parts {
+                        for (gk, part) in seg_v {
+                            let dst = merged.entry(gk).or_default();
+                            for ai in 0..n_aggs {
+                                dst[ai].merge(part[ai]);
+                            }
+                        }
+                    }
+                    let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(merged.len());
+                    let mut gvals = vec![OwnedVal::Null; compiled_groups.len()];
+                    let mut avals = vec![OwnedVal::Null; n_aggs];
+                    for ((k0, k1), st_arr) in merged {
+                        gvals[0] = k0.map_or(OwnedVal::Null, OwnedVal::Str);
+                        if compiled_groups.len() == 2 {
+                            gvals[1] = k1.map_or(OwnedVal::Null, OwnedVal::Str);
+                        }
+                        for (ai, spec) in agg_specs.iter().enumerate() {
+                            avals[ai] = st_arr[ai].finalize(spec.op);
+                        }
+                        if let Some(ref hc) = having_compiled
+                            && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                        {
+                            continue;
+                        }
+                        let row: Vec<OwnedVal> = post_selects
+                            .iter()
+                            .map(|pe| pe.eval(&gvals, &avals))
+                            .collect();
+                        out_owned.push(row);
+                    }
+                    sort_and_slice_owned(&mut out_owned, &order_specs, query.offset, query.limit);
+                    let final_rows: Vec<Vec<serde_json::Value>> = out_owned
+                        .into_iter()
+                        .map(|r| {
+                            r.into_iter()
+                                .take(visible_cols)
+                                .map(|v| v.to_json())
+                                .collect()
+                        })
+                        .collect();
+                    return Some((out_names, final_rows));
+                }
+            }
+
+            // Fast Path B: Branch-Row-Indexed `u32` Pre-Aggregation (`Q03`, `Q10`: pre-aggregate by `b_row: u32` during `probe_ri` scan!)
+            // Also redirects a `Probe` group-by key equal to `Branch(0)`'s join key (`l_orderkey = o_orderkey` in `Q03`) to `Branch(0)`!
             let mut grp_slots_set = HashSet::new();
             for ge in &compiled_groups {
                 ge.collect_slots(&mut grp_slots_set);
             }
-            let can_branch_preagg = branches.len() == 1
+            let grp_branch_map: Option<Vec<(usize, usize)>> = if branches.len() == 1
                 && compiled_residuals.is_empty()
                 && !grp_slots_set.is_empty()
-                && grp_slots_set
-                    .iter()
-                    .all(|&si| matches!(slot_srcs[si], SlotSource::Branch(0, _)));
+            {
+                let mut pairs = Vec::with_capacity(grp_slots_set.len());
+                let mut all_ok = true;
+                for &si in &grp_slots_set {
+                    match slot_srcs[si] {
+                        SlotSource::Branch(0, ci) => pairs.push((si, ci)),
+                        SlotSource::Probe(pci)
+                            if branches[0].probe_key_cols.len() == 1
+                                && probe_col_vec[pci]
+                                    .eq_ignore_ascii_case(&branches[0].probe_key_cols[0]) =>
+                        {
+                            let (b_root_ri, ref b_attach) = root_attachments[0];
+                            if let Some((_, root_col)) = b_attach.first()
+                                && let Some(ci) = branches[0].cols.iter().position(|cc| {
+                                    cc.id.0 == b_root_ri
+                                        && cc.id.1.eq_ignore_ascii_case(root_col)
+                                })
+                            {
+                                pairs.push((si, ci));
+                            } else {
+                                all_ok = false;
+                                break;
+                            }
+                        }
+                        _ => {
+                            all_ok = false;
+                            break;
+                        }
+                    }
+                }
+                all_ok.then_some(pairs)
+            } else {
+                None
+            };
 
-            if can_branch_preagg {
+            if let Some(ref grp_slot_cis) = grp_branch_map {
                 const B_SHARDS: usize = 64;
                 let mut agg_slots_set = HashSet::new();
                 for sp in &agg_specs {
@@ -6954,7 +7965,6 @@ fn exec_bushy_plan(
                     }
                 }
                 let agg_slots: Vec<usize> = agg_slots_set.into_iter().collect();
-                let grp_slots: Vec<usize> = grp_slots_set.into_iter().collect();
 
                 // 1. Worker-folded 64-shard `b_row` pre-aggregation during `probe_ri` scan
                 let any_b_err = std::sync::atomic::AtomicBool::new(false);
@@ -7077,10 +8087,8 @@ fn exec_bushy_plan(
                         let mut tuple = vec![BVal::Null; n_slots];
                         for (b_row, baccs) in merged_b {
                             let br = b_row as usize;
-                            for &si_slot in &grp_slots {
-                                if let SlotSource::Branch(0, ci) = slot_srcs[si_slot] {
-                                    tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
-                                }
+                            for &(si_slot, ci) in grp_slot_cis {
+                                tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
                             }
                             let g0 = BorrowKeyElem::from_bval(compiled_groups[0].eval(&tuple));
                             let mut hasher = rustc_hash::FxHasher::default();
@@ -7123,10 +8131,8 @@ fn exec_bushy_plan(
 
                         for (b_row, baccs) in items {
                             let br = b_row as usize;
-                            for &si_slot in &grp_slots {
-                                if let SlotSource::Branch(0, ci) = slot_srcs[si_slot] {
-                                    tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
-                                }
+                            for &(si_slot, ci) in grp_slot_cis {
+                                tuple[si_slot] = read_col_bval(&branches[0].cols[ci].data, br);
                             }
                             key_buf.clear();
                             for ge in &compiled_groups {
@@ -7263,18 +8269,32 @@ fn exec_bushy_plan(
                 return Some((out_names, final_rows));
             }
 
-            let merged: FxMap<Vec<GKeyElem>, Vec<AggState>> = {
-                // General grouped aggregate (`Q03, Q04, Q05, Q07, Q08, Q09, Q11, Q12, Q16, Q21, Q22`)
-                let seg_maps: Option<Vec<FxMap<Vec<GKeyElem>, Vec<AggState>>>> = (0..n_probe_segs)
-                    .into_par_iter()
-                    .map(|si| {
-                        let Some((seg, sel)) = rels[probe_ri].rel.load_filtered_segment(
+            // Parallel 64-shard worker-folded general grouped aggregate (`Q04, Q05, Q07, Q08, Q09, Q12, Q16, Q21, Q22`)
+            const GEN_SHARDS: usize = 64;
+            let any_gen_err = std::sync::atomic::AtomicBool::new(false);
+            let mut worker_gmaps: Vec<Vec<FxMap<Vec<GKeyElem>, Vec<AggState>>>> = (0..n_probe_segs)
+                .into_par_iter()
+                .fold(
+                    || {
+                        (0..GEN_SHARDS)
+                            .map(|_| FxMap::<Vec<GKeyElem>, Vec<AggState>>::default())
+                            .collect::<Vec<_>>()
+                    },
+                    |mut gshards: Vec<FxMap<Vec<GKeyElem>, Vec<AggState>>>, si| {
+                        use std::hash::{Hash, Hasher};
+                        if any_gen_err.load(std::sync::atomic::Ordering::Relaxed) {
+                            return gshards;
+                        }
+                        let Some(loaded) = rels[probe_ri].rel.load_filtered_segment(
                             si,
                             &probe_col_refs,
                             &local_filters[probe_ri],
-                        )?
-                        else {
-                            return Some(FxMap::default());
+                        ) else {
+                            any_gen_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                            return gshards;
+                        };
+                        let Some((seg, sel)) = loaded else {
+                            return gshards;
                         };
                         let tc = seg.tc();
                         let pcols: Vec<&Col> = probe_col_vec
@@ -7282,9 +8302,9 @@ fn exec_bushy_plan(
                             .filter_map(|c| tc.cols.get(c))
                             .collect();
                         if pcols.len() != probe_col_vec.len() {
-                            return None;
+                            any_gen_err.store(true, std::sync::atomic::Ordering::Relaxed);
+                            return gshards;
                         }
-                        let mut gmap: FxMap<Vec<GKeyElem>, Vec<AggState>> = FxMap::default();
                         let mut chosen_b = vec![0usize; branches.len()];
                         let mut tuple = vec![BVal::Null; n_slots];
                         let mut key_buf: Vec<GKeyElem> = Vec::with_capacity(compiled_groups.len());
@@ -7305,7 +8325,12 @@ fn exec_bushy_plan(
                                     for ge in &compiled_groups {
                                         key_buf.push(GKeyElem::from_bval(ge.eval(tup)));
                                     }
-                                    if let Some(accs) = gmap.get_mut(&key_buf) {
+                                    let mut hasher = rustc_hash::FxHasher::default();
+                                    key_buf.hash(&mut hasher);
+                                    let sh = ((hasher.finish().wrapping_mul(0x517c_c1b7_2722_0a95))
+                                        >> 58)
+                                        as usize;
+                                    if let Some(accs) = gshards[sh].get_mut(&key_buf) {
                                         for (ai, spec) in agg_specs.iter().enumerate() {
                                             let v = spec
                                                 .arg
@@ -7323,48 +8348,81 @@ fn exec_bushy_plan(
                                                 .map_or(BVal::Int(1), |je| je.eval(tup));
                                             accs[ai].update(spec.op, v);
                                         }
-                                        gmap.insert(key_buf.clone(), accs);
+                                        gshards[sh].insert(key_buf.clone(), accs);
                                     }
                                 },
                             );
                         }
-                        Some(gmap)
-                    })
-                    .collect();
+                        gshards
+                    },
+                )
+                .collect();
+            if any_gen_err.load(std::sync::atomic::Ordering::Relaxed) {
+                return None;
+            }
+            let mut gen_by_shard: Vec<Vec<FxMap<Vec<GKeyElem>, Vec<AggState>>>> = (0..GEN_SHARDS)
+                .map(|_| Vec::with_capacity(worker_gmaps.len()))
+                .collect();
+            for wv in &mut worker_gmaps {
+                for (sh, m) in wv.iter_mut().enumerate() {
+                    gen_by_shard[sh].push(std::mem::take(m));
+                }
+            }
+            drop(worker_gmaps);
 
-                let mut gm: FxMap<Vec<GKeyElem>, Vec<AggState>> = FxMap::default();
-                for sm in seg_maps? {
-                    for (gk, saccs) in sm {
-                        if let Some(dst) = gm.get_mut(&gk) {
-                            for (ai, part) in saccs.into_iter().enumerate() {
-                                dst[ai].merge(agg_specs[ai].op, part);
+            let shard_top_k: Option<usize> = query
+                .limit
+                .map(|lim| query.offset.unwrap_or(0).saturating_add(lim))
+                .filter(|&k_lim| k_lim > 0 && k_lim <= 4096 && !order_specs.is_empty());
+
+            let shard_outputs: Vec<Vec<Vec<OwnedVal>>> = gen_by_shard
+                .into_par_iter()
+                .map(|mut parts| {
+                    let mut gm: FxMap<Vec<GKeyElem>, Vec<AggState>> =
+                        parts.pop().unwrap_or_default();
+                    for sm in parts {
+                        for (gk, saccs) in sm {
+                            if let Some(dst) = gm.get_mut(&gk) {
+                                for (ai, part) in saccs.into_iter().enumerate() {
+                                    dst[ai].merge(agg_specs[ai].op, part);
+                                }
+                            } else {
+                                gm.insert(gk, saccs);
                             }
-                        } else {
-                            gm.insert(gk, saccs);
                         }
                     }
-                }
-                gm
-            };
+                    let mut out_sh: Vec<Vec<OwnedVal>> = Vec::with_capacity(gm.len());
+                    for (gk, st_vec) in gm {
+                        let gvals: Vec<OwnedVal> = gk.iter().map(GKeyElem::to_owned_val).collect();
+                        let avals: Vec<OwnedVal> = st_vec
+                            .iter()
+                            .enumerate()
+                            .map(|(ai, st)| st.finalize(agg_specs[ai].op))
+                            .collect();
+                        if let Some(ref hc) = having_compiled
+                            && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
+                        {
+                            continue;
+                        }
+                        let row: Vec<OwnedVal> = post_selects
+                            .iter()
+                            .map(|pe| pe.eval(&gvals, &avals))
+                            .collect();
+                        out_sh.push(row);
+                    }
+                    if let Some(keep_k) = shard_top_k
+                        && out_sh.len() > keep_k
+                    {
+                        sort_and_slice_owned(&mut out_sh, &order_specs, None, Some(keep_k));
+                    }
+                    out_sh
+                })
+                .collect();
 
-            let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(merged.len());
-            for (gk, st_vec) in merged {
-                let gvals: Vec<OwnedVal> = gk.iter().map(GKeyElem::to_owned_val).collect();
-                let avals: Vec<OwnedVal> = st_vec
-                    .iter()
-                    .enumerate()
-                    .map(|(ai, st)| st.finalize(agg_specs[ai].op))
-                    .collect();
-                if let Some(ref hc) = having_compiled
-                    && !matches!(hc.eval(&gvals, &avals), OwnedVal::Bool(true))
-                {
-                    continue;
-                }
-                let row: Vec<OwnedVal> = post_selects
-                    .iter()
-                    .map(|pe| pe.eval(&gvals, &avals))
-                    .collect();
-                out_owned.push(row);
+            let total_out: usize = shard_outputs.iter().map(Vec::len).sum();
+            let mut out_owned: Vec<Vec<OwnedVal>> = Vec::with_capacity(total_out);
+            for sh_v in shard_outputs {
+                out_owned.extend(sh_v);
             }
 
             sort_and_slice_owned(&mut out_owned, &order_specs, query.offset, query.limit);

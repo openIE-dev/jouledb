@@ -106,6 +106,8 @@ impl AmorphicTableStorage {
         let _ = store.ingest_json(&meta_doc.to_string());
 
         let _ = schema_columns; // used above in get_schema_columns
+        self.fulltext_index_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         Ok(())
     }
@@ -145,6 +147,11 @@ impl AmorphicTableStorage {
         for id in &ft_ids {
             let _ = store.delete(*id);
         }
+        let _ = self.fulltext_index_count.fetch_update(
+            std::sync::atomic::Ordering::Relaxed,
+            std::sync::atomic::Ordering::Relaxed,
+            |c| Some(c.saturating_sub(index_ids.len())),
+        );
 
         Ok(())
     }
@@ -606,6 +613,9 @@ impl AmorphicTableStorage {
         record_id: u64,
         record: &serde_json::Value,
     ) -> QueryResult<()> {
+        if !self.has_any_fulltext_indexes() {
+            return Ok(());
+        }
         // Find all fulltext indexes for this table
         let ft_indexes = self.list_fulltext_indexes()?;
         let relevant: Vec<_> = ft_indexes
@@ -649,6 +659,9 @@ impl AmorphicTableStorage {
         table: &str,
         record_id: u64,
     ) -> QueryResult<()> {
+        if !self.has_any_fulltext_indexes() {
+            return Ok(());
+        }
         let ft_indexes = self.list_fulltext_indexes()?;
         let relevant: Vec<_> = ft_indexes
             .iter()

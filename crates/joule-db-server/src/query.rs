@@ -1939,7 +1939,163 @@ impl SimpleQueryExecutor {
         let (sql, explain) = (request.sql.clone(), request.explain);
 
         // Session / connection guardrail & active branch resolution
-        let trimmed_upper = sql.trim().trim_end_matches(';').trim().to_ascii_uppercase();
+        let trimmed_raw = sql.trim().trim_end_matches(';').trim();
+        if !explain
+            && request.args.is_empty()
+            && request.branch_id.is_none()
+            && self.raft_node.get().is_none()
+        {
+            if trimmed_raw.eq_ignore_ascii_case("BEGIN")
+                || trimmed_raw.eq_ignore_ascii_case("BEGIN TRANSACTION")
+                || trimmed_raw.eq_ignore_ascii_case("START TRANSACTION")
+            {
+                let has_branch = request
+                    .session_id
+                    .as_deref()
+                    .and_then(|sid| self.branch_sandboxes.get_session_branch(sid))
+                    .is_some_and(|b| !b.eq_ignore_ascii_case("main") && !b.is_empty());
+                if !has_branch {
+                    if request.session_id.is_some() {
+                        return Ok(QueryResponse {
+                            columns: Vec::new(),
+                            rows: Vec::new(),
+                            affected_rows: Some(0),
+                            execution_time_ms: start.elapsed().as_millis() as u64,
+                            truncated: false,
+                            warnings: vec![
+                                "WARNING: there is already a transaction in progress".to_string(),
+                            ],
+                            energy_joules: None,
+                            power_watts: None,
+                            device_target: None,
+                            algorithm_type: None,
+                            session_id: request.session_id.clone(),
+                            viz_hint: None,
+                            energy_receipt: None,
+                        });
+                    }
+                    let new_session_id = self.mvcc.begin_transaction();
+                    return Ok(QueryResponse {
+                        columns: Vec::new(),
+                        rows: Vec::new(),
+                        affected_rows: Some(0),
+                        execution_time_ms: start.elapsed().as_millis() as u64,
+                        truncated: false,
+                        warnings: Vec::new(),
+                        energy_joules: None,
+                        power_watts: None,
+                        device_target: None,
+                        algorithm_type: None,
+                        session_id: Some(new_session_id),
+                        viz_hint: None,
+                        energy_receipt: None,
+                    });
+                }
+            } else if trimmed_raw.eq_ignore_ascii_case("COMMIT")
+                || trimmed_raw.eq_ignore_ascii_case("COMMIT TRANSACTION")
+                || trimmed_raw.eq_ignore_ascii_case("END")
+            {
+                let has_branch = request
+                    .session_id
+                    .as_deref()
+                    .and_then(|sid| self.branch_sandboxes.get_session_branch(sid))
+                    .is_some_and(|b| !b.eq_ignore_ascii_case("main") && !b.is_empty());
+                if !has_branch {
+                    let Some(sid) = request.session_id.as_deref() else {
+                        return Ok(QueryResponse {
+                            columns: Vec::new(),
+                            rows: Vec::new(),
+                            affected_rows: Some(0),
+                            execution_time_ms: start.elapsed().as_millis() as u64,
+                            truncated: false,
+                            warnings: vec![
+                                "WARNING: there is no transaction in progress".to_string(),
+                            ],
+                            energy_joules: None,
+                            power_watts: None,
+                            device_target: None,
+                            algorithm_type: None,
+                            session_id: None,
+                            viz_hint: None,
+                            energy_receipt: None,
+                        });
+                    };
+                    let commit_res = self
+                        .mvcc
+                        .commit_transaction(sid)
+                        .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()));
+                    self.row_lock_manager.release_session(sid);
+                    commit_res?;
+                    return Ok(QueryResponse {
+                        columns: Vec::new(),
+                        rows: Vec::new(),
+                        affected_rows: Some(0),
+                        execution_time_ms: start.elapsed().as_millis() as u64,
+                        truncated: false,
+                        warnings: Vec::new(),
+                        energy_joules: None,
+                        power_watts: None,
+                        device_target: None,
+                        algorithm_type: None,
+                        session_id: None,
+                        viz_hint: None,
+                        energy_receipt: None,
+                    });
+                }
+            } else if trimmed_raw.eq_ignore_ascii_case("ROLLBACK")
+                || trimmed_raw.eq_ignore_ascii_case("ROLLBACK TRANSACTION")
+                || trimmed_raw.eq_ignore_ascii_case("ABORT")
+            {
+                let has_branch = request
+                    .session_id
+                    .as_deref()
+                    .and_then(|sid| self.branch_sandboxes.get_session_branch(sid))
+                    .is_some_and(|b| !b.eq_ignore_ascii_case("main") && !b.is_empty());
+                if !has_branch {
+                    let Some(sid) = request.session_id.as_deref() else {
+                        return Ok(QueryResponse {
+                            columns: Vec::new(),
+                            rows: Vec::new(),
+                            affected_rows: Some(0),
+                            execution_time_ms: start.elapsed().as_millis() as u64,
+                            truncated: false,
+                            warnings: vec![
+                                "WARNING: there is no transaction in progress".to_string(),
+                            ],
+                            energy_joules: None,
+                            power_watts: None,
+                            device_target: None,
+                            algorithm_type: None,
+                            session_id: None,
+                            viz_hint: None,
+                            energy_receipt: None,
+                        });
+                    };
+                    let rb_res = self
+                        .mvcc
+                        .rollback_transaction(sid)
+                        .map_err(|e| QueryErrorResponse::execution_error(&e.to_string()));
+                    self.row_lock_manager.release_session(sid);
+                    rb_res?;
+                    return Ok(QueryResponse {
+                        columns: Vec::new(),
+                        rows: Vec::new(),
+                        affected_rows: Some(0),
+                        execution_time_ms: start.elapsed().as_millis() as u64,
+                        truncated: false,
+                        warnings: Vec::new(),
+                        energy_joules: None,
+                        power_watts: None,
+                        device_target: None,
+                        algorithm_type: None,
+                        session_id: None,
+                        viz_hint: None,
+                        energy_receipt: None,
+                    });
+                }
+            }
+        }
+        let trimmed_upper = trimmed_raw.to_ascii_uppercase();
         if trimmed_upper.starts_with("SET JOULEDB.")
             && let Some(sid) = request.session_id.as_deref()
             && let Some((lhs, rhs)) = sql.trim().trim_end_matches(';').split_once('=')
@@ -4892,40 +5048,50 @@ impl SimpleQueryExecutor {
                 // Fire BEFORE INSERT triggers
                 self.fire_triggers(table_name, "BEFORE", "INSERT");
 
-                // Get column names from INSERT or from table schema
-                let table_columns = self
+                // Single O(1) cached metadata lookup (Arc-backed, zero Vec clones or store read locks!)
+                let (
+                    table_columns_arc,
+                    column_defs_arc,
+                    has_computed,
+                    has_pk,
+                    has_unique,
+                    has_fk,
+                    has_auto_inc,
+                ) = self
                     .amorphic
-                    .columns(table_name)
+                    .cached_table_meta(table_name)
                     .map_err(|_| QueryErrorResponse::table_not_found(table_name))?;
-                // Load column definitions for DEFAULT/NOT NULL/COMPUTED enforcement
-                let column_defs = self
-                    .amorphic
-                    .get_column_defs(table_name)
-                    .unwrap_or_default();
+                let table_columns: &[String] = table_columns_arc.as_slice();
+                let column_defs: &[crate::amorphic_adapter::ColumnDefInfo] =
+                    column_defs_arc.as_slice();
 
                 let insert_columns: Vec<String> = if insert.columns.is_empty() {
-                    // When no explicit column list, exclude computed columns
-                    let computed_names: std::collections::HashSet<&str> = column_defs
-                        .iter()
-                        .filter(|d| d.computed_expr.is_some())
-                        .map(|d| d.name.as_str())
-                        .collect();
-                    table_columns
-                        .iter()
-                        .filter(|c| !computed_names.contains(c.as_str()))
-                        .cloned()
-                        .collect()
-                } else {
-                    // Reject explicit inserts into computed columns
-                    for col in &insert.columns {
-                        if column_defs
+                    if has_computed {
+                        let computed_names: std::collections::HashSet<&str> = column_defs
                             .iter()
-                            .any(|d| d.name == *col && d.computed_expr.is_some())
-                        {
-                            return Err(QueryErrorResponse::execution_error(&format!(
-                                "Cannot INSERT into computed column '{}'",
-                                col
-                            )));
+                            .filter(|d| d.computed_expr.is_some())
+                            .map(|d| d.name.as_str())
+                            .collect();
+                        table_columns
+                            .iter()
+                            .filter(|c| !computed_names.contains(c.as_str()))
+                            .cloned()
+                            .collect()
+                    } else {
+                        table_columns.to_vec()
+                    }
+                } else {
+                    if has_computed {
+                        for col in &insert.columns {
+                            if column_defs
+                                .iter()
+                                .any(|d| d.name == *col && d.computed_expr.is_some())
+                            {
+                                return Err(QueryErrorResponse::execution_error(&format!(
+                                    "Cannot INSERT into computed column '{}'",
+                                    col
+                                )));
+                            }
                         }
                     }
                     insert.columns.clone()
@@ -5012,54 +5178,67 @@ impl SimpleQueryExecutor {
                             let mut insert_cols = insert_columns.clone();
 
                             // Handle auto-increment columns
-                            for col_def in &column_defs {
-                                if col_def.auto_increment {
-                                    let col_pos =
-                                        insert_cols.iter().position(|c| c == &col_def.name);
-                                    let needs_auto = match col_pos {
-                                        None => true,
-                                        Some(idx) => {
-                                            matches!(values.get(idx), Some(AstValue::Null))
-                                        }
-                                    };
-                                    if needs_auto {
-                                        let next_val = self
-                                            .amorphic
-                                            .next_sequence_value(table_name, &col_def.name)
-                                            .map_err(|e| {
-                                                QueryErrorResponse::execution_error(&e.to_string())
-                                            })?;
-                                        if let Some(idx) = col_pos {
-                                            values[idx] = AstValue::Int(next_val);
-                                        } else {
-                                            insert_cols.push(col_def.name.clone());
-                                            values.push(AstValue::Int(next_val));
+                            if has_auto_inc {
+                                for col_def in column_defs {
+                                    if col_def.auto_increment {
+                                        let col_pos =
+                                            insert_cols.iter().position(|c| c == &col_def.name);
+                                        let needs_auto = match col_pos {
+                                            None => true,
+                                            Some(idx) => {
+                                                matches!(values.get(idx), Some(AstValue::Null))
+                                            }
+                                        };
+                                        if needs_auto {
+                                            let next_val = self
+                                                .amorphic
+                                                .next_sequence_value(table_name, &col_def.name)
+                                                .map_err(|e| {
+                                                    QueryErrorResponse::execution_error(
+                                                        &e.to_string(),
+                                                    )
+                                                })?;
+                                            if let Some(idx) = col_pos {
+                                                values[idx] = AstValue::Int(next_val);
+                                            } else {
+                                                insert_cols.push(col_def.name.clone());
+                                                values.push(AstValue::Int(next_val));
+                                            }
                                         }
                                     }
                                 }
                             }
 
                             let row =
-                                apply_defaults_and_validate(insert_cols, values, &column_defs)
+                                apply_defaults_and_validate(insert_cols, values, column_defs)
                                     .map_err(|e| QueryErrorResponse::execution_error(&e))?;
-                            // Check PRIMARY KEY uniqueness
-                            match self.amorphic.check_primary_key_unique(table_name, &row) {
+                            // Check PRIMARY KEY uniqueness (skipped in O(1) when table has no PK!)
+                            let pk_check = if has_pk {
+                                self.amorphic.check_primary_key_unique(table_name, &row)
+                            } else {
+                                Ok(())
+                            };
+                            match pk_check {
                                 Ok(()) => {
                                     // Check UNIQUE constraints (non-PK)
-                                    self.amorphic
-                                        .check_unique_constraints(table_name, &row)
-                                        .map_err(|e| {
-                                            QueryErrorResponse::execution_error(&e.to_string())
-                                        })?;
+                                    if has_unique {
+                                        self.amorphic
+                                            .check_unique_constraints(table_name, &row)
+                                            .map_err(|e| {
+                                                QueryErrorResponse::execution_error(&e.to_string())
+                                            })?;
+                                    }
 
                                     // Validate CHECK constraints
-                                    validate_check_constraints(&column_defs, &row)
+                                    validate_check_constraints(column_defs, &row)
                                         .map_err(|e| QueryErrorResponse::execution_error(&e))?;
 
                                     // Validate FOREIGN KEY constraints
-                                    self.amorphic.check_foreign_keys(table_name, &row).map_err(
-                                        |e| QueryErrorResponse::execution_error(&e.to_string()),
-                                    )?;
+                                    if has_fk {
+                                        self.amorphic.check_foreign_keys(table_name, &row).map_err(
+                                            |e| QueryErrorResponse::execution_error(&e.to_string()),
+                                        )?;
+                                    }
 
                                     // No conflict — insert normally
                                     if has_returning {
@@ -5081,7 +5260,7 @@ impl SimpleQueryExecutor {
                                         self.mvcc.insert(session_id, table_name, &row).map_err(
                                             |e| QueryErrorResponse::execution_error(&e.to_string()),
                                         )?;
-                                        format!("r{}", inserted) // MVCC: no real ID available
+                                        String::new()
                                     } else {
                                         let record_id = self
                                             .amorphic
@@ -5089,16 +5268,19 @@ impl SimpleQueryExecutor {
                                             .map_err(|e| {
                                                 QueryErrorResponse::execution_error(&e.to_string())
                                             })?;
-                                        // Update FTS indexes for newly inserted row
-                                        let mut json_record = serde_json::Map::new();
-                                        for (c, v) in row.columns.iter().zip(row.values.iter()) {
-                                            json_record.insert(c.clone(), ast_value_to_json(v));
+                                        // Update FTS indexes for newly inserted row (only build JSON map if FTS exists!)
+                                        if self.amorphic.has_any_fulltext_indexes() {
+                                            let mut json_record = serde_json::Map::new();
+                                            for (c, v) in row.columns.iter().zip(row.values.iter())
+                                            {
+                                                json_record.insert(c.clone(), ast_value_to_json(v));
+                                            }
+                                            let _ = self.amorphic.update_fulltext_indexes_on_insert(
+                                                table_name,
+                                                record_id,
+                                                &serde_json::Value::Object(json_record),
+                                            );
                                         }
-                                        let _ = self.amorphic.update_fulltext_indexes_on_insert(
-                                            table_name,
-                                            record_id,
-                                            &serde_json::Value::Object(json_record),
-                                        );
                                         record_id.to_string()
                                     };
                                     // Update vector indexes for this row
@@ -5288,7 +5470,7 @@ impl SimpleQueryExecutor {
                             let mut cols = insert_columns.clone();
 
                             // Handle auto-increment columns
-                            for col_def in &column_defs {
+                            for col_def in column_defs {
                                 if col_def.auto_increment {
                                     let col_pos = cols.iter().position(|c| c == &col_def.name);
                                     let needs_auto = match col_pos {
@@ -5514,8 +5696,8 @@ impl SimpleQueryExecutor {
                 };
                 let update = effective_update.as_ref();
 
-                // Validate assignment columns exist and reject computed columns
-                if let Ok(col_defs) = self.amorphic.get_column_defs(table_name) {
+                // Validate assignment columns exist and reject computed columns (Arc-cached, zero Vec clone!)
+                if let Ok((_, col_defs, ..)) = self.amorphic.cached_table_meta(table_name) {
                     if !col_defs.is_empty() {
                         for (col, _) in &update.assignments {
                             if let Some(def) = col_defs.iter().find(|d| d.name == *col) {
@@ -8106,39 +8288,37 @@ impl SimpleQueryExecutor {
                 energy_receipt: None,
             });
         }
+        if query.where_clause.is_some()
+            && let Some((columns, rows, truncated)) = self
+                .amorphic
+                .try_direct_indexed_eq_query(query, request_limit)
+        {
+            return Some(QueryResponse {
+                columns,
+                rows,
+                affected_rows: None,
+                execution_time_ms: start.elapsed().as_millis() as u64,
+                truncated,
+                warnings: vec![],
+                energy_joules: None,
+                power_watts: None,
+                device_target: None,
+                algorithm_type: None,
+                session_id: None,
+                viz_hint: None,
+                energy_receipt: None,
+            });
+        }
         let cols = match self.amorphic.cached_table_columns(table) {
             Some(c) => c,
-            None => {
-                // Fast O(1)/O(k) direct indexed OLTP point-read & aggregate probe when `col_cache` missed!
-                if let Some((columns, rows, truncated)) = self
-                    .amorphic
-                    .try_direct_indexed_eq_query(query, request_limit)
-                {
-                    return Some(QueryResponse {
-                        columns,
-                        rows,
-                        affected_rows: None,
-                        execution_time_ms: start.elapsed().as_millis() as u64,
-                        truncated,
-                        warnings: vec![],
-                        energy_joules: None,
-                        power_watts: None,
-                        device_target: None,
-                        algorithm_type: None,
-                        session_id: None,
-                        viz_hint: None,
-                        energy_receipt: None,
-                    });
-                }
-                match self.amorphic.try_selective_table_columns(
-                    table,
-                    query.where_clause.as_ref(),
-                    4096,
-                ) {
-                    Some(c) => c,
-                    None => self.amorphic.table_columns(table)?,
-                }
-            }
+            None => match self.amorphic.try_selective_table_columns(
+                table,
+                query.where_clause.as_ref(),
+                4096,
+            ) {
+                Some(c) => c,
+                None => self.amorphic.table_columns(table)?,
+            },
         };
         let t1 = Instant::now();
         let mut r = crate::columnar_exec::execute(query, &cols)?;
